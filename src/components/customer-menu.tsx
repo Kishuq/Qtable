@@ -1,0 +1,451 @@
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { inr, upiLink } from "@/lib/format";
+import { CardSkeleton, ItemPhoto, useToast } from "@/components/ux";
+import { ThemeStyles } from "@/components/theme";
+import { themeFromCafe, type Theme } from "@/lib/theme";
+
+type Item = { id: string; name: string; description: string; price: number; imageEmoji: string; imageUrl: string; veg: boolean; popular: boolean; categoryId: string | null };
+type Cat = { id: string; name: string };
+type Coupon = { code: string; pct: number };
+type CafeTheme = { primary: string; accent: string; bg: string; bgMode: string; pattern: string; font: string; radius: string };
+type Data = {
+  cafe: { name: string; tagline: string; description: string; upiId: string; gstPct: number; currency: string; logoEmoji: string; onlineProvider: string | null; theme: CafeTheme };
+  categories: Cat[]; items: Item[]; tables: { code: string }[]; coupons: Coupon[];
+};
+
+type Sort = "rel" | "lo" | "hi" | "pop";
+
+// Pure customer menu. tableCode comes from the QR (/t/T1); null = opened directly (/).
+export function MenuApp({ tableCode }: { tableCode: string | null }) {
+  const toast = useToast();
+  const [data, setData] = useState<Data | null>(null);
+  const [err, setErr] = useState("");
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState("ALL");
+  const [vegOnly, setVegOnly] = useState(false);
+  const [sort, setSort] = useState<Sort>("rel");
+  const [cart, setCart] = useState<Record<string, number>>({});
+  const [checkout, setCheckout] = useState(false);
+  const [placing, setPlacing] = useState(false);
+  const [quick, setQuick] = useState<Item | null>(null);
+  const [quickQty, setQuickQty] = useState(1);
+  const [form, setForm] = useState({
+    name: "", phone: "", coupon: "", pay: "COUNTER" as "COUNTER" | "UPI" | "ONLINE",
+    note: "", dtype: (tableCode ? "DINEIN" : "TAKEAWAY") as "DINEIN" | "TAKEAWAY", manualTable: "",
+  });
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const cartKey = `qrserve_cart_${tableCode || "main"}`;
+
+  useEffect(() => {
+    fetch("/api/public/cafe").then(async (r) => {
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Cafe not found");
+      setData(j);
+    }).catch((e) => setErr(e.message));
+    try {
+      const saved = JSON.parse(localStorage.getItem(cartKey) || "{}");
+      if (saved && typeof saved === "object") setCart(saved);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(cartKey, JSON.stringify(cart)); } catch { /* private mode */ }
+  }, [cart, cartKey]);
+
+  const items = useMemo(() => {
+    if (!data) return [];
+    const list = data.items.filter((i) =>
+      (cat === "ALL" || i.categoryId === cat || (cat === "POPULAR" && i.popular)) &&
+      (!vegOnly || i.veg) &&
+      (!q || (i.name + " " + i.description).toLowerCase().includes(q.toLowerCase()))
+    );
+    if (sort === "lo") return [...list].sort((a, b) => a.price - b.price);
+    if (sort === "hi") return [...list].sort((a, b) => b.price - a.price);
+    if (sort === "pop") return [...list].sort((a, b) => Number(b.popular) - Number(a.popular));
+    return list;
+  }, [data, cat, vegOnly, q, sort]);
+
+  const popular = useMemo(() => (data ? data.items.filter((i) => i.popular).slice(0, 6) : []), [data]);
+
+  const cartLines = useMemo(() => {
+    if (!data) return [];
+    return Object.entries(cart).map(([id, qty]) => ({ item: data.items.find((i) => i.id === id)!, qty })).filter((l) => l.item && l.qty > 0);
+  }, [cart, data]);
+  const subtotal = cartLines.reduce((a, l) => a + l.item.price * l.qty, 0);
+  const count = cartLines.reduce((a, l) => a + l.qty, 0);
+  const couponPct = data?.coupons.find((c) => c.code === form.coupon.trim().toUpperCase())?.pct || 0;
+  const discount = Math.round((subtotal * couponPct) / 100);
+  const tax = data ? Math.round(((subtotal - discount) * data.cafe.gstPct) / 100) : 0;
+  const total = subtotal - discount + tax;
+  const effectiveTable = tableCode || form.manualTable.trim().toUpperCase();
+
+  function add(id: string, name: string, qty = 1) {
+    setCart((c) => ({ ...c, [id]: Math.min(20, (c[id] || 0) + qty) }));
+    setLastAdded(id);
+    setTimeout(() => setLastAdded(null), 400);
+    if (!cart[id]) toast(`${name} added`, "ok");
+  }
+  function sub(id: string) { setCart((c) => { const n = { ...c }; n[id] = (n[id] || 0) - 1; if (n[id] <= 0) delete n[id]; return n; }); }
+
+  function saveRecent(id: string, token: number) {
+    try {
+      const raw = JSON.parse(localStorage.getItem("qrserve_recent") || "[]");
+      const next = [{ id, token }, ...raw.filter((r: { id: string }) => r.id !== id)].slice(0, 10);
+      localStorage.setItem("qrserve_recent", JSON.stringify(next));
+    } catch { /* private mode */ }
+  }
+
+  async function createOrder(): Promise<string> {
+    if (form.dtype === "DINEIN" && !effectiveTable) throw new Error("Please enter your table number.");
+    if (form.dtype === "DINEIN" && !tableCode && data && !data.tables.some((t) => t.code === effectiveTable)) throw new Error(`Table ${effectiveTable} doesn't exist — check the QR on your table.`);
+    const r = await fetch("/api/public/order", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tableCode: effectiveTable || "TAKEAWAY", customerName: form.name || "Guest", customerPhone: form.phone, type: form.dtype, paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Order failed");
+    saveRecent(j.order.id, j.order.tokenNo);
+    try { localStorage.removeItem(cartKey); } catch { /* noop */ }
+    return j.order.id as string;
+  }
+
+  function loadRazorpay(): Promise<boolean> {
+    if ((window as unknown as { Razorpay?: unknown }).Razorpay) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const s = document.createElement("script");
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.body.appendChild(s);
+    });
+  }
+
+  async function payOnline(orderId: string, provider: string) {
+    if (provider === "stripe") {
+      const r = await fetch("/api/public/pay/stripe/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId }) });
+      const j = await r.json();
+      if (!r.ok || !j.url) throw new Error(j.error || "Could not start online payment.");
+      window.location.href = j.url as string;
+      return;
+    }
+    // Razorpay: verified inline checkout
+    const r = await fetch("/api/public/pay/razorpay/order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Could not start online payment.");
+    if (!(await loadRazorpay())) throw new Error("Payment popup blocked — check connection and retry from tracking page.");
+    const RZP = (window as unknown as { Razorpay: new (o: Record<string, unknown>) => { open(): void } }).Razorpay;
+    await new Promise<void>((resolve) => {
+      const rz = new RZP({
+        key: j.keyId, amount: j.amount, currency: j.currency, name: j.name,
+        description: `Order #${j.tokenNo}`, order_id: j.rzpOrderId,
+        prefill: { name: form.name || "Guest", contact: form.phone || "" },
+        theme: { color: "#c2410c" },
+        handler: (resp: unknown) => {
+          const d = resp as { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string };
+          fetch("/api/public/pay/razorpay/verify", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, ...d }),
+          }).then(async (vr) => {
+            if (!vr.ok) {
+              const vj = await vr.json().catch(() => ({}));
+              toast((vj as { error?: string }).error || "Verification failed", "err");
+            } else toast("Payment verified ✓", "ok");
+            window.location.href = `/order/${orderId}`;
+          }).catch(() => { window.location.href = `/order/${orderId}`; });
+          resolve();
+        },
+        modal: { ondismiss: () => { window.location.href = `/order/${orderId}`; resolve(); } },
+      });
+      rz.open();
+    });
+  }
+
+  async function place() {
+    setPlacing(true); setErr("");
+    try {
+      const orderId = await createOrder();
+      const provider = data?.cafe.onlineProvider || null;
+      if (form.pay === "ONLINE" && provider) {
+        try {
+          await payOnline(orderId, provider);
+          return; // gateway redirected (stripe) or handler redirected (razorpay)
+        } catch (e: unknown) {
+          // Order EXISTS (kitchen has it) — payment just didn't complete.
+          toast(e instanceof Error ? e.message : "Online payment failed", "err");
+          window.location.href = `/order/${orderId}`;
+          return;
+        }
+      }
+      window.location.href = `/order/${orderId}`;
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Order failed"); } finally { setPlacing(false); }
+  }
+
+  if (err && !data) return <div className="mx-auto max-w-md flex-1 px-5 py-20 text-center"><p className="text-4xl">😕</p><p className="mt-3 font-bold">{err}</p><Link href="/" className="mt-4 inline-block font-bold text-orange-400">← Home</Link></div>;
+  if (!data) return <div className="mx-auto w-full max-w-xl flex-1 space-y-3 px-4 pt-6"><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
+  const theme: Theme = themeFromCafe(data.cafe.theme);
+
+  const upiUrl = data.cafe.upiId ? upiLink(data.cafe.upiId, data.cafe.name, total / 100, `Table ${effectiveTable}`) : "";
+  const onlineProvider = data.cafe.onlineProvider || null;
+  // UPI is only offered when the owner actually set their UPI ID —
+  // otherwise money would have nowhere to go.
+  // UPI is India-only: offered only when the cafe bills in INR *and* set its UPI ID.
+  // US/EU cafes automatically get Counter + card checkout instead.
+  const payModes = useMemo(() => {
+    const m: ("COUNTER" | "UPI" | "ONLINE")[] = ["COUNTER"];
+    if (data.cafe.upiId && data.cafe.currency === "INR") m.push("UPI");
+    if (onlineProvider) m.push("ONLINE");
+    return m;
+  }, [data.cafe.upiId, data.cafe.currency, onlineProvider]);
+
+  useEffect(() => {
+    if (!payModes.includes(form.pay)) setForm((f) => ({ ...f, pay: "COUNTER" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payModes]);
+  const catName = (id: string | null) => data.categories.find((c) => c.id === id)?.name || "Chef's picks";
+  const flat = sort !== "rel";
+
+  return (
+    <ThemeStyles theme={theme}>
+    <div className="mx-auto w-full max-w-xl flex-1 pb-32">
+      {/* Header — menu only, no distractions */}
+      <div className="sticky top-0 z-30 border-b border-white/10 backdrop-blur-xl" style={{ background: "color-mix(in srgb, var(--tbg) 88%, transparent)" }}>
+        <div className="flex items-center gap-2.5 px-4 py-3">
+          <span className="t-grad grid size-11 place-items-center rounded-2xl text-2xl shadow-lg">{data.cafe.logoEmoji}</span>
+          <div className="min-w-0 flex-1">
+            <p className="t-heading truncate font-black leading-tight">{data.cafe.name}</p>
+            <p className="t-accent-text truncate text-[11px] font-bold">{data.cafe.tagline}</p>
+          </div>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open</span>
+        </div>
+        <div className="flex gap-2 px-4 pb-2.5">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Craving something? Search…" className="t-card min-w-0 flex-1 border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition" />
+          <button onClick={() => setVegOnly(!vegOnly)} className={`shrink-0 rounded-2xl border px-3.5 text-xs font-black transition ${vegOnly ? "border-green-500 bg-green-500/15 text-green-300" : "border-white/10 opacity-70"}`}>● VEG</button>
+          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="t-card shrink-0 border border-white/10 bg-white/5 px-2 py-2.5 text-xs font-bold outline-none" title="Sort dishes">
+            <option value="rel">✨ For you</option>
+            <option value="pop">🔥 Popular</option>
+            <option value="lo">₹ Low → High</option>
+            <option value="hi">₹ High → Low</option>
+          </select>
+        </div>
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
+          {[{ id: "ALL", name: "All" }, { id: "POPULAR", name: "⭐ Popular" }, ...data.categories].map((c) => (
+            <button key={c.id} onClick={() => { setCat(c.id); listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition ${cat === c.id ? "t-grad text-white shadow-lg" : "bg-white/5 opacity-80"}`}>{c.name}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Offers */}
+      {data.coupons.length > 0 && (
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-3">
+          {data.coupons.map((c) => (
+            <button key={c.code} onClick={() => { setForm({ ...form, coupon: c.code }); setCheckout(true); }}
+              className="flex shrink-0 items-center gap-2 rounded-2xl border border-dashed border-amber-500/50 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-200">
+              🎉 {c.code} — {c.pct}% OFF <span className="text-amber-400/70">tap to use →</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Popular rail */}
+      {cat === "ALL" && !q && sort === "rel" && popular.length > 0 && (
+        <div className="pt-4">
+          <p className="t-muted px-4 text-sm font-black">🔥 Most loved right now</p>
+          <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2">
+            {popular.map((i) => (
+              <div key={i.id} className="glass t-card w-40 shrink-0 snap-start overflow-hidden">
+                <button className="relative block h-24 w-full" onClick={() => { setQuick(i); setQuickQty(1); }}>
+                  <ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" />
+                </button>
+                <div className="p-2.5"><p className="truncate text-xs font-bold">{i.name}</p><p className="t-primary-text text-xs font-black">{inr(i.price, data.cafe.currency)}</p>
+                  <button onClick={() => add(i.id, i.name)} className="t-grad mt-1.5 w-full rounded-xl py-1.5 text-[11px] font-black text-white">ADD +</button></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Items */}
+      <div ref={listRef} className="scroll-mt-44 space-y-5 px-4 pt-4">
+        <p className="t-muted text-xs font-bold">{items.length} dish{items.length === 1 ? "" : "es"} • prices include GST</p>
+        {flat ? (
+          <div className="space-y-3">
+            {items.map((i) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+          </div>
+        ) : (data.categories.map((c) => {
+          const list = items.filter((i) => i.categoryId === c.id);
+          if (list.length === 0) return null;
+          return (
+            <div key={c.id}>
+              <p className="t-muted mb-2 text-sm font-black uppercase tracking-wider">{c.name} <span className="opacity-60">• {list.length}</span></p>
+              <div className="space-y-3">
+                {list.map((i) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+              </div>
+            </div>
+          );
+        }))}
+        {items.length === 0 && <div className="py-10 text-center"><p className="text-4xl">🍽️</p><p className="t-muted mt-2 text-sm">Nothing matches — try another craving.</p></div>}
+      </div>
+
+      {/* Cart bar */}
+      {count > 0 && !checkout && !quick && (
+        <button onClick={() => setCheckout(true)} className="t-grad animate-pulse-ring fixed bottom-5 left-1/2 z-40 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-2xl p-4 text-left font-black text-white shadow-2xl transition active:scale-[.98]">
+          <span className="flex items-center justify-between"><span>🛒 {count} item{count > 1 ? "s" : ""} • {inr(subtotal, data.cafe.currency)}</span><span>Review order →</span></span>
+        </button>
+      )}
+
+      {/* Quick view */}
+      {quick && (
+        <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-5" onClick={() => setQuick(null)}>
+          <div className="animate-sheet-up w-full max-w-md overflow-hidden rounded-t-3xl bg-stone-900 text-stone-100 sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative h-56">
+              <ItemPhoto url={quick.imageUrl} emoji={quick.imageEmoji} size="size-full" rounded="rounded-none" />
+              <button onClick={() => setQuick(null)} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white">✕</button>
+              {quick.popular && <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-black text-black">★ POPULAR</span>}
+            </div>
+            <div className="p-5">
+              <div className="flex items-center gap-2">
+                <span className={`grid size-4 place-items-center rounded border text-[10px] ${quick.veg ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}`}>●</span>
+                <h3 className="text-lg font-black">{quick.name}</h3>
+              </div>
+              <p className="mt-1 text-sm text-stone-400">{quick.description || "Made fresh to order."}</p>
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-xl font-black">{inr(quick.price, data.cafe.currency)}</p>
+                <div className="flex items-center gap-3 rounded-full bg-white/10 px-2 py-1.5">
+                  <button onClick={() => setQuickQty(Math.max(1, quickQty - 1))} className="grid size-8 place-items-center rounded-full bg-white/10 text-lg font-black">−</button>
+                  <span className="min-w-5 text-center font-black">{quickQty}</span>
+                  <button onClick={() => setQuickQty(Math.min(20, quickQty + 1))} className="grid size-8 place-items-center rounded-full bg-white/10 text-lg font-black">+</button>
+                </div>
+              </div>
+              <button onClick={() => { add(quick.id, quick.name, quickQty); setQuick(null); }} className="t-grad mt-4 w-full rounded-2xl py-3.5 font-black text-white">
+                Add {quickQty} • {inr(quick.price * quickQty, data.cafe.currency)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout sheet */}
+      {checkout && (
+        <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-5" onClick={() => setCheckout(false)}>
+          <div className="animate-sheet-up max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-white/10 bg-stone-900 p-6 text-stone-100 sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black">Your order{tableCode ? <span className="t-accent-text"> • Table {tableCode}</span> : null}</h2>
+              <button onClick={() => setCheckout(false)} className="grid size-8 place-items-center rounded-full bg-white/5 text-stone-400">✕</button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(["DINEIN", "TAKEAWAY"] as const).map((t) => (
+                <button key={t} onClick={() => setForm({ ...form, dtype: t })} className={`rounded-2xl border py-2.5 text-xs font-black transition ${form.dtype === t ? "t-primary-border bg-white/10" : "border-white/10 text-stone-400"}`}>
+                  {t === "DINEIN" ? "🍽️ Dine-in" : "🥡 Takeaway"}
+                </button>
+              ))}
+            </div>
+            {form.dtype === "DINEIN" && !tableCode && (
+              <input value={form.manualTable} onChange={(e) => setForm({ ...form, manualTable: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })} placeholder="Your table number (see the QR on your table)" className="t-card mt-2 w-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold outline-none" list="table-list" />
+            )}
+            <datalist id="table-list">{data.tables.map((t) => <option key={t.code} value={t.code} />)}</datalist>
+
+            <div className="mt-4 space-y-2">
+              {cartLines.map((l) => (
+                <div key={l.item.id} className="flex items-center gap-3 rounded-2xl bg-white/5 p-2.5 text-sm">
+                  <ItemPhoto url={l.item.imageUrl} emoji={l.item.imageEmoji} size="size-11" rounded="rounded-xl" />
+                  <span className="flex-1 truncate">{l.item.name} <span className="text-stone-400">× {l.qty}</span></span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => sub(l.item.id)} className="grid size-6 place-items-center rounded-full bg-white/10 font-black">−</button>
+                    <button onClick={() => add(l.item.id, l.item.name)} className="grid size-6 place-items-center rounded-full bg-white/10 font-black">+</button>
+                  </div>
+                  <span className="w-16 text-right font-bold">{inr(l.item.price * l.qty, data.cafe.currency)}</span>
+                </div>
+              ))}
+              {cartLines.length === 0 && <p className="py-4 text-center text-sm text-stone-500">Your cart is empty — add something tasty first.</p>}
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your name" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
+              <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone (optional)" inputMode="tel" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input value={form.coupon} onChange={(e) => setForm({ ...form, coupon: e.target.value.toUpperCase() })} placeholder="Coupon code" className="flex-1 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm outline-none focus:border-amber-400" />
+              {couponPct > 0 && <span className="grid place-items-center rounded-2xl bg-emerald-500/15 px-4 text-xs font-black text-emerald-300">−{couponPct}% ✓</span>}
+              {form.coupon.trim() && couponPct === 0 && <span className="grid place-items-center rounded-2xl bg-white/5 px-4 text-xs font-bold text-stone-400">not recognised</span>}
+            </div>
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Note for kitchen (less spicy…)" className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
+
+            <p className="mt-4 text-xs font-black tracking-wider text-stone-400">PAYMENT</p>
+            <div className={`mt-2 grid gap-2 ${onlineProvider ? "grid-cols-3" : "grid-cols-2"}`}>
+              {payModes.map((m) => (
+                <button key={m} onClick={() => setForm({ ...form, pay: m })} className={`rounded-2xl border p-3 text-xs font-black transition ${form.pay === m ? "t-primary-border bg-white/10" : "border-white/10 text-stone-400"}`}>
+                  {m === "COUNTER" ? "💵 At counter" : m === "UPI" ? "📱 UPI" : onlineProvider === "stripe" ? "💳 Card/Stripe" : "💳 UPI/Card"}
+                </button>
+              ))}
+            </div>
+            {!onlineProvider && <p className="mt-1.5 text-[11px] text-stone-500">Online card payment unlocks once the cafe connects its gateway — counter & UPI work now.</p>}
+            {form.pay === "ONLINE" && onlineProvider && (
+              <p className="mt-1.5 rounded-xl bg-emerald-500/10 p-2.5 text-[11px] font-bold text-emerald-200">⚡ Fully automatic — pay inside the secure popup and your order confirms itself. Nothing to paste, nothing to prove.</p>
+            )}
+            {form.pay === "UPI" && data.cafe.upiId && (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                <p className="text-xs text-stone-400">Pay <b className="text-white">{inr(total, data.cafe.currency)}</b> to <b className="text-white">{data.cafe.upiId}</b> via GPay / PhonePe / Paytm</p>
+                {upiUrl && <img src={`/api/qr?text=${encodeURIComponent(upiUrl)}`} alt="UPI QR" className="mx-auto mt-2 size-40 rounded-2xl bg-white p-2" />}
+                <p className="mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-xs font-bold text-emerald-200">Paid? Just tap <b>Place order</b> below — your order fires to the kitchen instantly. The counter confirms it on their screen. No codes, no waiting. ⚡</p>
+              </div>
+            )}
+
+            <div className="mt-4 space-y-1 rounded-2xl bg-white/[.04] p-4 text-sm">
+              <div className="flex justify-between text-stone-400"><span>Subtotal</span><span>{inr(subtotal, data.cafe.currency)}</span></div>
+              {discount > 0 && <div className="flex justify-between text-emerald-300"><span>Discount ({form.coupon})</span><span>−{inr(discount, data.cafe.currency)}</span></div>}
+              <div className="flex justify-between text-stone-400"><span>Tax ({data.cafe.gstPct}%)</span><span>{inr(tax, data.cafe.currency)}</span></div>
+              <div className="flex justify-between border-t border-white/10 pt-2 text-base font-black"><span>To pay</span><span>{inr(total, data.cafe.currency)}</span></div>
+            </div>
+
+            {err && <p className="mt-3 rounded-2xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
+            <button onClick={place} disabled={placing || cartLines.length === 0} className="t-grad mt-4 w-full rounded-2xl py-4 font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99] disabled:opacity-50">
+              {placing ? "Sending to kitchen… 🔔" : form.pay === "UPI" ? `✓ I've Paid — Fire My Order • ${inr(total, data.cafe.currency)}` : `Place order • ${inr(total, data.cafe.currency)}`}
+            </button>
+            <p className="mt-2 text-center text-[11px] text-stone-500">Hits the counter + kitchen screens in ~2 seconds 🔔</p>
+          </div>
+        </div>
+      )}
+    </div>
+    </ThemeStyles>
+  );
+}
+
+function DishCard({ item, currency, qty, lastAdded, onAdd, onSub, onQuick }: {
+  item: Item; currency: string; qty: number; lastAdded: boolean;
+  onAdd: () => void; onSub: () => void; onQuick: () => void;
+}) {
+  return (
+    <div className="glass t-card card-hover animate-slide-up overflow-hidden">
+      <div className="flex gap-3 p-3.5">
+        <button onClick={onQuick} className="shrink-0 transition active:scale-95" title="Quick view">
+          <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className={`grid size-4 shrink-0 place-items-center rounded border text-[10px] ${item.veg ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}`}>●</span>
+            <button onClick={onQuick} className="truncate text-left text-sm font-bold hover:underline">{item.name}</button>
+          </div>
+          <p className="t-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">{item.description}</p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="font-black">{inr(item.price, currency)} {item.popular && <span className="ml-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">★</span>}</p>
+            {qty > 0 ? (
+              <div className={`t-grad flex items-center gap-3 rounded-full px-1.5 py-1 text-white shadow-lg ${lastAdded ? "animate-pop" : ""}`}>
+                <button onClick={onSub} className="grid size-7 place-items-center rounded-full bg-black/25 text-lg font-black leading-none">−</button>
+                <span className="min-w-4 text-center text-sm font-black">{qty}</span>
+                <button onClick={onAdd} className="grid size-7 place-items-center rounded-full bg-black/25 text-lg font-black leading-none">+</button>
+              </div>
+            ) : (
+              <button onClick={onAdd} className="t-primary-border t-primary-text rounded-full border bg-white/5 px-5 py-1.5 text-xs font-black transition active:scale-95">ADD +</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
