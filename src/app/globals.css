@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: #0c0a09;
+  color: #fafaf9;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ---------- Theme engine (owner-customisable customer UI) ---------- */
+.t-scope { --tp: #c2410c; --ta: #f59e0b; --tbg: #0c0a09; --tfont: system-ui, sans-serif; font-family: var(--tfont); }
+.t-scope h1, .t-scope h2, .t-scope .t-heading { font-family: var(--tfont); }
+.t-dark { color: #fafaf9; }
+.t-scope .t-muted { color: #a8a29e; }
+.t-light { color: #1c1917; }
+.t-light .glass { background: rgba(255,255,255,.65); border-color: rgba(0,0,0,.08); }
+.t-light .t-muted { color: #57534e !important; }
+.t-primary-bg { background: var(--tp) !important; }
+.t-primary-text { color: var(--tp) !important; }
+.t-primary-border { border-color: var(--tp) !important; }
+.t-accent-bg { background: var(--ta) !important; }
+.t-accent-text { color: var(--ta) !important; }
+.t-grad { background: linear-gradient(120deg, var(--tp), var(--ta)) !important; }
+.t-pattern-dots { background-image: radial-gradient(rgba(255,255,255,.09) 1.2px, transparent 1.2px); background-size: 22px 22px; }
+.t-pattern-grid { background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px); background-size: 26px 26px; }
+.t-pattern-waves { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='24'%3E%3Cpath d='M0 12 Q 18 2 36 12 T 72 12' fill='none' stroke='rgba(255,255,255,0.08)' stroke-width='2'/%3E%3C/svg%3E"); background-size: 72px 24px; }
+.t-radius-rounded { --tr: 1.5rem; }
+.t-radius-soft { --tr: 2.5rem; }
+.t-radius-sharp { --tr: 0.5rem; }
+.t-scope .glass, .t-scope .t-card { border-radius: var(--tr, 1.5rem); }
+
+.card-hover { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
+.card-hover:hover { transform: translateY(-3px); box-shadow: 0 20px 50px -20px rgba(194, 65, 12, 0.45); border-color: rgba(251, 146, 60, 0.4); }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.animate-floaty { animation: floaty 5s ease-in-out infinite; }
+
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(251,146,60,.5);} 70% { box-shadow: 0 0 0 14px rgba(251,146,60,0);} 100% { box-shadow: 0 0 0 0 rgba(251,146,60,0);} }
+.animate-pulse-ring { animation: pulse-ring 1.8s ease-out infinite; }
+
+@keyframes slide-up { from { opacity: 0; transform: translateY(14px);} to { opacity: 1; transform: none; } }
+.animate-slide-up { animation: slide-up .35s ease both; }
+
+@keyframes toast-in { from { opacity: 0; transform: translateY(12px) scale(.97);} to { opacity: 1; transform: none; } }
+.animate-toast-in { animation: toast-in .25s ease both; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.animate-shimmer { background-size: 800px 100%; animation: shimmer 1.4s linear infinite; }
+
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.animate-marquee { animation: marquee 28s linear infinite; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: fade-in .3s ease both; }
+
+@keyframes sheet-up { from { opacity: .4; transform: translateY(40px);} to { opacity: 1; transform: none; } }
+.animate-sheet-up { animation: sheet-up .3s cubic-bezier(.32,.72,.35,1) both; }
+
+@keyframes pop { 0% { transform: scale(.6); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+.animate-pop { animation: pop .25s ease both; }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; color: black !important; }
+  /* Designed tent cards: exact colours, two per page */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .qr-print-grid { display: block !important; }
+  .qr-card {
+    box-shadow: none !important;
+    border: 2px solid #e7e5e4 !important;
+    margin: 0 auto 20px auto !important;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .qr-img { width: 230px !important; height: 230px !important; }
+  .qr-url { display: none !important; }
+}
