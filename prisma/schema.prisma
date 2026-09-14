@@ -1,0 +1,184 @@
+// Single-cafe app — SQLite for dev, Postgres (Supabase/Neon/RDS) for production.
+// Prod: change provider to "postgresql" (Docker image does this automatically)
+// and point DATABASE_URL at the pooler + DIRECT_URL at the direct connection.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "sqlite"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("OWNER") // OWNER | STAFF | KITCHEN
+  cafeId       String?
+  cafe         Cafe?    @relation(fields: [cafeId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  auditLogs    AuditLog[]
+}
+
+model Cafe {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  tagline      String   @default("Scan. Order. Sip. Repeat.")
+  description  String   @default("")
+  currency     String   @default("INR")
+  upiId        String   @default("")
+  logoEmoji    String   @default("☕")
+  primaryColor String   @default("#c2410c")
+  // ---- Design studio theme (owner-customisable) ----
+  themePrimary String   @default("#c2410c")
+  themeAccent  String   @default("#f59e0b")
+  themeBg      String   @default("#0c0a09")
+  themeBgMode  String   @default("solid") // solid | gradient
+  themePattern String   @default("none") // none | dots | grid | waves
+  themeFont    String   @default("inter") // inter | playfair | poppins | dmserif | nunito | space
+  themeRadius  String   @default("rounded") // rounded | soft | sharp
+  isActive     Boolean  @default(true)
+  ownerId      String
+  gstPct       Float    @default(5)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users      User[]
+  categories Category[]
+  items      MenuItem[]
+  tables     CafeTable[]
+  orders     Order[]
+  payments   Payment[]
+  coupons    Coupon[]
+  feedbacks  Feedback[]
+}
+
+model Category {
+  id     String @id @default(cuid())
+  cafeId String
+  cafe   Cafe   @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  name   String
+  sort   Int    @default(0)
+
+  items MenuItem[]
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  cafeId      String
+  cafe        Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name        String
+  description String   @default("")
+  price       Int      // in paise (₹1 = 100)
+  imageEmoji  String   @default("🍽️")
+  imageUrl    String   @default("")
+  veg         Boolean  @default(true)
+  available   Boolean  @default(true)
+  popular     Boolean  @default(false)
+  sort        Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model CafeTable {
+  id      String  @id @default(cuid())
+  cafeId  String
+  cafe    Cafe    @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  code    String  // T1, T2...
+  name    String  @default("")
+  qrToken String  @unique @default(cuid())
+  active  Boolean @default(true)
+
+  orders Order[]
+
+  @@unique([cafeId, code])
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  cafeId        String
+  cafe          Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  tableId       String?
+  table         CafeTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  tableCode     String   @default("")
+  tokenNo       Int      @default(0)
+  tokenDay      String   @default("") // YYYY-MM-DD — scopes tokenNo uniqueness per day
+  customerName  String   @default("Guest")
+  customerPhone String   @default("")
+  type          String   @default("DINEIN") // DINEIN | TAKEAWAY
+  status        String   @default("NEW") // NEW ACCEPTED PREPARING READY SERVED COMPLETED CANCELLED
+  paymentMode   String   @default("COUNTER") // COUNTER UPI ONLINE
+  paymentStatus String   @default("PENDING") // PENDING PAID FAILED
+  subtotal      Int      @default(0)
+  discount      Int      @default(0)
+  tax           Int      @default(0)
+  total         Int      @default(0)
+  note          String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@unique([cafeId, tokenDay, tokenNo])
+}
+
+model OrderItem {
+  id         String @id @default(cuid())
+  orderId    String
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String @default("")
+  name       String
+  price      Int
+  qty        Int    @default(1)
+  note       String @default("")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  cafeId      String
+  cafe        Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  mode        String   // COUNTER UPI ONLINE
+  status      String   @default("PENDING")
+  amount      Int
+  providerRef String   @default("")
+  createdAt   DateTime @default(now())
+}
+
+model Coupon {
+  id     String  @id @default(cuid())
+  cafeId String
+  cafe   Cafe    @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  code   String
+  pct    Int     @default(10)
+  active Boolean @default(true)
+
+  @@unique([cafeId, code])
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  cafeId    String
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  orderId   String   @default("")
+  rating    Int      @default(5)
+  comment   String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  cafeId    String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  meta      String   @default("")
+  createdAt DateTime @default(now())
+}
