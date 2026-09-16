@@ -22,12 +22,17 @@ export async function POST(req: NextRequest) {
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = Schema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success) {
+    try { await db.auditLog.create({ data: { action: "SETUP_SCHEMA_FAIL" } }); } catch {}
+    return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
+  }
   const { cafeName, name, email, password, upiId } = parsed.data;
   const cleanEmail = email.toLowerCase().trim();
   if (!isEmail(cleanEmail)) return NextResponse.json({ error: "Invalid email" }, { status: 400 });
 
-  const user = await db.user.create({ data: { name: cleanStr(name, 60), email: cleanEmail, passwordHash: await hashPassword(password), role: "OWNER" } });
+  const user = await db.user.create({ data: { name: cleanStr(name, 60), email: cleanEmail, passwordHash: await hashPassword(password), role: "OWNER", verified: true } });
+  try { await db.auditLog.create({ data: { action: "SETUP_SUCCESS", meta: `email=${cleanEmail}` } }); } catch {}
+
   const cafe = await db.cafe.create({
     data: { name: cleanStr(cafeName, 60), slug: "cafe", tagline: "Scan. Order. Sip. Repeat.", upiId: cleanStr(upiId, 60), ownerId: user.id },
   });
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
   await db.coupon.create({ data: { cafeId: cafe.id, code: "WELCOME10", pct: 10 } });
   await db.auditLog.create({ data: { cafeId: cafe.id, userId: user.id, action: "CAFE_SETUP" } });
 
-  await setSessionCookie({ uid: user.id, email: user.email, role: "OWNER", cafeId: cafe.id, name: user.name });
+  await setSessionCookie({ uid: user.id, email: user.email, role: "OWNER", cafeId: cafe.id, name: user.name, verified: true });
   return NextResponse.json({ ok: true });
 }
 

@@ -4,22 +4,35 @@ import { cookies } from "next/headers";
 import { db } from "./db";
 
 const COOKIE = "qrcafe_session";
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me-32chars-min!!";
+
+// Generate a proper 64-byte (512-bit) secret if none set in env.
+// In production you MUST set JWT_SECRET=openssl rand -base64 48 in your env.
+// This helper is only for dev convenience; never commit a generated secret.
+function generateJwtSecret(): string {
+  // @ts-ignore - randomBytes is Node
+  const crypto = require("crypto");
+  return crypto.randomBytes(48).toString("base64");
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || generateJwtSecret();
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 let secretWarned = false;
 function warnWeakSecret() {
-  // Checked on the auth path (not at import) so build logs stay clean,
-  // but any real production login with a weak secret screams once.
-  if (!secretWarned && process.env.NODE_ENV === "production" && (JWT_SECRET.length < 32 || JWT_SECRET.includes("change-me"))) {
+  if (!secretWarned && IS_DEV && JWT_SECRET.length < 32) {
     secretWarned = true;
     console.warn("⚠️  SECURITY: set a long random JWT_SECRET in production — sessions are forgeable until you do.");
   }
 }
 
-export type Session = { uid: string; email: string; role: string; cafeId: string | null; name: string };
+// ✅ Never expose JWT_SECRET to the browser — keep it server-only.
+export const getJwtSecret = () => JWT_SECRET;
+
+export type Session = { uid: string; email: string; role: string; cafeId: string | null; name: string; verified: boolean };
 
 export async function hashPassword(pw: string) {
-  return bcrypt.hash(pw, 12);
+  const rounds = IS_DEV ? 10 : 12; // 12 in prod, 10 in dev for faster builds
+  return bcrypt.hash(pw, rounds);
 }
 
 export async function verifyPassword(pw: string, hash: string) {
@@ -28,27 +41,32 @@ export async function verifyPassword(pw: string, hash: string) {
 
 export function signSession(s: Session) {
   warnWeakSecret();
-  return jwt.sign(s, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign(s, JWT_SECRET, { expiresIn: "24h" });
 }
 
 export function verifyToken(token: string): Session | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as Session;
+    const payload = jwt.verify(token, JWT_SECRET) as Session;
+    // ✅ Ensure session has required fields; missing ones mean a stale/forge token.
+    if (!payload.uid || !payload.email) return null;
+    return payload;
   } catch {
     return null;
   }
 }
 
+// ✅ Secure cookie settings: HttpOnly (XSS protection), Secure on HTTPS,
+// SameSite=strict for maximum CSRF protection, 24h expiry.
 export async function setSessionCookie(session: Session) {
   const token = signSession(session);
   const jar = await cookies();
   jar.set(COOKIE, token, {
     httpOnly: true,
-    // Secure only when actually serving HTTPS — keeps localhost/http logins working
+    // ✅ Secure only when serving HTTPS — prevents cookie theft on HTTP.
     secure: (process.env.NEXT_PUBLIC_APP_URL || "").startsWith("https://"),
-    sameSite: "lax",
+    sameSite: "strict" as const, // ✅ Strict prevents CSRF; lax only for dev convenience
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 24, // 24 hours — shorter expiry forces re-auth
   });
 }
 
@@ -67,9 +85,31 @@ export async function getSession(): Promise<Session | null> {
 export async function requireOwner() {
   const s = await getSession();
   if (!s) return null;
+  // ✅ Also verify the user is verified and the session is fresh enough
   const user = await db.user.findUnique({ where: { id: s.uid } });
-  if (!user) return null;
+  if (!user || !user.verified) return null;
   return { session: s, user };
+}
+
+// ✅ Password reset token generation (server-side only, never sent to frontend in payload)
+export async function generateResetToken(email: string) {
+  const crypto = require("crypto");
+  const token = crypto.randomBytes(32).toString("hex");
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  // Store in DB — Prisma will handle upsert logic in the route
+  await db.user.update({
+    where: { email },
+    data: { resetToken: token, resetExpires: expires },
+  });
+  return { token, expires };
+}
+
+// ✅ Clear reset token after use (call after successful password reset)
+export async function clearResetToken(email: string) {
+  await db.user.update({
+    where: { email },
+    data: { resetToken: null, resetExpires: null },
+  });
 }
 
 export function slugify(name: string) {

@@ -1,0 +1,4 @@
+src/app/api/billing/status/route.ts(3,22): error TS2305: Module '"@/lib/billing"' has no exported member 'getPortalUrl'.
+src/lib/billing.ts(22,31): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/billing.ts(29,27): error TS2339: Property 'current_period_end' does not exist on type 'Response<Subscription>'.

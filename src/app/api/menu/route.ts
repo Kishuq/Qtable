@@ -4,6 +4,16 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cleanStr } from "@/lib/security";
 
+// ✅ Simple URL validator — must start with http:// or https:// (no data: URIs, no javascript:)
+function isValidImageUrl(v: string): boolean {
+  try {
+    new URL(v);
+    return v.startsWith("http://") || v.startsWith("https://");
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -40,7 +50,7 @@ export async function POST(req: NextRequest) {
     if (!c) return NextResponse.json({ error: "Invalid category" }, { status: 400 });
   }
   const count = await db.menuItem.count({ where: { cafeId: s.cafeId } });
-  const photo = cleanStr(d.imageUrl, 500).startsWith("http") ? cleanStr(d.imageUrl, 500) : "";
+  const photo = isValidImageUrl(d.imageUrl) ? d.imageUrl : "";
   const item = d.id
     ? await db.menuItem.update({ where: { id: d.id }, data: { categoryId: d.categoryId || null, name: cleanStr(d.name, 80), description: cleanStr(d.description, 300), price: d.price, imageEmoji: cleanStr(d.imageEmoji, 12) || "🍽️", imageUrl: photo, veg: d.veg, available: d.available, popular: d.popular } })
     : await db.menuItem.create({ data: { cafeId: s.cafeId!, categoryId: d.categoryId || null, name: cleanStr(d.name, 80), description: cleanStr(d.description, 300), price: d.price, imageEmoji: cleanStr(d.imageEmoji, 12) || "🍽️", imageUrl: photo, veg: d.veg, available: d.available, popular: d.popular, sort: count } });

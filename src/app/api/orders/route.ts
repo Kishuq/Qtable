@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isEmail, rateLimit, clientKey, tooMany, cleanStr } from "@/lib/security";
 
 async function guard() {
   const s = await getSession();
@@ -8,21 +9,32 @@ async function guard() {
   return s;
 }
 
+// ✅ Allowed status values for the orders list filter
+const ALLOWED_STATUSES = ["NEW", "ACCEPTED", "PREPARING", "READY", "SERVED", "COMPLETED", "CANCELLED", "ALL"] as const;
+
 export async function GET(req: NextRequest) {
   const s = await guard();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // ✅ Validate and sanitize query parameters
   const status = req.nextUrl.searchParams.get("status") || "";
-  const q = req.nextUrl.searchParams.get("q") || "";
+  // ✅ Only allow known status values; unknown values fallback to showing all
+  const safeStatus = ALLOWED_STATUSES.includes(status as any) ? status : "";
+
+  const q = cleanStr(req.nextUrl.searchParams.get("q") || "", 100); // ✅ max 100 chars, sanitized
   const from = req.nextUrl.searchParams.get("from") || "";
   const to = req.nextUrl.searchParams.get("to") || "";
   const history = req.nextUrl.searchParams.get("history") === "1";
-  const gte = from ? new Date(`${from}T00:00:00`) : undefined;
-  const lte = to ? new Date(`${to}T23:59:59`) : undefined;
+
+  // ✅ Validate date format (YYYY-MM-DD) if provided — prevent injection via date fields
+  const gte = from ? ( /^\d{4}-\d{2}-\d{2}$/.test(from) ? new Date(`${from}T00:00:00`) : undefined ) : undefined;
+  const lte = to ? ( /^\d{4}-\d{2}-\d{2}$/.test(to) ? new Date(`${to}T23:59:59`) : undefined ) : undefined;
+
   const createdAt = gte || lte ? { ...(gte && !isNaN(+gte) ? { gte } : {}), ...(lte && !isNaN(+lte) ? { lte } : {}) } : undefined;
   const orders = await db.order.findMany({
     where: {
       cafeId: s.cafeId,
-      ...(status && status !== "ALL" ? { status } : {}),
+      ...(safeStatus && safeStatus !== "ALL" ? { status: safeStatus as string } : {}),
       ...(createdAt ? { createdAt } : {}),
       ...(q ? { OR: [{ tableCode: { contains: q } }, { customerName: { contains: q } }, { customerPhone: { contains: q } }] } : {}),
     },

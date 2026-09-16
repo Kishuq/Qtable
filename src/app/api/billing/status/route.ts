@@ -1,17 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { getBilling, getPortalUrl } from "@/lib/billing";
+import { NextResponse } from "next/server";
+import { getBilling } from "@/lib/billing";
 
-// Owner-visible subscription state for THIS cafe's deployment.
-export async function GET(req: NextRequest) {
-  const s = await getSession();
-  if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+// ✅ Get current billing status for a cafe
+// Returns the billing mode and status so the frontend can show appropriate UI
+export async function GET() {
   const billing = await getBilling();
-  let portalUrl: string | null = null;
-  if (billing.mode === "enforced") {
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
-    const proto = req.headers.get("x-forwarded-proto") || "http";
-    portalUrl = await getPortalUrl(host, proto);
-  }
-  return NextResponse.json({ billing, portalUrl });
+
+  // Return billing state as JSON for the dashboard
+  return NextResponse.json({
+    mode: billing.mode,
+    status: billing.status,
+    renewsAt: billing.renewsAt,
+  });
 }

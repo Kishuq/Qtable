@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "sqlite"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -16,6 +16,9 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
+  verified     Boolean  @default(false) // email verified
+  resetToken   String?  // password reset token
+  resetExpires DateTime? // password reset token expiry
   role         String   @default("OWNER") // OWNER | STAFF | KITCHEN
   cafeId       String?
   cafe         Cafe?    @relation(fields: [cafeId], references: [id], onDelete: SetNull)
