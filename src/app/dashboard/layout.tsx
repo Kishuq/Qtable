@@ -80,7 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main */}
       <div className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-0">
-        {billing && billing.billing.mode === "enforced" && ["past_due", "unpaid", "canceled"].includes(billing.billing.status) && (
+        {billing?.billing?.mode === "enforced" && ["past_due", "unpaid", "canceled"].includes(billing.billing.status) && (
           <div className="no-print mb-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm">
             <p className="font-black text-red-200">⚠️ Subscription {billing.billing.status.replace("_", " ")} — customer ordering keeps working, but update payment to stay supported.</p>
             {billing.portalUrl ? <a href={billing.portalUrl} className="mt-1 inline-block font-bold text-red-300 underline">Update payment method →</a> : <p className="mt-1 text-red-300/70">Contact QRServe support to reactivate.</p>}
