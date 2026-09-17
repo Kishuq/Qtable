@@ -33,7 +33,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const [quickQty, setQuickQty] = useState(1);
   const [form, setForm] = useState({
     name: "", phone: "", coupon: "", pay: "COUNTER" as "COUNTER" | "UPI" | "ONLINE",
-    note: "", dtype: (tableCode ? "DINEIN" : "TAKEAWAY") as "DINEIN" | "TAKEAWAY", manualTable: "",
+    note: "", dtype: "DINEIN" as const,
   });
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -81,7 +81,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const discount = Math.round((subtotal * couponPct) / 100);
   const tax = data ? Math.round(((subtotal - discount) * data.cafe.gstPct) / 100) : 0;
   const total = subtotal - discount + tax;
-  const effectiveTable = tableCode || form.manualTable.trim().toUpperCase();
+  const effectiveTable = tableCode || "";
 
   function add(id: string, name: string, qty = 1) {
     setCart((c) => ({ ...c, [id]: Math.min(20, (c[id] || 0) + qty) }));
@@ -100,11 +100,11 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   }
 
   async function createOrder(): Promise<string> {
-    if (form.dtype === "DINEIN" && !effectiveTable) throw new Error("Please enter your table number.");
-    if (form.dtype === "DINEIN" && !tableCode && data && !data.tables.some((t) => t.code === effectiveTable)) throw new Error(`Table ${effectiveTable} doesn't exist — check the QR on your table.`);
+    // Table auto-identified from QR only — no manual entry.
+    if (!tableCode) throw new Error("Please scan the table QR to order.");
     const r = await fetch("/api/public/order", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tableCode: effectiveTable || "TAKEAWAY", customerName: form.name || "Guest", customerPhone: form.phone, type: form.dtype, paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
+      body: JSON.stringify({ tableCode, customerName: form.name || "Guest", customerPhone: form.phone, type: "DINEIN", paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "Order failed");
@@ -212,41 +212,52 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   return (
     <ThemeStyles theme={theme}>
     <div className="mx-auto w-full max-w-xl flex-1 pb-32">
-      {/* Header — menu only, no distractions */}
-      <div className="sticky top-0 z-30 border-b border-white/10 backdrop-blur-xl" style={{ background: "color-mix(in srgb, var(--tbg) 88%, transparent)" }}>
-        <div className="flex items-center gap-2.5 px-4 py-3">
-          <span className="t-grad grid size-11 place-items-center rounded-2xl text-2xl shadow-lg">{data.cafe.logoEmoji}</span>
+      {/* Header — branded hero, sticky controls below */}
+      <div className="relative overflow-hidden">
+        <div className="t-grad pointer-events-none absolute -top-20 left-1/2 h-56 w-[130%] -translate-x-1/2 rounded-[100%] opacity-25 blur-2xl" />
+        <div className="relative flex items-center gap-3 px-4 pb-2 pt-5">
+          <span className="t-grad grid size-14 shrink-0 place-items-center rounded-3xl text-3xl shadow-xl ring-1 ring-white/20">{data.cafe.logoEmoji}</span>
           <div className="min-w-0 flex-1">
-            <p className="t-heading truncate font-black leading-tight">{data.cafe.name}</p>
-            <p className="t-accent-text truncate text-[11px] font-bold">{data.cafe.tagline}</p>
+            <p className="t-heading truncate text-xl font-black leading-tight tracking-tight">{data.cafe.name}</p>
+            <p className="t-accent-text truncate text-xs font-bold">{data.cafe.tagline}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open now</span>
+              {tableCode && <span className="t-grad rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow">Table {tableCode} • Dine-in</span>}
+              <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-300">{data.items.length} dishes</span>
+            </div>
           </div>
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open</span>
         </div>
-        <div className="flex gap-2 px-4 pb-2.5">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Craving something? Search…" className="t-card min-w-0 flex-1 border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition" />
-          <button onClick={() => setVegOnly(!vegOnly)} className={`shrink-0 rounded-2xl border px-3.5 text-xs font-black transition ${vegOnly ? "border-green-500 bg-green-500/15 text-green-300" : "border-white/10 opacity-70"}`}>● VEG</button>
-          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="t-card shrink-0 border border-white/10 bg-white/5 px-2 py-2.5 text-xs font-bold outline-none" title="Sort dishes">
+      </div>
+      <div className="sticky top-0 z-30 border-b border-white/10 backdrop-blur-xl" style={{ background: "color-mix(in srgb, var(--tbg) 88%, transparent)" }}>
+        <div className="px-4 pb-2.5 pt-2">
+        <div className="flex gap-2 pb-2.5">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Craving something? Search…" className="t-card min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition focus:border-orange-500/60 focus:bg-white/10" />
+          <button onClick={() => setVegOnly(!vegOnly)} className={`shrink-0 rounded-full border px-3.5 text-xs font-black transition active:scale-95 ${vegOnly ? "border-green-500 bg-green-500/15 text-green-300 shadow-lg shadow-green-500/20" : "border-white/10 bg-white/5 opacity-70 hover:opacity-100"}`}>● VEG</button>
+          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="t-card shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-2.5 text-xs font-bold outline-none" title="Sort dishes">
             <option value="rel">✨ For you</option>
             <option value="pop">🔥 Popular</option>
             <option value="lo">₹ Low → High</option>
             <option value="hi">₹ High → Low</option>
           </select>
         </div>
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
           {[{ id: "ALL", name: "All" }, { id: "POPULAR", name: "⭐ Popular" }, ...data.categories].map((c) => (
             <button key={c.id} onClick={() => { setCat(c.id); listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition ${cat === c.id ? "t-grad text-white shadow-lg" : "bg-white/5 opacity-80"}`}>{c.name}</button>
+              className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black transition active:scale-95 ${cat === c.id ? "t-grad scale-105 text-white shadow-lg" : "border border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"}`}>{c.name}</button>
           ))}
+        </div>
         </div>
       </div>
 
       {/* Offers */}
       {data.coupons.length > 0 && (
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-3">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-4">
           {data.coupons.map((c) => (
             <button key={c.code} onClick={() => { setForm({ ...form, coupon: c.code }); setCheckout(true); }}
-              className="flex shrink-0 items-center gap-2 rounded-2xl border border-dashed border-amber-500/50 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-200">
-              🎉 {c.code} — {c.pct}% OFF <span className="text-amber-400/70">tap to use →</span>
+              className="card-hover group flex shrink-0 items-center gap-2.5 rounded-2xl border border-dashed border-amber-500/60 bg-gradient-to-r from-amber-500/15 to-orange-500/10 px-4 py-2.5 text-xs font-black text-amber-200 shadow-lg shadow-amber-500/10">
+              <span className="t-grad grid size-7 place-items-center rounded-xl text-sm">🎉</span>
+              <span>{c.code} — {c.pct}% OFF</span>
+              <span className="text-amber-400/70 transition group-hover:translate-x-0.5">tap to use →</span>
             </button>
           ))}
         </div>
@@ -254,16 +265,20 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Popular rail */}
       {cat === "ALL" && !q && sort === "rel" && popular.length > 0 && (
-        <div className="pt-4">
-          <p className="t-muted px-4 text-sm font-black">🔥 Most loved right now</p>
-          <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2">
+        <div className="pt-5">
+          <div className="flex items-center justify-between px-4">
+            <p className="t-heading text-sm font-black">🔥 Most loved right now</p>
+            <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{popular.length} picks</span>
+          </div>
+          <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5">
             {popular.map((i) => (
-              <div key={i.id} className="glass t-card w-40 shrink-0 snap-start overflow-hidden">
-                <button className="relative block h-24 w-full" onClick={() => { setQuick(i); setQuickQty(1); }}>
-                  <ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" />
+              <div key={i.id} className="glass t-card card-hover w-44 shrink-0 snap-start overflow-hidden">
+                <button className="group relative block h-28 w-full overflow-hidden" onClick={() => { setQuick(i); setQuickQty(1); }}>
+                  <span className="block size-full transition duration-300 group-hover:scale-105"><ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" /></span>
+                  <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
                 </button>
-                <div className="p-2.5"><p className="truncate text-xs font-bold">{i.name}</p><p className="t-primary-text text-xs font-black">{inr(i.price, data.cafe.currency)}</p>
-                  <button onClick={() => add(i.id, i.name)} className="t-grad mt-1.5 w-full rounded-xl py-1.5 text-[11px] font-black text-white">ADD +</button></div>
+                <div className="p-3"><p className="truncate text-xs font-black">{i.name}</p>
+                  <button onClick={() => add(i.id, i.name)} className="t-grad mt-2 w-full rounded-xl py-2 text-[11px] font-black text-white shadow-lg transition hover:brightness-110 active:scale-95">ADD +</button></div>
               </div>
             ))}
           </div>
@@ -271,8 +286,12 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       )}
 
       {/* Items */}
-      <div ref={listRef} className="scroll-mt-44 space-y-5 px-4 pt-4">
-        <p className="t-muted text-xs font-bold">{items.length} dish{items.length === 1 ? "" : "es"} • prices include GST</p>
+      <div ref={listRef} className="scroll-mt-44 space-y-6 px-4 pt-5">
+        <div className="flex items-center gap-2">
+          <p className="t-heading text-sm font-black">Explore the menu</p>
+          <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{items.length} dish{items.length === 1 ? "" : "es"} • incl. GST</span>
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
         {flat ? (
           <div className="space-y-3">
             {items.map((i) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
@@ -282,7 +301,11 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           if (list.length === 0) return null;
           return (
             <div key={c.id}>
-              <p className="t-muted mb-2 text-sm font-black uppercase tracking-wider">{c.name} <span className="opacity-60">• {list.length}</span></p>
+              <div className="mb-2.5 flex items-center gap-2">
+                <p className="t-heading text-sm font-black uppercase tracking-wider">{c.name}</p>
+                <span className="t-grad rounded-full px-2 py-0.5 text-[10px] font-black text-white">{list.length}</span>
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
               <div className="space-y-3">
                 {list.map((i) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
               </div>
@@ -294,8 +317,8 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Cart bar */}
       {count > 0 && !checkout && !quick && (
-        <button onClick={() => setCheckout(true)} className="t-grad animate-pulse-ring fixed bottom-5 left-1/2 z-40 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-2xl p-4 text-left font-black text-white shadow-2xl transition active:scale-[.98]">
-          <span className="flex items-center justify-between"><span>🛒 {count} item{count > 1 ? "s" : ""} • {inr(subtotal, data.cafe.currency)}</span><span>Review order →</span></span>
+        <button onClick={() => setCheckout(true)} className="t-grad animate-pulse-ring fixed bottom-5 left-1/2 z-40 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-3xl border border-white/20 p-4 text-left font-black text-white shadow-2xl transition active:scale-[.98]">
+          <span className="flex items-center justify-between gap-3"><span className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-2xl bg-black/25 text-lg">🛒</span><span><span className="block text-sm">{count} item{count > 1 ? "s" : ""} • {inr(subtotal, data.cafe.currency)}</span><span className="block text-[11px] font-bold opacity-80">GST included • tap to review</span></span></span><span className="shrink-0 rounded-full bg-black/25 px-4 py-2 text-sm">Review →</span></span>
         </button>
       )}
 
@@ -339,15 +362,8 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
               <button onClick={() => setCheckout(false)} className="grid size-8 place-items-center rounded-full bg-white/5 text-stone-400">✕</button>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {(["DINEIN", "TAKEAWAY"] as const).map((t) => (
-                <button key={t} onClick={() => setForm({ ...form, dtype: t })} className={`rounded-2xl border py-2.5 text-xs font-black transition ${form.dtype === t ? "t-primary-border bg-white/10" : "border-white/10 text-stone-400"}`}>
-                  {t === "DINEIN" ? "🍽️ Dine-in" : "🥡 Takeaway"}
-                </button>
-              ))}
-            </div>
-            {form.dtype === "DINEIN" && !tableCode && (
-              <input value={form.manualTable} onChange={(e) => setForm({ ...form, manualTable: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })} placeholder="Your table number (see the QR on your table)" className="t-card mt-2 w-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold outline-none" list="table-list" />
+            {!tableCode && (
+              <p className="t-card mt-3 w-full border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm font-bold text-amber-200">Please scan the table QR to order — table is detected automatically.</p>
             )}
             <datalist id="table-list">{data.tables.map((t) => <option key={t.code} value={t.code} />)}</datalist>
 
@@ -381,7 +397,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             <div className={`mt-2 grid gap-2 ${onlineProvider ? "grid-cols-3" : "grid-cols-2"}`}>
               {payModes.map((m) => (
                 <button key={m} onClick={() => setForm({ ...form, pay: m })} className={`rounded-2xl border p-3 text-xs font-black transition ${form.pay === m ? "t-primary-border bg-white/10" : "border-white/10 text-stone-400"}`}>
-                  {m === "COUNTER" ? "💵 At counter" : m === "UPI" ? "📱 UPI" : onlineProvider === "stripe" ? "💳 Card/Stripe" : "💳 UPI/Card"}
+                  {m === "COUNTER" ? "💵 Cash" : m === "UPI" ? "📱 UPI" : onlineProvider === "stripe" ? "💳 Card/Stripe" : "💳 UPI/Card"}
                 </button>
               ))}
             </div>
@@ -405,7 +421,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             </div>
 
             {err && <p className="mt-3 rounded-2xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
-            <button onClick={place} disabled={placing || cartLines.length === 0} className="t-grad mt-4 w-full rounded-2xl py-4 font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99] disabled:opacity-50">
+            <button onClick={place} disabled={placing || cartLines.length === 0 || !tableCode} className="t-grad mt-4 w-full rounded-2xl py-4 font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99] disabled:opacity-50">
               {placing ? "Sending to kitchen… 🔔" : form.pay === "UPI" ? `✓ I've Paid — Fire My Order • ${inr(total, data.cafe.currency)}` : `Place order • ${inr(total, data.cafe.currency)}`}
             </button>
             <p className="mt-2 text-center text-[11px] text-stone-500">Hits the counter + kitchen screens in ~2 seconds 🔔</p>
@@ -423,18 +439,19 @@ function DishCard({ item, currency, qty, lastAdded, onAdd, onSub, onQuick }: {
 }) {
   return (
     <div className="glass t-card card-hover animate-slide-up overflow-hidden">
-      <div className="flex gap-3 p-3.5">
-        <button onClick={onQuick} className="shrink-0 transition active:scale-95" title="Quick view">
+      <div className="flex gap-3.5 p-4">
+        <button onClick={onQuick} className="group relative shrink-0 overflow-hidden rounded-2xl transition active:scale-95" title="Quick view">
           <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} />
+          {item.popular && <span className="t-grad absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow">★</span>}
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className={`grid size-4 shrink-0 place-items-center rounded border text-[10px] ${item.veg ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}`}>●</span>
-            <button onClick={onQuick} className="truncate text-left text-sm font-bold hover:underline">{item.name}</button>
+            <span className={`grid size-4 shrink-0 place-items-center rounded-md border text-[10px] ${item.veg ? "border-green-500/70 bg-green-500/10 text-green-400" : "border-red-500/70 bg-red-500/10 text-red-400"}`}>●</span>
+            <button onClick={onQuick} className="t-heading truncate text-left text-[15px] font-black hover:underline">{item.name}</button>
           </div>
           <p className="t-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">{item.description}</p>
-          <div className="mt-2 flex items-center justify-between">
-            <p className="font-black">{inr(item.price, currency)} {item.popular && <span className="ml-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">★</span>}</p>
+          <div className="mt-2.5 flex items-center justify-between">
+            <p className="text-[15px] font-black tracking-tight">{inr(item.price, currency)}</p>
             {qty > 0 ? (
               <div className={`t-grad flex items-center gap-3 rounded-full px-1.5 py-1 text-white shadow-lg ${lastAdded ? "animate-pop" : ""}`}>
                 <button onClick={onSub} className="grid size-7 place-items-center rounded-full bg-black/25 text-lg font-black leading-none">−</button>
