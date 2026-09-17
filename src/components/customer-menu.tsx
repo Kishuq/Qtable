@@ -184,27 +184,28 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
     } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Order failed"); } finally { setPlacing(false); }
   }
 
-  if (err && !data) return <div className="mx-auto max-w-md flex-1 px-5 py-20 text-center"><p className="text-4xl">😕</p><p className="mt-3 font-bold">{err}</p><Link href="/" className="mt-4 inline-block font-bold text-orange-400">← Home</Link></div>;
-  if (!data) return <div className="mx-auto w-full max-w-xl flex-1 space-y-3 px-4 pt-6"><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
-  const theme: Theme = themeFromCafe(data.cafe.theme);
-
-  const upiUrl = data.cafe.upiId ? upiLink(data.cafe.upiId, data.cafe.name, total / 100, `Table ${effectiveTable}`) : "";
-  const onlineProvider = data.cafe.onlineProvider || null;
+  const onlineProvider = data?.cafe.onlineProvider || null;
   // UPI is only offered when the owner actually set their UPI ID —
   // otherwise money would have nowhere to go.
   // UPI is India-only: offered only when the cafe bills in INR *and* set its UPI ID.
   // US/EU cafes automatically get Counter + card checkout instead.
+  // NOTE: hooks must stay above early returns (React #310).
   const payModes = useMemo(() => {
     const m: ("COUNTER" | "UPI" | "ONLINE")[] = ["COUNTER"];
-    if (data.cafe.upiId && data.cafe.currency === "INR") m.push("UPI");
+    if (data?.cafe.upiId && data?.cafe.currency === "INR") m.push("UPI");
     if (onlineProvider) m.push("ONLINE");
     return m;
-  }, [data.cafe.upiId, data.cafe.currency, onlineProvider]);
+  }, [data?.cafe.upiId, data?.cafe.currency, onlineProvider]);
 
   useEffect(() => {
     if (!payModes.includes(form.pay)) setForm((f) => ({ ...f, pay: "COUNTER" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payModes]);
+  if (err && !data) return <div className="mx-auto max-w-md flex-1 px-5 py-20 text-center"><p className="text-4xl">😕</p><p className="mt-3 font-bold">{err}</p><Link href="/" className="mt-4 inline-block font-bold text-orange-400">← Home</Link></div>;
+  if (!data) return <div className="mx-auto w-full max-w-xl flex-1 space-y-3 px-4 pt-6"><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
+  const theme: Theme = themeFromCafe(data.cafe.theme);
+
+  const upiUrl = data.cafe.upiId ? upiLink(data.cafe.upiId, data.cafe.name, total / 100, `Table ${effectiveTable}`) : "";
   const catName = (id: string | null) => data.categories.find((c) => c.id === id)?.name || "Chef's picks";
   const flat = sort !== "rel";
 
