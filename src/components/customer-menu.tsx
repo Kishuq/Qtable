@@ -428,6 +428,10 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           </div>
         </div>
       )}
+      <footer className="mx-auto mt-10 flex max-w-xl items-center justify-between px-5 pb-8 text-[11px] text-stone-500">
+        <span>Powered by {data.cafe.name}</span>
+        <Link href="/login" className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-bold text-stone-400 transition hover:bg-white/10 hover:text-stone-200">Owner login →</Link>
+      </footer>
     </div>
     </ThemeStyles>
   );
