@@ -76,6 +76,13 @@ body {
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .animate-fade-in { animation: fade-in .3s ease both; }
 
+@keyframes rise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+.anim-rise { animation: rise .7s cubic-bezier(.22,.8,.3,1) both; }
+
+@keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(24px,-18px) scale(1.08); } }
+.animate-drift { animation: drift 9s ease-in-out infinite; }
+.animate-drift-2 { animation: drift 12s ease-in-out infinite reverse; }
+
 @keyframes sheet-up { from { opacity: .4; transform: translateY(40px);} to { opacity: 1; transform: none; } }
 .animate-sheet-up { animation: sheet-up .3s cubic-bezier(.32,.72,.35,1) both; }
 
