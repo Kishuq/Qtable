@@ -50,6 +50,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
+  // ✅ Strict subscription gate — no session until the subscription is paid.
+  try {
+    const { getBilling, isBillingBlocked } = await import("@/lib/billing");
+    if (isBillingBlocked(await getBilling())) {
+      try { await db.auditLog.create({ data: { cafeId: user.cafeId, userId: user.id, action: "LOGIN_BLOCKED_UNPAID" } }); } catch {}
+      return NextResponse.json({ error: "Subscription required — please subscribe first.", redirect: "/subscribe" }, { status: 402 });
+    }
+  } catch {
+    // billing check itself failed → fail open, continue to login
+  }
+
   // ✅ Log successful login
   try { await db.auditLog.create({ data: { action: "LOGIN_SUCCESS", meta: `email=${email}` } }); } catch {}
 

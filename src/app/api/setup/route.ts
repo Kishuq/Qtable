@@ -16,6 +16,16 @@ const Schema = z.object({
 // First-run setup: creates THE cafe + owner. Locked forever after first use.
 export async function POST(req: NextRequest) {
   if (!rateLimit(clientKey(req, "setup"), 10, 60_000)) return tooMany();
+  // ✅ Strict subscription gate — no cafe setup until subscribed.
+  try {
+    const { getBilling, isBillingBlocked } = await import("@/lib/billing");
+    if (isBillingBlocked(await getBilling())) {
+      try { await db.auditLog.create({ data: { action: "SETUP_BLOCKED_UNPAID" } }); } catch {}
+      return NextResponse.json({ error: "Subscription required — please subscribe first.", redirect: "/subscribe" }, { status: 402 });
+    }
+  } catch {
+    // billing check itself failed → fail open, continue to setup
+  }
   const existing = await db.user.count();
   if (existing > 0) return NextResponse.json({ error: "Already set up. Please log in." }, { status: 403 });
 

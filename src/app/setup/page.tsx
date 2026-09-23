@@ -26,7 +26,15 @@ function SetupInner() {
     try {
       const r = await fetch("/api/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Setup failed");
+      if (!r.ok) {
+        // 402 = subscription gate — forward to /subscribe, then back here.
+        if (r.status === 402 && j.redirect) {
+          router.push(`${j.redirect}?next=/setup`);
+          router.refresh();
+          return;
+        }
+        throw new Error(j.error || "Setup failed");
+      }
       router.push("/dashboard");
       router.refresh();
     } catch (e: unknown) {

@@ -20,7 +20,15 @@ function LoginInner() {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Login failed");
+      if (!r.ok) {
+        // 402 = subscription gate — forward to /subscribe, then back here.
+        if (r.status === 402 && j.redirect) {
+          router.push(`${j.redirect}?next=${encodeURIComponent(sp.get("next") || "/dashboard")}`);
+          router.refresh();
+          return;
+        }
+        throw new Error(j.error || "Login failed");
+      }
       router.push(sp.get("next") || "/dashboard");
       router.refresh();
     } catch (e: unknown) {
@@ -44,7 +52,7 @@ function LoginInner() {
             {loading ? "Signing in…" : "Sign in →"}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-stone-400">First run? <Link href="/setup" className="text-orange-400 font-bold">Set up your cafe</Link></p>
+        <p className="mt-4 text-center text-sm text-stone-400">First run? <Link href="/subscribe?next=/setup" className="text-orange-400 font-bold">Set up your cafe</Link></p>
         <p className="mt-2 text-center text-sm"><Link href="/forgot-password" className="font-bold text-orange-400">Forgot password?</Link></p>
         <p className="mt-3 rounded-2xl bg-white/5 p-3 text-xs text-stone-400">Demo: owner@mycafe.com / demo1234</p>
       </div>

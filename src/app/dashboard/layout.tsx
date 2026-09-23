@@ -40,7 +40,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setCafeId(j.user.cafeId);
     }).catch(() => router.push("/login"));
     fetch("/api/billing/status").then((r) => r.json()).then((j) => {
-      if (!j.error) setBilling(j);
+      if (!j.error) {
+        setBilling(j);
+        // ✅ Strict gate — unpaid subscription bounces to /subscribe.
+        const b = j.billing;
+        if (b && b.mode === "enforced" && ["past_due", "unpaid", "canceled"].includes(b.status)) {
+          router.push(`/subscribe?next=${encodeURIComponent(path || "/dashboard")}`);
+        }
+      }
     }).catch(() => {});
     // Re-runs on every dashboard navigation: an expired mid-shift session
     // bounces to login instead of showing misleading empty screens.

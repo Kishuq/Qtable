@@ -38,6 +38,16 @@ export async function POST(req: NextRequest) {
   try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Cafe unavailable" }, { status: 404 }); }
   if (!cafe.isActive) return NextResponse.json({ error: "Cafe unavailable" }, { status: 404 });
 
+  // ✅ Strict subscription gate — no ordering while unpaid.
+  try {
+    const { getBilling, isBillingBlocked } = await import("@/lib/billing");
+    if (isBillingBlocked(await getBilling())) {
+      return NextResponse.json({ error: "This cafe's subscription is paused — please contact the counter." }, { status: 402 });
+    }
+  } catch {
+    // billing check itself failed → fail open, continue to ordering
+  }
+
   const table = await db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: d.tableCode, active: true } });
   if (!table && d.type === "DINEIN") return NextResponse.json({ error: "Invalid table. Please re-scan the QR." }, { status: 400 });
 

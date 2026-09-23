@@ -38,7 +38,7 @@ export default async function Landing() {
           </p>
           <div className="anim-rise mt-8 flex flex-col items-center justify-center gap-2.5 sm:flex-row" style={{ animationDelay: ".3s" }}>
             <Link
-              href="/setup"
+              href="/subscribe?next=/setup"
               className="w-full rounded-2xl bg-orange-600 px-8 py-4 text-sm font-black text-white shadow-2xl shadow-orange-900/40 transition hover:bg-orange-500 active:scale-[.98] sm:w-auto"
             >
               Start Your Cafe →
@@ -533,7 +533,7 @@ export default async function Landing() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/setup" className="mt-6 block rounded-2xl border border-white/15 bg-white/5 py-3 text-center text-sm font-black text-white transition hover:bg-white/10">
+                <Link href="/subscribe?next=/setup" className="mt-6 block rounded-2xl border border-white/15 bg-white/5 py-3 text-center text-sm font-black text-white transition hover:bg-white/10">
                   Start with Starter
                 </Link>
               </div>
@@ -554,7 +554,7 @@ export default async function Landing() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/setup" className="mt-6 block rounded-2xl bg-orange-600 py-3 text-center text-sm font-black text-white shadow-xl transition hover:bg-orange-500">
+                <Link href="/subscribe?next=/setup" className="mt-6 block rounded-2xl bg-orange-600 py-3 text-center text-sm font-black text-white shadow-xl transition hover:bg-orange-500">
                   Start with Pro →
                 </Link>
               </div>
@@ -578,7 +578,7 @@ export default async function Landing() {
                 Give your customers a faster way to order — and your team a smarter way to run the day.
               </p>
               <div className="relative mt-8 flex flex-col justify-center gap-2.5 sm:flex-row">
-                <Link href="/setup" className="rounded-2xl bg-stone-950 px-8 py-4 text-sm font-black text-white transition hover:scale-[1.02] active:scale-95">
+                <Link href="/subscribe?next=/setup" className="rounded-2xl bg-stone-950 px-8 py-4 text-sm font-black text-white transition hover:scale-[1.02] active:scale-95">
                   Start with QAFE →
                 </Link>
                 <Link href="/login" className="rounded-2xl border border-white/40 px-8 py-4 text-sm font-black text-white transition hover:bg-white/10 active:scale-95">

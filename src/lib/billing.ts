@@ -62,3 +62,10 @@ export function getPortalUrl(): string | null {
   // For now, return null and let the UI show a manual update message
   return null;
 }
+
+// ✅ Strict gate: true only when billing is configured AND definitely unpaid.
+// Unknown (Stripe unreachable) fails OPEN so a Stripe outage never locks
+// a paying cafe out mid-service.
+export function isBillingBlocked(b: BillingState): boolean {
+  return b.mode === "enforced" && (b.status === "past_due" || b.status === "unpaid" || b.status === "canceled");
+}
