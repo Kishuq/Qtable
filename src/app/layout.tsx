@@ -7,10 +7,15 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "QRServe — QR ordering for your cafe",
-  description: "Scan the table QR, order & pay. The counter and kitchen get every order live with sound.",
+  title: "QAFE — The Digital Operating System for Modern Cafes",
+  description: "Transform your cafe with QR ordering, digital menus, real-time kitchen management, tables, inventory and analytics — all in one platform.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "QRServe" },
+  appleWebApp: { capable: true, title: "QAFE" },
+  openGraph: {
+    title: "QAFE — The Digital Operating System for Modern Cafes",
+    description: "Turn every table into a smarter ordering experience. Scan. Order. Flow.",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = { themeColor: "#0c0a09", width: "device-width", initialScale: 1 };
