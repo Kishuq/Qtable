@@ -46,7 +46,7 @@ export function Navbar() {
             Login
           </Link>
           <Link
-            href="/subscribe?next=/setup"
+            href="#pricing"
             className="rounded-xl bg-orange-600 px-4 py-2 text-[13px] font-black text-white shadow-lg transition hover:bg-orange-500 active:scale-95"
           >
             Get Started
@@ -77,7 +77,7 @@ export function Navbar() {
             <Link href="/login" onClick={() => setOpen(false)} className="rounded-xl bg-white/5 px-4 py-2.5 text-center text-sm font-bold text-white">
               Login
             </Link>
-            <Link href="/subscribe?next=/setup" onClick={() => setOpen(false)} className="rounded-xl bg-orange-600 px-4 py-2.5 text-center text-sm font-black text-white">
+            <Link href="#pricing" onClick={() => setOpen(false)} className="rounded-xl bg-orange-600 px-4 py-2.5 text-center text-sm font-black text-white">
               Get Started
             </Link>
           </div>
