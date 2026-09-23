@@ -113,13 +113,10 @@ export default async function Landing() {
           </div>
 
           <div className="anim-rise mt-7 grid w-full max-w-sm gap-2.5" style={{ animationDelay: ".4s" }}>
-            <Link
-              href="/menu"
-              className="t-grad group rounded-2xl py-4 text-center font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99]"
-            >
-              📖 View Menu
-              <span className="ml-1 inline-block transition group-hover:translate-x-1">→</span>
-            </Link>
+            <div className="glass t-card rounded-2xl border border-white/10 px-5 py-4 text-center">
+              <p className="text-sm font-black">📷 Scan the QR on your table</p>
+              <p className="t-muted mt-1 text-xs">Your table&apos;s menu opens automatically — no app needed.</p>
+            </div>
             <Link
               href="/login"
               className="glass t-card rounded-2xl border border-white/10 py-3.5 text-center text-sm font-black transition hover:bg-white/10 active:scale-[.99]"
@@ -170,22 +167,19 @@ export default async function Landing() {
           <div className="pt-7">
             <div className="flex items-center justify-between px-5">
               <p className="t-heading text-sm font-black">⭐ House favourites</p>
-              <Link href="/menu" className="t-accent-text text-xs font-black">
-                Full menu →
-              </Link>
+              <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">Scan QR to order</span>
             </div>
             <div className="no-scrollbar mt-3 flex snap-x gap-3 overflow-x-auto px-5">
               {stars.map((f, i) => (
-                <Link
+                <div
                   key={`${f.name}-${i}`}
-                  href="/menu"
-                  className="glass t-card card-hover anim-rise w-40 shrink-0 snap-start overflow-hidden p-3 text-left"
+                  className="glass t-card anim-rise w-40 shrink-0 snap-start overflow-hidden p-3"
                   style={{ animationDelay: `${0.5 + i * 0.06}s` }}
                 >
                   <p className="text-3xl">{f.imageEmoji}</p>
                   <p className="mt-2 truncate text-xs font-black">{f.name}</p>
                   <p className="t-primary-text mt-0.5 text-xs font-black">{inr(f.price, cafe.currency || "INR")}</p>
-                </Link>
+                </div>
               ))}
             </div>
           </div>
@@ -197,13 +191,10 @@ export default async function Landing() {
             <div className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-white/15 blur-2xl" />
             <div className="pointer-events-none absolute -bottom-12 -left-10 size-44 rounded-full bg-black/20 blur-2xl" />
             <p className="relative text-lg font-black">Hungry already?</p>
-            <p className="relative mt-1 text-xs font-bold opacity-85">No app needed • Works on any phone camera</p>
-            <Link
-              href="/menu"
-              className="relative mt-4 inline-block rounded-2xl bg-white/95 px-7 py-3 text-sm font-black text-stone-900 shadow-lg transition hover:scale-[1.02] active:scale-95"
-            >
-              Start ordering →
-            </Link>
+            <p className="relative mt-1 text-xs font-bold opacity-85">Scan the QR on your table — menu opens instantly. No app needed.</p>
+            <p className="relative mt-4 inline-block rounded-2xl bg-white/95 px-7 py-3 text-sm font-black text-stone-900 shadow-lg">
+              📷 Point your camera at the table QR
+            </p>
           </div>
         </div>
 
