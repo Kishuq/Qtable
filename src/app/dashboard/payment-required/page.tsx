@@ -1,12 +1,43 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 function PaymentRequiredInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectFrom = searchParams.get("redirectFrom") || "/dashboard";
   const status = searchParams.get("status") || "";
+  const [checking, setChecking] = useState(false);
+
+  // Auto-redirect to the cafe dashboard once the subscription is paid.
+  // Polls billing status (Stripe webhook/portal updates it) and bounces
+  // back to where the owner was headed the moment it turns active.
+  useEffect(() => {
+    let stop = false;
+    async function check() {
+      try {
+        setChecking(true);
+        const r = await fetch("/api/billing/status", { cache: "no-store" });
+        const j = await r.json().catch(() => null);
+        const b = j?.billing;
+        if (!stop && b && (b.mode === "none" || b.status === "active" || b.status === "trialing")) {
+          router.push(redirectFrom);
+          router.refresh();
+        }
+      } catch {
+        // offline — retry on next tick
+      } finally {
+        if (!stop) setChecking(false);
+      }
+    }
+    check();
+    const t = setInterval(check, 5000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [router, redirectFrom]);
 
   const statusMessages: Record<string, string> = {
     past_due: "Your subscription payment failed. Please update your card.",
@@ -55,6 +86,7 @@ function PaymentRequiredInner() {
 
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>Your subscription requires attention to continue using QRServe.</p>
+          <p className="mt-2 text-xs">{checking ? "Checking payment status…" : "We check automatically — you'll jump to your dashboard once paid ✓"}</p>
         </div>
       </div>
     </div>
