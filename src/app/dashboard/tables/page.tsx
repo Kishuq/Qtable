@@ -113,11 +113,17 @@ export default function TablesPage() {
                     <div className="mx-auto mt-3 h-1 w-24 rounded-full" style={{ background: theme.accent }} />
                   </div>
                   <div className="px-8 pb-2">
-                    <div className="rounded-[22px] bg-white px-4 pb-5 pt-5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/qr?text=${encodeURIComponent(urlFor(t.code))}`} alt={`QR ${t.code}`}
-                        className="qr-img mx-auto size-52 bg-white" crossOrigin="anonymous" />
-                      <p className="qr-title mx-auto mt-3 inline-block rounded-full px-8 py-1.5 text-2xl font-black tracking-widest text-white" style={{ background: theme.primary }}>
+                    <div className="rounded-[22px] bg-white px-4 pb-5 pt-5 shadow-inner">
+                      {/* Decorative frame — QR itself untouched */}
+                      <div className="mx-auto w-fit rounded-[20px] p-[6px]" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})` }}>
+                        <div className="rounded-[16px] border-2 border-dashed bg-white p-3" style={{ borderColor: `${theme.primary}55` }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={`/api/qr?text=${encodeURIComponent(urlFor(t.code))}`} alt={`QR ${t.code}`}
+                            className="qr-img mx-auto size-52 bg-white" crossOrigin="anonymous" />
+                        </div>
+                      </div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-400">✦ {cafeName} ✦</p>
+                      <p className="qr-title mx-auto mt-2 inline-block rounded-full px-8 py-1.5 text-2xl font-black tracking-widest text-white" style={{ background: theme.primary }}>
                         TABLE {t.code}
                       </p>
                       {t.name && t.name !== t.code && <p className="mt-1 text-xs font-bold text-stone-500">{t.name}</p>}
@@ -128,7 +134,8 @@ export default function TablesPage() {
                     <span>🛒 Order</span><span className="opacity-40">→</span>
                     <span>💳 Pay</span>
                   </div>
-                  <p className="qr-sub px-6 pb-7 text-[11px] font-semibold opacity-70">No app needed • Works on any phone camera • {cafeName}</p>
+                  <p className="qr-sub px-6 pb-1.5 text-[11px] font-semibold opacity-70">No app needed • Works on any phone camera • {cafeName}</p>
+                  <p className="px-6 pb-7 text-[10px] font-black uppercase tracking-[0.25em] opacity-50">Powered by Qtable</p>
                 </>
               ) : (
                 <>
@@ -139,10 +146,16 @@ export default function TablesPage() {
                     <p className="mt-0.5 text-xs font-bold uppercase tracking-[0.2em] text-white/85">{tagline}</p>
                   </div>
                   <div className="px-8 pb-2 pt-6">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/qr?text=${encodeURIComponent(urlFor(t.code))}`} alt={`QR ${t.code}`}
-                      className="qr-img mx-auto size-52 rounded-2xl border-4 bg-white p-2.5" style={{ borderColor: theme.primary }} crossOrigin="anonymous" />
-                    <p className="qr-title mx-auto mt-4 inline-block rounded-full px-8 py-1.5 text-2xl font-black tracking-widest text-white" style={{ background: theme.primary }}>
+                    {/* Decorative frame — QR itself untouched */}
+                    <div className="mx-auto w-fit rounded-[20px] p-[6px]" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})` }}>
+                      <div className="rounded-[16px] border-2 border-dashed bg-white p-3" style={{ borderColor: `${theme.primary}55` }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/api/qr?text=${encodeURIComponent(urlFor(t.code))}`} alt={`QR ${t.code}`}
+                          className="qr-img mx-auto size-52 bg-white" crossOrigin="anonymous" />
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[10px] font-black uppercase tracking-[0.3em] text-stone-400">✦ {cafeName} ✦</p>
+                    <p className="qr-title mx-auto mt-2 inline-block rounded-full px-8 py-1.5 text-2xl font-black tracking-widest text-white" style={{ background: theme.primary }}>
                       TABLE {t.code}
                     </p>
                     {t.name && t.name !== t.code && <p className="mt-1 text-xs font-bold text-stone-500">{t.name}</p>}
@@ -152,7 +165,8 @@ export default function TablesPage() {
                     <span>🛒 Order</span><span className="opacity-30">→</span>
                     <span>💳 Pay</span>
                   </div>
-                  <p className="qr-sub pb-6 text-[11px] font-semibold text-stone-500">No app needed • Works on any phone camera</p>
+                  <p className="qr-sub pb-1 text-[11px] font-semibold text-stone-500">No app needed • Works on any phone camera</p>
+                  <p className="pb-6 text-[10px] font-black uppercase tracking-[0.25em] text-stone-400">Powered by Qtable</p>
                 </>
               )}
             </div>
