@@ -6,8 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 function LoginInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const [email, setEmail] = useState("owner@mycafe.com");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +54,6 @@ function LoginInner() {
         </form>
         <p className="mt-4 text-center text-sm text-stone-400">First run? <Link href="/subscribe?next=/setup" className="text-orange-400 font-bold">Set up your cafe</Link></p>
         <p className="mt-2 text-center text-sm"><Link href="/forgot-password" className="font-bold text-orange-400">Forgot password?</Link></p>
-        <p className="mt-3 rounded-2xl bg-white/5 p-3 text-xs text-stone-400">Demo: owner@mycafe.com / demo1234</p>
       </div>
     </div>
   );
