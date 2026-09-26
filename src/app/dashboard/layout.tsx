@@ -30,6 +30,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const toast = useToast();
   const { open, connected, soundOn, toggleSound, testAlarm, audioLocked } = useLiveOrders(cafeId, (o) => {
     toast(`New order #${o.tokenNo} • Table ${o.tableCode} • ${inr(o.total)}`, "info");
+  }, (w) => {
+    toast(`🛎️ Table ${w.tableCode} needs assistance — please attend`, "info");
   });
 
   useEffect(() => {

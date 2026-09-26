@@ -13,11 +13,14 @@ type Order = {
 
 const FILTERS = ["ALL", "NEW", "ACCEPTED", "PREPARING", "READY", "SERVED", "COMPLETED", "CANCELLED"];
 
+type WaiterCall = { id: string; tableCode: string; status: string; createdAt: string };
+
 export default function OrdersPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState("ALL");
   const [q, setQ] = useState("");
+  const [calls, setCalls] = useState<WaiterCall[]>([]);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/orders?status=${filter}&q=${encodeURIComponent(q)}`);
@@ -25,7 +28,26 @@ export default function OrdersPage() {
     if (j.orders) setOrders(j.orders);
   }, [filter, q]);
 
+  const loadCalls = useCallback(async () => {
+    try {
+      const r = await fetch("/api/waiter");
+      const j = await r.json();
+      if (j.calls) setCalls(j.calls);
+    } catch { /* offline — next poll retries */ }
+  }, []);
+
   useEffect(() => { load(); const t = setInterval(load, 3500); return () => clearInterval(t); }, [load]);
+  useEffect(() => { loadCalls(); const t = setInterval(loadCalls, 4000); return () => clearInterval(t); }, [loadCalls]);
+
+  async function setCallStatus(id: string, status: string) {
+    try {
+      const r = await fetch("/api/waiter", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }) });
+      if (!r.ok) toast("Could not update request", "err");
+    } catch {
+      toast("Network hiccup — check connection", "err");
+    }
+    loadCalls();
+  }
 
   async function setStatus(id: string, status: string, paymentStatus?: string) {
     try {
@@ -53,6 +75,31 @@ export default function OrdersPage() {
           <button key={f} onClick={() => setFilter(f)} className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold ${filter === f ? "bg-orange-600" : "bg-white/5"}`}>{f}</button>
         ))}
       </div>
+
+      {calls.length > 0 && (
+        <div className="mt-4 space-y-2 rounded-3xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <p className="text-sm font-black text-amber-200">🛎️ {calls.length} table{calls.length === 1 ? "" : "s"} need{calls.length === 1 ? "s" : ""} assistance</p>
+          {calls.map((c) => (
+            <div key={c.id} className="flex items-center justify-between gap-2 rounded-2xl bg-black/25 p-3 text-sm">
+              <div>
+                <p className="font-black text-white">
+                  Table {c.tableCode}
+                  {c.status === "OPEN"
+                    ? <span className="ml-2 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px] text-black">NEW</span>
+                    : <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-stone-300">SEEN</span>}
+                </p>
+                <p className="text-xs text-stone-400">{timeAgo(c.createdAt)}</p>
+              </div>
+              <div className="flex gap-1.5">
+                {c.status === "OPEN" && (
+                  <button onClick={() => setCallStatus(c.id, "ACKNOWLEDGED")} className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-black text-black">On my way ✓</button>
+                )}
+                <button onClick={() => setCallStatus(c.id, "RESOLVED")} className="rounded-xl bg-white/10 px-3.5 py-1.5 text-xs font-bold text-stone-200">Done</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {orders.map((o) => (

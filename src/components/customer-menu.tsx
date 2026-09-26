@@ -36,6 +36,8 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
     note: "", dtype: "DINEIN" as const,
   });
   const [lastAdded, setLastAdded] = useState<string | null>(null);
+  const [waiter, setWaiter] = useState<"idle" | "sending" | "sent">("idle");
+  const [usuals, setUsuals] = useState<{ id: string; tokenNo: number; lines: { menuItemId: string; name: string; qty: number }[] }[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const cartKey = `qrserve_cart_${tableCode || "main"}`;
 
@@ -55,6 +57,62 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   useEffect(() => {
     try { localStorage.setItem(cartKey, JSON.stringify(cart)); } catch { /* private mode */ }
   }, [cart, cartKey]);
+
+  // One-tap reorder: past orders (saved locally on placement) re-fetched for
+  // names, then matched to the live menu so unavailable items are skipped.
+  useEffect(() => {
+    if (!data) return;
+    let alive = true;
+    (async () => {
+      try {
+        const raw = JSON.parse(localStorage.getItem("qrserve_recent") || "[]") as { id: string }[];
+        const ids = [...new Set(raw.map((r) => r.id).filter(Boolean))].slice(0, 2);
+        const out: { id: string; tokenNo: number; lines: { menuItemId: string; name: string; qty: number }[] }[] = [];
+        for (const oid of ids) {
+          try {
+            const r = await fetch(`/api/public/order/${oid}`);
+            if (!r.ok) continue;
+            const j = await r.json();
+            const ord = j.order;
+            if (!ord?.items?.length) continue;
+            out.push({
+              id: ord.id,
+              tokenNo: ord.tokenNo,
+              lines: ord.items.map((it: { menuItemId?: string; name: string; qty: number }) => ({
+                menuItemId: it.menuItemId || "",
+                name: it.name,
+                qty: Math.min(20, Math.max(1, it.qty || 1)),
+              })),
+            });
+          } catch { /* one bad id must not kill the rest */ }
+        }
+        if (alive) setUsuals(out);
+      } catch { /* private mode */ }
+    })();
+    return () => { alive = false; };
+  }, [data]);
+
+  function reorder(u: { lines: { menuItemId: string; name: string; qty: number }[] }) {
+    if (!data) return;
+    const menu = new Map(data.items.filter((m) => m).map((m) => [m.id, m]));
+    let added = 0;
+    setCart((c) => {
+      const n = { ...c };
+      for (const l of u.lines) {
+        if (l.menuItemId && menu.has(l.menuItemId)) {
+          n[l.menuItemId] = Math.min(20, (n[l.menuItemId] || 0) + l.qty);
+          added += 1;
+        }
+      }
+      return n;
+    });
+    if (added > 0) {
+      toast("Your usual is back in the cart ✓", "ok");
+      listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      toast("Those items aren't available right now", "err");
+    }
+  }
 
   const items = useMemo(() => {
     if (!data) return [];
@@ -90,6 +148,25 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
     if (!cart[id]) toast(`${name} added`, "ok");
   }
   function sub(id: string) { setCart((c) => { const n = { ...c }; n[id] = (n[id] || 0) - 1; if (n[id] <= 0) delete n[id]; return n; }); }
+
+  async function callWaiter() {
+    if (!tableCode || waiter !== "idle") return;
+    setWaiter("sending");
+    try {
+      const r = await fetch("/api/public/waiter", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableCode }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Could not reach the counter");
+      setWaiter("sent");
+      toast("Waiter notified — someone's on the way 🛎️", "ok");
+      setTimeout(() => setWaiter("idle"), 60000);
+    } catch (e: unknown) {
+      setWaiter("idle");
+      toast(e instanceof Error ? e.message : "Could not reach the counter", "err");
+    }
+  }
 
   function saveRecent(id: string, token: number) {
     try {
@@ -246,6 +323,21 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
               className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black transition active:scale-95 ${cat === c.id ? "t-grad scale-105 text-white shadow-lg" : "border border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"}`}>{c.name}</button>
           ))}
         </div>
+        {tableCode && (
+          <div className="px-4 pb-3">
+            <button
+              onClick={callWaiter}
+              disabled={waiter !== "idle"}
+              className={`w-full rounded-2xl border py-2.5 text-xs font-black transition active:scale-[.99] disabled:opacity-70 ${
+                waiter === "sent"
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-200"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
+              }`}
+            >
+              {waiter === "sending" ? "Calling… 🛎️" : waiter === "sent" ? "✓ Waiter notified — on the way!" : "🛎️ Need help? Call Waiter"}
+            </button>
+          </div>
+        )}
         </div>
       </div>
 
@@ -260,6 +352,28 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
               <span className="text-amber-400/70 transition group-hover:translate-x-0.5">tap to use →</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Your usual — one-tap reorder for regulars */}
+      {count === 0 && usuals.length > 0 && (
+        <div className="px-4 pt-4">
+          <div className="glass t-card card-hover anim-rise rounded-3xl border-orange-500/30 p-4">
+            <p className="text-sm font-black">👋 Welcome back — your usual?</p>
+            {usuals.slice(0, 1).map((u) => (
+              <div key={u.id} className="mt-2">
+                <p className="truncate text-xs text-stone-300">
+                  #{u.tokenNo} • {u.lines.map((l) => `${l.qty}× ${l.name}`).join(", ")}
+                </p>
+                <button
+                  onClick={() => reorder(u)}
+                  className="t-grad mt-2.5 w-full rounded-2xl py-2.5 text-xs font-black text-white shadow-lg transition hover:brightness-110 active:scale-95"
+                >
+                  Reorder in one tap ✓
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

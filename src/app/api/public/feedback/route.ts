@@ -4,11 +4,10 @@ import { requireCafe } from "@/lib/cafe";
 import { db } from "@/lib/db";
 import { rateLimit, clientKey, tooMany, cleanStr } from "@/lib/security";
 
-// UUID v4 pattern (simplified — matches standard format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
+// Order IDs are Prisma cuid() strings — format checked loosely here because
+// ownership is verified against the DB below (the real protection).
 const Schema = z.object({
-  orderId: z.string().regex(UUID_PATTERN).optional().default(""),
+  orderId: z.string().max(64).optional().default(""),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(300).optional().default(""),
 });

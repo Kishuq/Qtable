@@ -10,12 +10,29 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const order = await db.order.findUnique({ where: { id, cafeId: cafe.id }, include: { items: true, cafe: true } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  // Queue depth → ETA: orders ahead of this one still in the kitchen pipeline.
+  // Base 8 min + 4 min per order ahead, capped at 45. Ready/served/completed → 0.
+  let queueAhead = 0;
+  try {
+    queueAhead = await db.order.count({
+      where: {
+        cafeId: cafe.id,
+        status: { in: ["NEW", "ACCEPTED", "PREPARING"] },
+        createdAt: { lt: order.createdAt },
+      },
+    });
+  } catch {
+    queueAhead = 0;
+  }
+  const done = ["READY", "SERVED", "COMPLETED"].includes(order.status);
+  const etaMinutes = done || order.status === "CANCELLED" ? 0 : Math.min(45, 8 + queueAhead * 4);
   return NextResponse.json({
     order: {
       id: order.id, tokenNo: order.tokenNo, status: order.status, total: order.total, subtotal: order.subtotal,
       discount: order.discount, tax: order.tax, tableCode: order.tableCode, paymentMode: order.paymentMode,
       paymentStatus: order.paymentStatus, customerName: order.customerName, createdAt: order.createdAt,
       cafeName: order.cafe.name, upiId: order.cafe.upiId, currency: order.cafe.currency,
+      queueAhead, etaMinutes,
       theme: { primary: order.cafe.themePrimary, accent: order.cafe.themeAccent, bg: order.cafe.themeBg, bgMode: order.cafe.themeBgMode, pattern: order.cafe.themeFont, font: order.cafe.themeFont, radius: order.cafe.themeRadius },
       items: order.items,
     },

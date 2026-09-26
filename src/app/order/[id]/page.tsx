@@ -11,9 +11,17 @@ const STEPS = ["NEW", "ACCEPTED", "PREPARING", "READY", "SERVED", "COMPLETED"];
 type Order = {
   id: string; tokenNo: number; status: string; total: number; subtotal: number; discount: number; tax: number;
   tableCode: string; paymentMode: string; paymentStatus: string; customerName: string; cafeName: string; upiId: string; currency: string;
+  queueAhead: number; etaMinutes: number;
   theme: { primary: string; accent: string; bg: string; bgMode: string; pattern: string; font: string; radius: string };
   items: { name: string; qty: number; price: number }[];
 };
+
+const TIMELINE = [
+  { key: "RECEIVED", label: "Received", emoji: "🧾", match: ["NEW", "ACCEPTED"] },
+  { key: "PREPARING", label: "Preparing", emoji: "👨‍🍳", match: ["PREPARING"] },
+  { key: "READY", label: "Ready", emoji: "🔔", match: ["READY"] },
+  { key: "SERVED", label: "Served", emoji: "😋", match: ["SERVED", "COMPLETED"] },
+];
 
 export default function TrackPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -63,11 +71,43 @@ export default function TrackPage({ params }: { params: Promise<{ id: string }> 
       <div className="glass t-card animate-slide-up p-6 text-center">
         <p className="t-muted text-xs font-bold">TOKEN #{o.tokenNo} • {o.cafeName} • TABLE {o.tableCode}</p>
         <p className="t-heading mt-2 text-3xl font-black">
-          {o.status === "READY" ? "🎉 Ready!" : o.status === "COMPLETED" ? "✅ Enjoy!" : o.status === "CANCELLED" ? "❌ Cancelled" : `⏳ ${o.status}`}
+          {o.status === "READY" ? "🎉 Ready!" : o.status === "COMPLETED" ? "✅ Enjoy!" : o.status === "CANCELLED" ? "❌ Cancelled" : o.status === "SERVED" ? "😋 Served!" : `⏳ ${o.status}`}
         </p>
         <p className="t-muted mt-1 text-sm">Hi {o.customerName} — this updates live. Keep the tab open.</p>
-        <div className="mt-4 flex justify-center gap-1">
-          {STEPS.map((s, i) => <div key={s} className={`h-2 w-10 rounded-full ${o.status === "CANCELLED" ? "bg-red-500/40" : i <= STEPS.indexOf(o.status) ? "t-grad" : "bg-white/10"}`} />)}
+        {o.status !== "CANCELLED" && o.etaMinutes > 0 && (
+          <p className="t-grad mx-auto mt-3 w-fit rounded-full px-4 py-1.5 text-xs font-black text-white shadow-lg">
+            ⏱️ Ready in ~{o.etaMinutes} min{o.queueAhead > 0 ? ` • ${o.queueAhead} order${o.queueAhead === 1 ? "" : "s"} ahead` : ""}
+          </p>
+        )}
+        {o.status !== "CANCELLED" && o.etaMinutes === 0 && o.status !== "NEW" && o.status !== "ACCEPTED" && o.status !== "PREPARING" && (
+          <p className="mx-auto mt-3 w-fit rounded-full bg-emerald-500/15 px-4 py-1.5 text-xs font-black text-emerald-300">
+            With you now — enjoy! 🎉
+          </p>
+        )}
+        {/* Visual journey timeline */}
+        <div className="mt-5">
+          <div className="flex items-start justify-between">
+            {TIMELINE.map((t, i) => {
+              const activeIdx = o.status === "CANCELLED" ? -1 : TIMELINE.findIndex((x) => x.match.includes(o.status));
+              const done = activeIdx >= 0 && i < activeIdx;
+              const current = activeIdx === i;
+              return (
+                <div key={t.key} className="flex flex-1 flex-col items-center">
+                  <span className={`grid size-11 place-items-center rounded-2xl text-xl transition ${
+                    o.status === "CANCELLED" ? "bg-red-500/15 opacity-60"
+                    : done ? "bg-emerald-500/20"
+                    : current ? "t-grad text-white shadow-xl animate-pulse-ring" : "bg-white/5 opacity-60"
+                  }`}>
+                    {done ? "✓" : t.emoji}
+                  </span>
+                  <span className={`mt-1.5 text-[10px] font-black ${current ? "text-white" : "t-muted"}`}>{t.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex justify-center gap-1 sm:hidden">
+            {STEPS.map((s, i) => <div key={s} className={`h-2 w-10 rounded-full ${o.status === "CANCELLED" ? "bg-red-500/40" : i <= STEPS.indexOf(o.status) ? "t-grad" : "bg-white/10"}`} />)}
+          </div>
         </div>
         <div className="mt-4 space-y-1 border-t border-white/10 pt-4 text-sm">
           {o.items.map((i, k) => <div key={k} className="flex justify-between"><span>{i.name} × {i.qty}</span><span className="font-bold">{inr(i.price * i.qty, o.currency)}</span></div>)}

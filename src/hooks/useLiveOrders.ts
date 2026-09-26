@@ -44,7 +44,13 @@ function saveSeen(seen: Set<string>) {
 
 // Watches for NEW orders: loud chime + browser notification + vibration.
 // Browsers block audio until the user taps once — we surface that via audioLocked.
-export function useLiveOrders(cafeId: string | null, onNew?: (o: NewOrderInfo) => void) {
+export type WaiterInfo = { id: string; tableCode: string };
+
+export function useLiveOrders(
+  cafeId: string | null,
+  onNew?: (o: NewOrderInfo) => void,
+  onWaiter?: (w: WaiterInfo) => void
+) {
   const [open, setOpen] = useState(0);
   const [connected, setConnected] = useState(false);
   const [soundOn, setSoundOn] = useState(() => {
@@ -55,10 +61,13 @@ export function useLiveOrders(cafeId: string | null, onNew?: (o: NewOrderInfo) =
 
   const ctxRef = useRef<AudioContext | null>(null);
   const seenRef = useRef<Set<string> | null>(null);
+  const seenWaiterRef = useRef<Set<string> | null>(null);
   const soundRef = useRef(soundOn);
   soundRef.current = soundOn;
   const onNewRef = useRef(onNew);
   onNewRef.current = onNew;
+  const onWaiterRef = useRef(onWaiter);
+  onWaiterRef.current = onWaiter;
 
   const ensureAudio = useCallback((): AudioContext | null => {
     try {
@@ -98,6 +107,25 @@ export function useLiveOrders(cafeId: string | null, onNew?: (o: NewOrderInfo) =
     onNewRef.current?.(order);
   }, [ensureAudio]);
 
+  const alertWaiter = useCallback((w: WaiterInfo) => {
+    if (soundRef.current) {
+      const ctx = ensureAudio();
+      // Triple chime for waiter calls — distinct from the order bell.
+      if (ctx && ctx.state === "running") { ringBell(ctx, 0); ringBell(ctx, 0.3); ringBell(ctx, 0.6); }
+    }
+    try { if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]); } catch { /* noop */ }
+    try {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const n = new Notification(`🛎️ Table ${w.tableCode} needs assistance`, {
+          body: "A customer tapped Call Waiter — please attend.",
+          tag: w.id,
+        });
+        n.onclick = () => { window.focus(); window.location.href = "/dashboard/orders"; };
+      }
+    } catch { /* noop */ }
+    onWaiterRef.current?.(w);
+  }, [ensureAudio]);
+
   const check = useCallback(async () => {
     if (!cafeId) return;
     try {
@@ -111,17 +139,35 @@ export function useLiveOrders(cafeId: string | null, onNew?: (o: NewOrderInfo) =
         // First check seeds the baseline silently — no alarm storm on page load.
         fresh.forEach((o) => seenRef.current!.add(o.id));
         saveSeen(seenRef.current);
+      } else {
+        for (const o of fresh) {
+          if (!seenRef.current.has(o.id)) {
+            seenRef.current.add(o.id);
+            alert(o);
+          }
+        }
+        saveSeen(seenRef.current);
+      }
+    } catch { /* offline — SSE/poll will retry */ }
+    // Waiter calls ride the same poll — counter hears them even on the
+    // overview tab, not just orders.
+    try {
+      const r = await fetch("/api/waiter");
+      if (!r.ok) return;
+      const j = await r.json();
+      const fresh: WaiterInfo[] = (j.calls || []).filter((c: { status: string }) => c.status === "OPEN");
+      if (!seenWaiterRef.current) {
+        seenWaiterRef.current = new Set(fresh.map((w) => w.id));
         return;
       }
-      for (const o of fresh) {
-        if (!seenRef.current.has(o.id)) {
-          seenRef.current.add(o.id);
-          alert(o);
+      for (const w of fresh) {
+        if (!seenWaiterRef.current.has(w.id)) {
+          seenWaiterRef.current.add(w.id);
+          alertWaiter(w);
         }
       }
-      saveSeen(seenRef.current);
-    } catch { /* offline — SSE/poll will retry */ }
-  }, [cafeId, alert]);
+    } catch { /* offline — next poll retries */ }
+  }, [cafeId, alert, alertWaiter]);
 
   useEffect(() => {
     if (!cafeId) return;
