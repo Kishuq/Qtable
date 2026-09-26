@@ -5,12 +5,12 @@ import { requireCafe } from "@/lib/cafe";
 // Public customer menu data for THE cafe (no login needed — this is what QR scans hit).
 export async function GET() {
   let cafeId: string;
-  try { cafeId = (await requireCafe()).id; } catch { return NextResponse.json({ error: "Cafe not available yet" }, { status: 404 }); }
+  try { cafeId = (await requireCafe()).id; } catch { return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 }); }
   const cafe = await db.cafe.findUnique({
     where: { id: cafeId },
     include: { categories: { orderBy: { sort: "asc" } }, items: { where: { available: true }, orderBy: { sort: "asc" } }, tables: { where: { active: true }, orderBy: { code: "asc" } } },
   });
-  if (!cafe || !cafe.isActive) return NextResponse.json({ error: "Cafe not available yet" }, { status: 404 });
+  if (!cafe || !cafe.isActive) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
   const coupons = await db.coupon.findMany({ where: { cafeId: cafe.id, active: true } });
   return NextResponse.json({
     cafe: { id: cafe.id, name: cafe.name, tagline: cafe.tagline, description: cafe.description, upiId: cafe.upiId, logoEmoji: cafe.logoEmoji, gstPct: cafe.gstPct, currency: cafe.currency,

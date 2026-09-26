@@ -206,7 +206,7 @@ export function useLiveOrders(
     try {
       if (typeof Notification !== "undefined") {
         if (Notification.permission === "default") void Notification.requestPermission().then((p) => setNotifPerm(p));
-        else if (Notification.permission === "granted") new Notification("🔔 QRServe alarm test", { body: "Sounds on! New orders will ring like this." });
+        else if (Notification.permission === "granted") new Notification("🔔 QAFE alarm test", { body: "Sounds on! New orders will ring like this." });
       }
     } catch { /* noop */ }
     try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch { /* noop */ }

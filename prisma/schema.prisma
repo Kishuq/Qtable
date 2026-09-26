@@ -29,7 +29,7 @@ model Cafe {
   id           String   @id @default(cuid())
   name         String
   slug         String   @unique
-  tagline      String   @default("Scan. Order. Sip. Repeat.")
+  tagline      String   @default("Scan. Order. Enjoy.")
   description  String   @default("")
   currency     String   @default("INR")
   upiId        String   @default("")

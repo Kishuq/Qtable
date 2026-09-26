@@ -49,7 +49,7 @@ function PaymentRequiredInner() {
 
   const message =
     statusMessages[status] ||
-    "Your subscription requires attention. Please update your payment method to continue using QRServe.";
+    "Your subscription requires attention. Please update your payment method to continue using QAFE.";
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 max-w-md mx-auto">
@@ -85,7 +85,7 @@ function PaymentRequiredInner() {
         </div>
 
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>Your subscription requires attention to continue using QRServe.</p>
+          <p>Your subscription requires attention to continue using QAFE.</p>
           <p className="mt-2 text-xs">{checking ? "Checking payment status…" : "We check automatically — you'll jump to your dashboard once paid ✓"}</p>
         </div>
       </div>

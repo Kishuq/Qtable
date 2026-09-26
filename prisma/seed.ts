@@ -16,7 +16,7 @@ async function main() {
       });
     }
     cafe = await db.cafe.create({
-      data: { name: "Brew Haven", slug: "cafe", tagline: "Scan. Order. Sip. Repeat.", description: "Demo cafe — rename me in Settings.", upiId: "brewhaven@upi", ownerId: owner.id, gstPct: 5 },
+      data: { name: "Brew Haven", slug: "cafe", tagline: "Scan. Order. Enjoy.", description: "Demo outlet — rename me in Settings.", upiId: "brewhaven@upi", ownerId: owner.id, gstPct: 5 },
     });
     await db.user.update({ where: { id: owner.id }, data: { cafeId: cafe.id } });
     const catMap: Record<string, string> = {};

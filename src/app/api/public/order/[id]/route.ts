@@ -6,7 +6,7 @@ import { z } from "zod";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const cafe = await requireCafe();
-  if (!cafe) return NextResponse.json({ error: "Cafe not available yet" }, { status: 404 });
+  if (!cafe) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
   const { id } = await ctx.params;
   const order = await db.order.findUnique({ where: { id, cafeId: cafe.id }, include: { items: true, cafe: true } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -44,7 +44,7 @@ const PaySchema = z.object({ upiRef: z.string().max(64).optional().default("") }
 // Customer confirms "I paid via UPI" — owner verifies on dashboard before marking PAID.
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const cafe = await requireCafe();
-  if (!cafe) return NextResponse.json({ error: "Cafe not available yet" }, { status: 404 });
+  if (!cafe) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
   if (!rateLimit(clientKey(req, "pay-claim"), 20, 60_000)) return tooMany();
   const { id } = await ctx.params;
   let body: unknown = {};

@@ -35,14 +35,14 @@ export async function POST(req: NextRequest) {
   const upiRef = cleanStr(d.upiRef, 30).replace(/[^a-zA-Z0-9]/g, "");
 
   let cafe;
-  try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Cafe unavailable" }, { status: 404 }); }
-  if (!cafe.isActive) return NextResponse.json({ error: "Cafe unavailable" }, { status: 404 });
+  try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 }); }
+  if (!cafe.isActive) return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
 
   // ✅ Strict subscription gate — no ordering while unpaid.
   try {
     const { getBilling, isBillingBlocked } = await import("@/lib/billing");
     if (isBillingBlocked(await getBilling())) {
-      return NextResponse.json({ error: "This cafe's subscription is paused — please contact the counter." }, { status: 402 });
+      return NextResponse.json({ error: "This outlet's subscription is paused — please contact the counter." }, { status: 402 });
     }
   } catch {
     // billing check itself failed → fail open, continue to ordering

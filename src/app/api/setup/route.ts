@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   try { await db.auditLog.create({ data: { action: "SETUP_SUCCESS", meta: `email=${cleanEmail}` } }); } catch {}
 
   const cafe = await db.cafe.create({
-    data: { name: cleanStr(cafeName, 60), slug: "cafe", tagline: "Scan. Order. Sip. Repeat.", upiId: cleanStr(upiId, 60), ownerId: user.id },
+    data: { name: cleanStr(cafeName, 60), slug: "cafe", tagline: "Scan. Order. Enjoy.", upiId: cleanStr(upiId, 60), ownerId: user.id },
   });
   await db.user.update({ where: { id: user.id }, data: { cafeId: cafe.id } });
 

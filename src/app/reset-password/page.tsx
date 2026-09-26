@@ -50,7 +50,7 @@ function ResetInner() {
             onChange={(e) => setEmail(e.target.value)}
             type="email"
             required
-            placeholder="owner@cafe.com"
+            placeholder="owner@business.com"
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500"
           />
           <input

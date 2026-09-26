@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const p = Schema.safeParse(body);
   if (!p.success) return NextResponse.json({ error: "Invalid feedback" }, { status: 400 });
   let cafe;
-  try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Cafe not found" }, { status: 404 }); }
+  try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Outlet not found" }, { status: 404 }); }
   // ✅ If orderId is provided, verify it belongs to this cafe
   if (p.data.orderId) {
     const order = await db.order.findFirst({ where: { id: p.data.orderId, cafeId: cafe.id } });

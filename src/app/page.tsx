@@ -6,8 +6,8 @@ import { Reveal } from "@/components/landing/Reveal";
 import { HeroScene } from "@/components/landing/HeroScene";
 import { ProductTabs } from "@/components/landing/ProductTabs";
 
-// QAFE marketing landing — product story, not the cafe menu.
-// Owner with a valid session goes straight to their cafe dashboard.
+// QAFE marketing landing — product story, not the outlet menu.
+// Owner with a valid session goes straight to their outlet dashboard.
 // Ordering always happens via table QR (/t/[code]).
 export default async function Landing() {
   const s = await getSession();
@@ -25,10 +25,10 @@ export default async function Landing() {
         </div>
         <div className="relative mx-auto max-w-4xl text-center">
           <p className="anim-rise inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-stone-300">
-            <span className="size-1.5 animate-pulse rounded-full bg-orange-400" /> QAFE — Cafe Operating System
+            <span className="size-1.5 animate-pulse rounded-full bg-orange-400" /> QAFE — Food Business OS
           </p>
           <h1 className="anim-rise qafe-serif mt-5 text-5xl font-black leading-[1.02] md:text-7xl" style={{ animationDelay: ".1s" }}>
-            Your cafe, flowing
+            Your food business, flowing
             <br />
             at a whole <span className="text-orange-500">new speed.</span>
           </h1>
@@ -41,7 +41,7 @@ export default async function Landing() {
               href="/subscribe?next=/setup"
               className="w-full rounded-2xl bg-orange-600 px-8 py-4 text-sm font-black text-white shadow-2xl shadow-orange-900/40 transition hover:bg-orange-500 active:scale-[.98] sm:w-auto"
             >
-              Start Your Cafe →
+              Start Your Outlet →
             </Link>
             <Link
               href="#how"
@@ -63,7 +63,7 @@ export default async function Landing() {
       <section className="border-y border-white/10 bg-white/[.02] px-5 py-10">
         <div className="mx-auto max-w-5xl text-center">
           <Reveal>
-            <p className="text-sm font-black uppercase tracking-[0.25em] text-stone-500">Built for the way modern cafes work</p>
+            <p className="text-sm font-black uppercase tracking-[0.25em] text-stone-500">Built for the way modern food businesses work</p>
           </Reveal>
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
@@ -89,7 +89,7 @@ export default async function Landing() {
         <div className="mx-auto max-w-4xl">
           <Reveal>
             <h2 className="qafe-serif text-center text-4xl font-black leading-tight md:text-5xl">
-              Running a cafe shouldn&apos;t feel chaotic.
+              Running a food business shouldn&apos;t feel chaotic.
             </h2>
           </Reveal>
           <div className="mt-8 grid gap-2.5 sm:grid-cols-2">
@@ -224,7 +224,7 @@ export default async function Landing() {
         <div className="mx-auto max-w-5xl">
           <Reveal>
             <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">For owners</p>
-            <h2 className="qafe-serif mt-2 text-4xl font-black md:text-5xl">Everything your cafe needs. One screen.</h2>
+            <h2 className="qafe-serif mt-2 text-4xl font-black md:text-5xl">Everything your outlet needs. One screen.</h2>
           </Reveal>
           <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
@@ -344,7 +344,7 @@ export default async function Landing() {
               <div className="absolute -inset-6 rounded-[36px] bg-orange-600/15 blur-2xl" aria-hidden="true" />
               <div className="relative rounded-[28px] border border-white/10 bg-white p-6 text-center shadow-2xl">
                 <p className="text-3xl">☕</p>
-                <p className="mt-1 font-black tracking-tight text-stone-900">QAFE Demo Cafe</p>
+                <p className="mt-1 font-black tracking-tight text-stone-900">QAFE Demo Restaurant</p>
                 <div className="mx-auto mt-3 grid size-44 grid-cols-5 grid-rows-5 gap-1 rounded-2xl border-4 border-stone-900 p-2">
                   {[1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1].map((v, i) => (
                     <span key={i} className={`rounded-[3px] ${v ? "bg-stone-900" : "bg-white"}`} />
@@ -487,7 +487,7 @@ export default async function Landing() {
               {[
                 "Secure authentication with hashed passwords",
                 "Role-based access for owner, staff & kitchen",
-                "Per-cafe data isolation on every query",
+                "Per-outlet data isolation on every query",
                 "Encrypted HTTPS connections throughout",
                 "Server-side price validation on every order",
                 "Audit logging for logins, payments & changes",
@@ -517,7 +517,7 @@ export default async function Landing() {
         <div className="mx-auto max-w-4xl text-center">
           <Reveal>
             <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">Pricing</p>
-            <h2 className="qafe-serif mt-2 text-4xl font-black md:text-5xl">One plan per cafe. Zero surprises.</h2>
+            <h2 className="qafe-serif mt-2 text-4xl font-black md:text-5xl">One plan per outlet. Zero surprises.</h2>
           </Reveal>
           <div className="mt-8 grid gap-3 text-left md:grid-cols-2">
             <Reveal>
@@ -573,7 +573,7 @@ export default async function Landing() {
             <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-orange-700 via-orange-600 to-amber-500 p-10 text-center text-white shadow-2xl md:p-16">
               <div className="pointer-events-none absolute -left-12 -top-12 size-56 rounded-full bg-white/15 blur-3xl" aria-hidden="true" />
               <div className="pointer-events-none absolute -bottom-16 -right-12 size-64 rounded-full bg-black/25 blur-3xl" aria-hidden="true" />
-              <h2 className="qafe-serif relative text-4xl font-black md:text-6xl">Ready to make your cafe flow?</h2>
+              <h2 className="qafe-serif relative text-4xl font-black md:text-6xl">Ready to make your business flow?</h2>
               <p className="relative mx-auto mt-4 max-w-xl text-sm font-bold opacity-90 md:text-base">
                 Give your customers a faster way to order — and your team a smarter way to run the day.
               </p>
@@ -597,11 +597,11 @@ export default async function Landing() {
             <p className="flex items-center gap-2 text-lg font-black text-white">
               <span className="grid size-8 place-items-center rounded-xl bg-orange-600 text-base">Q</span> QAFE
             </p>
-            <p className="mt-2 max-w-xs text-xs leading-relaxed text-stone-500">The digital operating system for modern cafes.</p>
+            <p className="mt-2 max-w-xs text-xs leading-relaxed text-stone-500">The digital operating system for modern food businesses.</p>
           </div>
           {[
             ["Product", [["How it works", "#how"], ["Features", "#features"], ["Pricing", "#pricing"], ["Owner login", "/login"]]],
-            ["Cafe", [["View menu", "/t/T1"], ["Track order", "/t/T1"], ["Give feedback", "/t/T1"], ["Get started", "/setup"]]],
+            ["Outlet", [["View menu", "/t/T1"], ["Track order", "/t/T1"], ["Give feedback", "/t/T1"], ["Get started", "/setup"]]],
             ["Support", [["Book a demo", "/login"], ["Setup guide", "/setup"], ["Status", "/api/health"], ["Privacy", "#top"]]],
           ].map(([h, links]) => (
             <div key={h as string}>

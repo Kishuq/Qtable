@@ -11,8 +11,8 @@ export default function TablesPage() {
   const toast = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [appUrl, setAppUrl] = useState("");
-  const [cafeName, setCafeName] = useState("Your Cafe");
-  const [tagline, setTagline] = useState("Scan. Order. Sip. Repeat.");
+  const [cafeName, setCafeName] = useState("Your Outlet");
+  const [tagline, setTagline] = useState("Scan. Order. Enjoy.");
   const [logo, setLogo] = useState("☕");
   const [theme, setTheme] = useState<Theme>(themeFromCafe(null));
   const [code, setCode] = useState("");
@@ -29,7 +29,7 @@ export default function TablesPage() {
     const c = await fetch("/api/cafe").then((x) => x.json()).catch(() => null);
     if (c?.cafe) {
       setCafeName(c.cafe.name); setLogo(c.cafe.logoEmoji || "☕");
-      setTagline(c.cafe.tagline || "Scan. Order. Sip. Repeat.");
+      setTagline(c.cafe.tagline || "Scan. Order. Enjoy.");
       setTheme(themeFromCafe(c.cafe));
     }
   }
@@ -69,7 +69,7 @@ export default function TablesPage() {
         <button onClick={() => window.print()} className="no-print rounded-full bg-white/10 px-5 py-2 text-sm font-bold">🖨️ Print all cards</button>
       </div>
       <p className="no-print mt-1 text-sm text-stone-400">
-        Cards carry your <b>name + Design-studio theme</b> automatically — remote cafes print themselves, zero help needed.
+        Cards carry your <b>name + Design-studio theme</b> automatically — remote outlets print themselves, zero help needed.
         Print/download from your <b>public domain</b> (never localhost).
       </p>
 

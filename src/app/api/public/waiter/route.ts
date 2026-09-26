@@ -23,9 +23,9 @@ export async function POST(req: NextRequest) {
   try {
     cafe = await requireCafe();
   } catch {
-    return NextResponse.json({ error: "Cafe unavailable" }, { status: 404 });
+    return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
   }
-  if (!cafe.isActive) return NextResponse.json({ error: "Cafe unavailable" }, { status: 404 });
+  if (!cafe.isActive) return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
 
   const tableCode = cleanStr(p.data.tableCode, 12).toUpperCase();
   const table = await db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: tableCode, active: true } });
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   try {
     const { getBilling, isBillingBlocked } = await import("@/lib/billing");
     if (isBillingBlocked(await getBilling())) {
-      return NextResponse.json({ error: "This cafe's subscription is paused — please contact the counter." }, { status: 402 });
+      return NextResponse.json({ error: "This outlet's subscription is paused — please contact the counter." }, { status: 402 });
     }
   } catch {
     // billing check itself failed → fail open

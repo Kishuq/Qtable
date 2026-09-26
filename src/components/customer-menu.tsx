@@ -264,8 +264,8 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const onlineProvider = data?.cafe.onlineProvider || null;
   // UPI is only offered when the owner actually set their UPI ID —
   // otherwise money would have nowhere to go.
-  // UPI is India-only: offered only when the cafe bills in INR *and* set its UPI ID.
-  // US/EU cafes automatically get Counter + card checkout instead.
+  // UPI is India-only: offered only when the outlet bills in INR *and* set its UPI ID.
+  // US/EU outlets automatically get Counter + card checkout instead.
   // NOTE: hooks must stay above early returns (React #310).
   const payModes = useMemo(() => {
     const m: ("COUNTER" | "UPI" | "ONLINE")[] = ["COUNTER"];
@@ -515,7 +515,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
                 </button>
               ))}
             </div>
-            {!onlineProvider && <p className="mt-1.5 text-[11px] text-stone-500">Online card payment unlocks once the cafe connects its gateway — counter & UPI work now.</p>}
+            {!onlineProvider && <p className="mt-1.5 text-[11px] text-stone-500">Online card payment unlocks once your outlet connects its gateway — counter & UPI work now.</p>}
             {form.pay === "ONLINE" && onlineProvider && (
               <p className="mt-1.5 rounded-xl bg-emerald-500/10 p-2.5 text-[11px] font-bold text-emerald-200">⚡ Fully automatic — pay inside the secure popup and your order confirms itself. Nothing to paste, nothing to prove.</p>
             )}

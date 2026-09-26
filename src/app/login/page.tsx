@@ -43,7 +43,7 @@ function LoginInner() {
         <h1 className="mt-2 text-2xl font-black">Owner login</h1>
         <p className="mt-1 text-sm text-stone-400">Counter, mobile &amp; kitchen — one login.</p>
         <form onSubmit={submit} className="mt-6 space-y-3">
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required placeholder="owner@cafe.com"
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required placeholder="owner@business.com"
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required minLength={8} placeholder="Password"
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />

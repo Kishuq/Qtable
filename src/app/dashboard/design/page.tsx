@@ -25,7 +25,7 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
 export default function DesignPage() {
   const toast = useToast();
   const [theme, setTheme] = useState<Theme>({ primary: "#c2410c", accent: "#f59e0b", bg: "#0c0a09", bgMode: "solid", pattern: "none", font: "inter", radius: "rounded" });
-  const [cafeName, setCafeName] = useState("Your Cafe");
+  const [cafeName, setCafeName] = useState("Your Outlet");
   const [logo, setLogo] = useState("☕");
   const [saving, setSaving] = useState(false);
   const set = (k: keyof Theme) => (v: Theme[keyof Theme]) => setTheme((t) => ({ ...t, [k]: v }));
@@ -125,7 +125,7 @@ export default function DesignPage() {
               <div className="px-4 py-4">
                 <div className="flex items-center gap-2.5">
                   <span className="t-grad grid size-11 place-items-center rounded-2xl text-2xl">{logo}</span>
-                  <div><p className="t-heading font-black leading-tight">{cafeName}</p><p className="t-accent-text text-[11px] font-bold">TABLE T1 • Scan. Order. Sip. Repeat.</p></div>
+                  <div><p className="t-heading font-black leading-tight">{cafeName}</p><p className="t-accent-text text-[11px] font-bold">TABLE T1 • Scan. Order. Enjoy.</p></div>
                 </div>
                 <div className="t-card mt-3 border border-white/10 bg-white/5 px-4 py-2.5 text-sm opacity-80">🔍 Craving something? Search…</div>
                 <div className="mt-2 flex gap-2">
