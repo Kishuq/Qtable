@@ -77,7 +77,7 @@ export default function OrdersPage() {
       </div>
 
       {calls.length > 0 && (
-        <div className="mt-4 space-y-2 rounded-3xl border border-amber-500/40 bg-amber-500/10 p-4">
+        <div className="animate-slide-up mt-4 space-y-2 rounded-3xl border border-amber-500/40 bg-amber-500/10 p-4">
           <p className="text-sm font-black text-amber-200">🛎️ {calls.length} table{calls.length === 1 ? "" : "s"} need{calls.length === 1 ? "s" : ""} assistance</p>
           {calls.map((c) => (
             <div key={c.id} className="flex items-center justify-between gap-2 rounded-2xl bg-black/25 p-3 text-sm">
@@ -102,8 +102,8 @@ export default function OrdersPage() {
       )}
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        {orders.map((o) => (
-          <div key={o.id} className={`glass rounded-3xl p-5 ${o.status === "NEW" ? "border-amber-500/40" : ""}`}>
+        {orders.map((o, idx) => (
+          <div key={o.id} className={`glass animate-slide-up rounded-3xl p-5 ${o.status === "NEW" ? "border-amber-500/40" : ""}`} style={{ animationDelay: `${Math.min(idx, 8) * 50}ms` }}>
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="font-black">#{o.tokenNo} • Table {o.tableCode} {o.status === "NEW" && <span className="ml-1 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px]">NEW</span>}</p>

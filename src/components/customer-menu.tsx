@@ -288,7 +288,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
   return (
     <ThemeStyles theme={theme}>
-    <div className="mx-auto w-full max-w-xl flex-1 pb-32">
+    <div className="animate-fade-in mx-auto w-full max-w-xl flex-1 pb-32">
       {/* Header — branded hero, sticky controls below */}
       <div className="relative overflow-hidden">
         <div className="t-grad pointer-events-none absolute -top-20 left-1/2 h-56 w-[130%] -translate-x-1/2 rounded-[100%] opacity-25 blur-2xl" />
@@ -385,8 +385,8 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{popular.length} picks</span>
           </div>
           <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5">
-            {popular.map((i) => (
-              <div key={i.id} className="glass t-card card-hover w-44 shrink-0 snap-start overflow-hidden">
+            {popular.map((i, idx) => (
+              <div key={i.id} className="glass t-card card-hover animate-slide-up w-44 shrink-0 snap-start overflow-hidden" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
                 <button className="group relative block h-28 w-full overflow-hidden" onClick={() => { setQuick(i); setQuickQty(1); }}>
                   <span className="block size-full transition duration-300 group-hover:scale-105"><ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" /></span>
                   <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
@@ -408,7 +408,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         </div>
         {flat ? (
           <div className="space-y-3">
-            {items.map((i) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+            {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
           </div>
         ) : (data.categories.map((c) => {
           const list = items.filter((i) => i.categoryId === c.id);
@@ -421,7 +421,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
                 <span className="h-px flex-1 bg-white/10" />
               </div>
               <div className="space-y-3">
-                {list.map((i) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+                {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
               </div>
             </div>
           );
@@ -551,12 +551,12 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   );
 }
 
-function DishCard({ item, currency, qty, lastAdded, onAdd, onSub, onQuick }: {
-  item: Item; currency: string; qty: number; lastAdded: boolean;
+function DishCard({ item, currency, qty, lastAdded, index = 0, onAdd, onSub, onQuick }: {
+  item: Item; currency: string; qty: number; lastAdded: boolean; index?: number;
   onAdd: () => void; onSub: () => void; onQuick: () => void;
 }) {
   return (
-    <div className="glass t-card card-hover animate-slide-up overflow-hidden">
+    <div className="glass t-card card-hover animate-slide-up overflow-hidden" style={{ animationDelay: `${Math.min(index, 10) * 45}ms` }}>
       <div className="flex gap-3.5 p-4">
         <button onClick={onQuick} className="group relative shrink-0 overflow-hidden rounded-2xl transition active:scale-95" title="Quick view">
           <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} />

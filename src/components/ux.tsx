@@ -60,6 +60,11 @@ export function EmptyState({ emoji, title, hint }: { emoji: string; title: strin
 }
 
 // ---------- Food photo with emoji fallback (never shows a broken image) ----------
+// Unsplash thumbs are downscaled (w=800 → w=400): ~4x fewer bytes on list views.
+function thumb(url: string): string {
+  return url.includes("images.unsplash.com") ? url.replace("w=800", "w=400") : url;
+}
+
 export function ItemPhoto({ url, emoji, size = "size-20", rounded = "rounded-2xl" }: { url?: string; emoji: string; size?: string; rounded?: string }) {
   const [err, setErr] = useState(false);
   if (!url || err) {
@@ -67,7 +72,7 @@ export function ItemPhoto({ url, emoji, size = "size-20", rounded = "rounded-2xl
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt="" loading="lazy" onError={() => setErr(true)}
+    <img src={thumb(url)} alt="" loading="lazy" decoding="async" onError={() => setErr(true)}
       className={`${size} shrink-0 ${rounded} bg-white/5 object-cover`} />
   );
 }
