@@ -44,7 +44,7 @@ function SubscribeInner() {
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-14">
       <div className="glass rounded-3xl p-8 text-center">
         <p className="mx-auto grid size-16 place-items-center rounded-3xl bg-orange-600/15 text-3xl">💳</p>
-        <h1 className="mt-4 text-2xl font-black">Subscribe to QAFE</h1>
+        <h1 className="mt-4 text-2xl font-black">Subscribe to Qtable</h1>
         <p className="mt-2 text-sm leading-relaxed text-stone-400">
           Login, setup and ordering unlock <b className="text-stone-200">after</b> an active subscription.
           Complete payment and this page forwards you automatically — no refresh needed.
@@ -58,7 +58,7 @@ function SubscribeInner() {
             </span>
           </p>
           <p className="mt-1 text-xs text-stone-400">
-            Starter ₹999/mo • Pro ₹1,999/mo. Pay via the billing portal link shared by QAFE support.
+            Starter ₹999/mo • Pro ₹1,999/mo. Pay via the billing portal link shared by Qtable support.
           </p>
         </div>
 

@@ -6,7 +6,7 @@ import { Reveal } from "@/components/landing/Reveal";
 import { HeroScene } from "@/components/landing/HeroScene";
 import { ProductTabs } from "@/components/landing/ProductTabs";
 
-// QAFE marketing landing — product story, not the outlet menu.
+// Qtable marketing landing — product story, not the outlet menu.
 // Owner with a valid session goes straight to their outlet dashboard.
 // Ordering always happens via table QR (/t/[code]).
 export default async function Landing() {
@@ -25,7 +25,7 @@ export default async function Landing() {
         </div>
         <div className="relative mx-auto max-w-4xl text-center">
           <p className="anim-rise inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-stone-300">
-            <span className="size-1.5 animate-pulse rounded-full bg-orange-400" /> QAFE — Food Business OS
+            <span className="size-1.5 animate-pulse rounded-full bg-orange-400" /> Qtable — Food Business OS
           </p>
           <h1 className="anim-rise qafe-serif mt-5 text-5xl font-black leading-[1.02] md:text-7xl" style={{ animationDelay: ".1s" }}>
             Your food business, flowing
@@ -33,7 +33,7 @@ export default async function Landing() {
             at a whole <span className="text-orange-500">new speed.</span>
           </h1>
           <p className="anim-rise mx-auto mt-5 max-w-2xl text-base leading-relaxed text-stone-400 md:text-lg" style={{ animationDelay: ".2s" }}>
-            Turn every table into a smarter ordering experience. QAFE connects your menu, customers, kitchen,
+            Turn every table into a smarter ordering experience. Qtable connects your menu, customers, kitchen,
             tables and operations in one seamless platform.
           </p>
           <div className="anim-rise mt-8 flex flex-col items-center justify-center gap-2.5 sm:flex-row" style={{ animationDelay: ".3s" }}>
@@ -84,7 +84,7 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* ---------- OLD WAY → QAFE ---------- */}
+      {/* ---------- OLD WAY → Qtable ---------- */}
       <section className="bg-[#171008] px-5 py-20">
         <div className="mx-auto max-w-4xl">
           <Reveal>
@@ -125,7 +125,7 @@ export default async function Landing() {
                 ))}
               </div>
               <p className="qafe-serif mt-6 text-4xl font-black text-white md:text-5xl">
-                Meet <span className="text-orange-500">QAFE.</span>
+                Meet <span className="text-orange-500">Qtable.</span>
               </p>
             </div>
           </Reveal>
@@ -344,7 +344,7 @@ export default async function Landing() {
               <div className="absolute -inset-6 rounded-[36px] bg-orange-600/15 blur-2xl" aria-hidden="true" />
               <div className="relative rounded-[28px] border border-white/10 bg-white p-6 text-center shadow-2xl">
                 <p className="text-3xl">☕</p>
-                <p className="mt-1 font-black tracking-tight text-stone-900">QAFE Demo Restaurant</p>
+                <p className="mt-1 font-black tracking-tight text-stone-900">Qtable Demo Restaurant</p>
                 <div className="mx-auto mt-3 grid size-44 grid-cols-5 grid-rows-5 gap-1 rounded-2xl border-4 border-stone-900 p-2">
                   {[1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1].map((v, i) => (
                     <span key={i} className={`rounded-[3px] ${v ? "bg-stone-900" : "bg-white"}`} />
@@ -353,7 +353,7 @@ export default async function Landing() {
                 <p className="mx-auto mt-3 inline-block rounded-full bg-stone-900 px-6 py-1.5 text-sm font-black tracking-widest text-white">
                   TABLE T12
                 </p>
-                <p className="mt-2 text-[10px] font-black uppercase tracking-[0.25em] text-stone-400">Powered by QAFE</p>
+                <p className="mt-2 text-[10px] font-black uppercase tracking-[0.25em] text-stone-400">Powered by Qtable</p>
               </div>
             </div>
           </Reveal>
@@ -579,7 +579,7 @@ export default async function Landing() {
               </p>
               <div className="relative mt-8 flex flex-col justify-center gap-2.5 sm:flex-row">
                 <Link href="/subscribe?next=/setup" className="rounded-2xl bg-stone-950 px-8 py-4 text-sm font-black text-white transition hover:scale-[1.02] active:scale-95">
-                  Start with QAFE →
+                  Start with Qtable →
                 </Link>
                 <Link href="/login" className="rounded-2xl border border-white/40 px-8 py-4 text-sm font-black text-white transition hover:bg-white/10 active:scale-95">
                   Book a Demo
@@ -595,7 +595,7 @@ export default async function Landing() {
         <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <p className="flex items-center gap-2 text-lg font-black text-white">
-              <span className="grid size-8 place-items-center rounded-xl bg-orange-600 text-base">Q</span> QAFE
+              <span className="grid size-8 place-items-center rounded-xl bg-orange-600 text-base">Q</span> Qtable
             </p>
             <p className="mt-2 max-w-xs text-xs leading-relaxed text-stone-500">The digital operating system for modern food businesses.</p>
           </div>
@@ -619,7 +619,7 @@ export default async function Landing() {
           ))}
         </div>
         <div className="mx-auto mt-10 flex max-w-5xl flex-col items-center justify-between gap-2 border-t border-white/10 pt-6 text-xs text-stone-600 md:flex-row">
-          <p>© 2026 QAFE. All rights reserved.</p>
+          <p>© 2026 Qtable. All rights reserved.</p>
           <p>Scan. Order. Flow.</p>
         </div>
       </footer>

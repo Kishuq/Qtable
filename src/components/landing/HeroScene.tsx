@@ -59,7 +59,7 @@ export function HeroScene() {
       <div className="relative mt-4 h-6 text-center text-xs font-bold text-stone-400">
         <p className="hero-cap hero-cap-1 absolute inset-0">Customer scans the table QR…</p>
         <p className="hero-cap hero-cap-2 absolute inset-0">Signature Cappuccino + extra shot → cart…</p>
-        <p className="hero-cap hero-cap-3 absolute inset-0">Order flies TABLE → QAFE → KITCHEN…</p>
+        <p className="hero-cap hero-cap-3 absolute inset-0">Order flies TABLE → Qtable → KITCHEN…</p>
         <p className="hero-cap hero-cap-4 absolute inset-0">Kitchen fires it up — customer gets live status.</p>
       </div>
 

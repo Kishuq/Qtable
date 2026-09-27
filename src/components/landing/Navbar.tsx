@@ -32,7 +32,7 @@ export function Navbar() {
       >
         <Link href="#top" className="flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-xl bg-orange-600 text-lg font-black text-white">Q</span>
-          <span className="text-lg font-black tracking-tight text-white">QAFE</span>
+          <span className="text-lg font-black tracking-tight text-white">Qtable</span>
         </Link>
         <div className="hidden items-center gap-6 md:flex">
           {LINKS.map((l) => (
