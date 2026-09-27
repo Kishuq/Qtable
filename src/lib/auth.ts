@@ -41,7 +41,9 @@ export async function verifyPassword(pw: string, hash: string) {
 
 export function signSession(s: Session) {
   warnWeakSecret();
-  return jwt.sign(s, JWT_SECRET, { expiresIn: "24h" });
+  // 30-day persistent sessions: counter/kitchen devices stay logged in.
+  // Cookie is HttpOnly + Secure + SameSite=strict, so the theft window stays small.
+  return jwt.sign(s, JWT_SECRET, { expiresIn: "30d" });
 }
 
 export function verifyToken(token: string): Session | null {
@@ -66,7 +68,7 @@ export async function setSessionCookie(session: Session) {
     secure: (process.env.NEXT_PUBLIC_APP_URL || "").startsWith("https://"),
     sameSite: "strict" as const, // ✅ Strict prevents CSRF; lax only for dev convenience
     path: "/",
-    maxAge: 60 * 60 * 24, // 24 hours — shorter expiry forces re-auth
+    maxAge: 60 * 60 * 24 * 30, // 30 days — matches the JWT, one login per month
   });
 }
 
