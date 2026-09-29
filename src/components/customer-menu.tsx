@@ -37,7 +37,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   });
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [waiter, setWaiter] = useState<"idle" | "sending" | "sent">("idle");
-  const [usuals, setUsuals] = useState<{ id: string; tokenNo: number; lines: { menuItemId: string; name: string; qty: number }[] }[]>([]);
+  const [usuals, setUsuals] = useState<{ id: string; tokenNo: number; status: string; lines: { menuItemId: string; name: string; qty: number }[] }[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const cartKey = `qrserve_cart_${tableCode || "main"}`;
 
@@ -67,7 +67,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       try {
         const raw = JSON.parse(localStorage.getItem("qrserve_recent") || "[]") as { id: string }[];
         const ids = [...new Set(raw.map((r) => r.id).filter(Boolean))].slice(0, 2);
-        const out: { id: string; tokenNo: number; lines: { menuItemId: string; name: string; qty: number }[] }[] = [];
+        const out: { id: string; tokenNo: number; status: string; lines: { menuItemId: string; name: string; qty: number }[] }[] = [];
         for (const oid of ids) {
           try {
             const r = await fetch(`/api/public/order/${oid}`);
@@ -78,6 +78,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             out.push({
               id: ord.id,
               tokenNo: ord.tokenNo,
+              status: ord.status || "",
               lines: ord.items.map((it: { menuItemId?: string; name: string; qty: number }) => ({
                 menuItemId: it.menuItemId || "",
                 name: it.name,
@@ -318,7 +319,11 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           </select>
         </div>
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-          {[{ id: "ALL", name: "All" }, { id: "POPULAR", name: "⭐ Popular" }, ...data.categories].map((c) => (
+          {[
+            { id: "ALL", name: `All • ${data.items.length}` },
+            { id: "POPULAR", name: `⭐ Popular • ${data.items.filter((m) => m.popular).length}` },
+            ...data.categories.map((c) => ({ id: c.id, name: `${c.name} • ${data.items.filter((m) => m.categoryId === c.id).length}` })),
+          ].map((c) => (
             <button key={c.id} onClick={() => { setCat(c.id); listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
               className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black transition active:scale-95 ${cat === c.id ? "t-grad scale-105 text-white shadow-lg" : "border border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"}`}>{c.name}</button>
           ))}
@@ -340,6 +345,26 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         )}
         </div>
       </div>
+
+      {/* Live order — jump back to tracking after returning to the menu */}
+      {(() => {
+        const live = usuals.find((u) => ["NEW", "ACCEPTED", "PREPARING", "READY"].includes(u.status));
+        if (!live) return null;
+        return (
+          <div className="px-4 pt-3">
+            <Link
+              href={`/order/${live.id}`}
+              className="t-grad anim-rise flex items-center justify-between rounded-2xl p-4 text-white shadow-xl transition hover:brightness-110 active:scale-[.99]"
+            >
+              <span>
+                <span className="block text-[11px] font-bold opacity-85">🔔 Your order is live</span>
+                <span className="block text-sm font-black">#{live.tokenNo} • {live.status.charAt(0) + live.status.slice(1).toLowerCase()}</span>
+              </span>
+              <span className="shrink-0 rounded-full bg-black/25 px-4 py-2 text-xs font-black">Track →</span>
+            </Link>
+          </div>
+        );
+      })()}
 
       {/* Offers */}
       {data.coupons.length > 0 && (
@@ -403,11 +428,15 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       <div ref={listRef} className="scroll-mt-44 space-y-6 px-4 pt-5">
         <div className="flex items-center gap-2">
           <p className="t-heading text-sm font-black">Explore the menu</p>
-          <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{items.length} dish{items.length === 1 ? "" : "es"} • incl. GST</span>
+          <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">
+            {items.length} dish{items.length === 1 ? "" : "es"}
+            {cat !== "ALL" ? ` • ${cat === "POPULAR" ? "Popular" : data.categories.find((c) => c.id === cat)?.name}` : ""}
+            {sort !== "rel" ? ` • ${sort === "lo" ? "Low → High" : sort === "hi" ? "High → Low" : "Popular first"}` : ""} • incl. GST
+          </span>
           <span className="h-px flex-1 bg-white/10" />
         </div>
         {flat ? (
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
           </div>
         ) : (data.categories.map((c) => {
@@ -420,13 +449,21 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
                 <span className="t-grad rounded-full px-2 py-0.5 text-[10px] font-black text-white">{list.length}</span>
                 <span className="h-px flex-1 bg-white/10" />
               </div>
-              <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
                 {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
               </div>
             </div>
           );
         }))}
-        {items.length === 0 && <div className="py-10 text-center"><p className="text-4xl">🍽️</p><p className="t-muted mt-2 text-sm">Nothing matches — try another craving.</p></div>}
+        {items.length === 0 && (
+          <div className="py-10 text-center">
+            <p className="text-4xl">🍽️</p>
+            <p className="t-muted mt-2 text-sm">Nothing matches — try another craving.</p>
+            <button onClick={() => { setQ(""); setCat("ALL"); setVegOnly(false); setSort("rel"); }} className="mt-3 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-black transition hover:bg-white/10 active:scale-95">
+              Clear all filters ✕
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Cart bar */}
@@ -556,30 +593,28 @@ function DishCard({ item, currency, qty, lastAdded, index = 0, onAdd, onSub, onQ
   onAdd: () => void; onSub: () => void; onQuick: () => void;
 }) {
   return (
-    <div className="glass t-card card-hover animate-slide-up overflow-hidden" style={{ animationDelay: `${Math.min(index, 10) * 45}ms` }}>
-      <div className="flex gap-3.5 p-4">
-        <button onClick={onQuick} className="group relative shrink-0 overflow-hidden rounded-2xl transition active:scale-95" title="Quick view">
-          <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} />
-          {item.popular && <span className="t-grad absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow">★</span>}
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className={`grid size-4 shrink-0 place-items-center rounded-md border text-[10px] ${item.veg ? "border-green-500/70 bg-green-500/10 text-green-400" : "border-red-500/70 bg-red-500/10 text-red-400"}`}>●</span>
-            <button onClick={onQuick} className="t-heading truncate text-left text-[15px] font-black hover:underline">{item.name}</button>
-          </div>
-          <p className="t-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">{item.description}</p>
-          <div className="mt-2.5 flex items-center justify-between">
-            <p className="text-[15px] font-black tracking-tight">{inr(item.price, currency)}</p>
-            {qty > 0 ? (
-              <div className={`t-grad flex items-center gap-3 rounded-full px-1.5 py-1 text-white shadow-lg ${lastAdded ? "animate-pop" : ""}`}>
-                <button onClick={onSub} className="grid size-7 place-items-center rounded-full bg-black/25 text-lg font-black leading-none">−</button>
-                <span className="min-w-4 text-center text-sm font-black">{qty}</span>
-                <button onClick={onAdd} className="grid size-7 place-items-center rounded-full bg-black/25 text-lg font-black leading-none">+</button>
-              </div>
-            ) : (
-              <button onClick={onAdd} className="t-primary-border t-primary-text rounded-full border bg-white/5 px-5 py-1.5 text-xs font-black transition active:scale-95">ADD +</button>
-            )}
-          </div>
+    <div className="glass t-card card-hover animate-slide-up flex flex-col overflow-hidden" style={{ animationDelay: `${Math.min(index, 10) * 45}ms` }}>
+      <button onClick={onQuick} className="group relative block aspect-[4/3] w-full overflow-hidden" title="Quick view">
+        <span className="block size-full transition duration-300 group-hover:scale-105">
+          <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} size="size-full" rounded="rounded-none" />
+        </span>
+        {item.popular && <span className="t-grad absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow-lg">★ Popular</span>}
+        <span className={`absolute right-2 top-2 grid size-5 place-items-center rounded-md border bg-black/55 text-[10px] backdrop-blur ${item.veg ? "border-green-400/80 text-green-300" : "border-red-400/80 text-red-300"}`} title={item.veg ? "Veg" : "Non-veg"}>●</span>
+      </button>
+      <div className="flex flex-1 flex-col p-3">
+        <button onClick={onQuick} className="t-heading truncate text-left text-sm font-black leading-snug hover:underline">{item.name}</button>
+        <p className="t-muted mt-0.5 line-clamp-1 text-[11px] leading-relaxed">{item.description}</p>
+        <div className="mt-auto flex items-center justify-between pt-2.5">
+          <p className="text-sm font-black tracking-tight">{inr(item.price, currency)}</p>
+          {qty > 0 ? (
+            <div className={`t-grad flex items-center gap-2.5 rounded-full px-1 py-0.5 text-white shadow-lg ${lastAdded ? "animate-pop" : ""}`}>
+              <button onClick={onSub} aria-label="Remove one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">−</button>
+              <span className="min-w-4 text-center text-[13px] font-black">{qty}</span>
+              <button onClick={onAdd} aria-label="Add one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">+</button>
+            </div>
+          ) : (
+            <button onClick={onAdd} className="t-grad rounded-full px-4 py-1.5 text-[11px] font-black text-white shadow transition hover:brightness-110 active:scale-95">ADD +</button>
+          )}
         </div>
       </div>
     </div>
