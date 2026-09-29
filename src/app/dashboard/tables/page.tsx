@@ -89,7 +89,7 @@ export default function TablesPage() {
 
       <div className="no-print mt-4 flex gap-2">
         <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="New table code (T13)" className="w-48 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
-        <button onClick={async () => { if (!code.trim()) return; const r = await fetch("/api/tables", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code.trim() }) }); const j = await r.json(); if (!r.ok) return alert(j.error); setCode(""); load(); }} className="rounded-2xl bg-orange-600 px-5 text-sm font-black">+ Add</button>
+        <button onClick={async () => { if (!code.trim() || busy) return; setBusy("add"); try { const r = await fetch("/api/tables", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code.trim() }) }); const j = await r.json(); if (!r.ok) return toast(j.error, "err"); setCode(""); toast(`Table ${code.trim()} added ✓`); } finally { setBusy(null); load(); } }} disabled={busy === "add"} className="rounded-2xl bg-orange-600 px-5 text-sm font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">{busy === "add" ? "… ⏳" : "+ Add"}</button>
       </div>
 
       <link rel="stylesheet" href={font.href} />
@@ -176,7 +176,7 @@ export default function TablesPage() {
                 {busy === t.id ? "Rendering…" : "⬇ PNG"}
               </button>
               <a href={`/t/${t.code}`} target="_blank" className="rounded-xl bg-white/10 px-4 py-1.5 text-xs font-bold">Open ↗</a>
-              <button onClick={async () => { if (!confirm(`Delete ${t.code}?`)) return; await fetch(`/api/tables?id=${t.id}`, { method: "DELETE" }); load(); }} className="rounded-xl border border-red-500/30 px-4 py-1.5 text-xs text-red-300">Delete</button>
+              <button onClick={async () => { if (!confirm(`Delete ${t.code}?`) || busy) return; setBusy(t.id); try { await fetch(`/api/tables?id=${t.id}`, { method: "DELETE" }); toast(`${t.code} deleted`, "info"); } finally { setBusy(null); load(); } }} disabled={busy === t.id} className="rounded-xl border border-red-500/30 px-4 py-1.5 text-xs text-red-300 transition hover:bg-red-500/10 active:scale-95 disabled:opacity-60">{busy === t.id ? "… ⏳" : "Delete"}</button>
             </div>
             <p className="qr-url no-print mt-1 break-all text-center text-[11px] text-stone-500">{urlFor(t.code)}</p>
           </div>

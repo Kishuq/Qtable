@@ -9,6 +9,8 @@ export default function CouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [code, setCode] = useState("");
   const [pct, setPct] = useState("10");
+  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
     const r = await fetch("/api/coupons");
@@ -18,16 +20,32 @@ export default function CouponsPage() {
   useEffect(() => { load(); }, []);
 
   async function save() {
-    const r = await fetch("/api/coupons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, pct: Number(pct) }) });
-    const j = await r.json();
-    if (!r.ok) return toast(j.error || "Failed", "err");
-    toast(`${j.coupon.code} — ${j.coupon.pct}% off is live 🎉`);
-    setCode(""); setPct("10"); load();
+    setSaving(true);
+    try {
+      const r = await fetch("/api/coupons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, pct: Number(pct) }) });
+      const j = await r.json();
+      if (!r.ok) return toast(j.error || "Failed", "err");
+      toast(`${j.coupon.code} — ${j.coupon.pct}% off is live 🎉`);
+      setCode(""); setPct("10"); load();
+    } finally { setSaving(false); }
   }
 
   async function toggle(c: Coupon) {
-    await fetch("/api/coupons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: c.code, pct: c.pct, active: !c.active }) });
-    load();
+    setBusy(`${c.id}:toggle`);
+    // Optimistic flip so the tap answers instantly.
+    setCoupons((prev) => prev.map((p) => (p.id === c.id ? { ...p, active: !p.active } : p)));
+    try {
+      await fetch("/api/coupons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: c.code, pct: c.pct, active: !c.active }) });
+    } finally { setBusy(null); load(); }
+  }
+
+  async function removeCoupon(c: Coupon) {
+    if (!confirm(`Delete ${c.code}?`)) return;
+    setBusy(`${c.id}:delete`);
+    try {
+      await fetch(`/api/coupons?id=${c.id}`, { method: "DELETE" });
+      toast("Offer deleted", "info");
+    } finally { setBusy(null); load(); }
   }
 
   return (
@@ -41,7 +59,7 @@ export default function CouponsPage() {
             <input value={pct} onChange={(e) => setPct(e.target.value.replace(/\D/g, "").slice(0, 2))} inputMode="numeric" placeholder="%" className="w-20 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold outline-none" />
             <span className="text-sm text-stone-400">% off</span>
           </div>
-          <button onClick={save} className="rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-2.5 text-sm font-black">Launch offer 🚀</button>
+          <button onClick={save} disabled={saving} className="rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-2.5 text-sm font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">{saving ? "Launching… ⏳" : "Launch offer 🚀"}</button>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {["WELCOME10:10", "HAPPYHOUR20:20", "WEEKEND15:15", "FLAT50:50"].map((s) => {
@@ -58,8 +76,8 @@ export default function CouponsPage() {
             <p className="text-xl font-black tracking-widest">{c.code}</p>
             <p className="text-sm text-stone-300">{c.pct}% off entire bill {c.active ? "• LIVE on menu" : "• paused"}</p>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => toggle(c)} className="rounded-xl bg-white/10 px-4 py-1.5 text-xs font-bold">{c.active ? "Pause" : "Activate"}</button>
-              <button onClick={async () => { if (!confirm(`Delete ${c.code}?`)) return; await fetch(`/api/coupons?id=${c.id}`, { method: "DELETE" }); toast("Offer deleted", "info"); load(); }} className="rounded-xl border border-red-500/30 px-4 py-1.5 text-xs text-red-300">Delete</button>
+              <button onClick={() => toggle(c)} disabled={busy === `${c.id}:toggle`} className="rounded-xl bg-white/10 px-4 py-1.5 text-xs font-bold transition hover:bg-white/20 active:scale-95 disabled:opacity-60">{busy === `${c.id}:toggle` ? "… ⏳" : c.active ? "Pause" : "Activate"}</button>
+              <button onClick={() => removeCoupon(c)} disabled={busy === `${c.id}:delete`} className="rounded-xl border border-red-500/30 px-4 py-1.5 text-xs text-red-300 transition hover:bg-red-500/10 active:scale-95 disabled:opacity-60">{busy === `${c.id}:delete` ? "… ⏳" : "Delete"}</button>
             </div>
           </div>
         ))}

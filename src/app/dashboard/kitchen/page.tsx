@@ -6,6 +6,7 @@ type Order = { id: string; tokenNo: number; tableCode: string; status: string; c
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pending, setPending] = useState<string | null>(null);
 
   async function load() {
     const r = await fetch("/api/orders?status=ALL");
@@ -15,8 +16,19 @@ export default function KitchenPage() {
   useEffect(() => { load(); const t = setInterval(load, 3500); document.title = "KDS — Kitchen"; return () => clearInterval(t); }, []);
 
   async function setStatus(id: string, status: string) {
-    await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-    load();
+    const prev = orders;
+    setPending(id);
+    // Optimistic flip — big button responds instantly on kitchen tabs.
+    setOrders((os) => os.map((o) => (o.id === id ? { ...o, status } : o)));
+    try {
+      const r = await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      if (!r.ok) throw new Error("Move failed");
+    } catch {
+      setOrders(prev);
+    } finally {
+      setPending(null);
+      load();
+    }
   }
 
   return (
@@ -40,9 +52,9 @@ export default function KitchenPage() {
               </div>
               {o.note && <p className="mt-2 text-sm text-amber-300">📝 {o.note}</p>}
               <div className="mt-4 flex gap-2">
-                {o.status === "NEW" && <button onClick={() => setStatus(o.id, "ACCEPTED")} className="flex-1 rounded-2xl bg-sky-600 py-3 font-black">ACCEPT</button>}
-                {(o.status === "NEW" || o.status === "ACCEPTED") && <button onClick={() => setStatus(o.id, "PREPARING")} className="flex-1 rounded-2xl bg-violet-600 py-3 font-black">COOKING</button>}
-                {o.status === "PREPARING" && <button onClick={() => setStatus(o.id, "READY")} className="flex-1 rounded-2xl bg-emerald-600 py-3 font-black">READY 🎉</button>}
+                {o.status === "NEW" && <button onClick={() => setStatus(o.id, "ACCEPTED")} disabled={pending === o.id} className="flex-1 rounded-2xl bg-sky-600 py-3 font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">{pending === o.id ? "… ⏳" : "ACCEPT"}</button>}
+                {(o.status === "NEW" || o.status === "ACCEPTED") && <button onClick={() => setStatus(o.id, "PREPARING")} disabled={pending === o.id} className="flex-1 rounded-2xl bg-violet-600 py-3 font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">{pending === o.id ? "… ⏳" : "COOKING"}</button>}
+                {o.status === "PREPARING" && <button onClick={() => setStatus(o.id, "READY")} disabled={pending === o.id} className="flex-1 rounded-2xl bg-emerald-600 py-3 font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">{pending === o.id ? "… ⏳" : "READY 🎉"}</button>}
               </div>
             </div>
           );

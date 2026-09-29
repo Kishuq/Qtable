@@ -15,6 +15,8 @@ export default function StaffPage() {
   const toast = useToast();
   const [staff, setStaff] = useState<Member[]>([]);
   const [f, setF] = useState({ name: "", email: "", password: "", role: "STAFF" });
+  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
     const r = await fetch("/api/staff");
@@ -24,11 +26,23 @@ export default function StaffPage() {
   useEffect(() => { load(); }, []);
 
   async function add() {
-    const r = await fetch("/api/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
-    const j = await r.json();
-    if (!r.ok) return toast(j.error || "Failed", "err");
-    toast(`${j.staff.name} can now log in 🎉`);
-    setF({ name: "", email: "", password: "", role: "STAFF" }); load();
+    setSaving(true);
+    try {
+      const r = await fetch("/api/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+      const j = await r.json();
+      if (!r.ok) return toast(j.error || "Failed", "err");
+      toast(`${j.staff.name} can now log in 🎉`);
+      setF({ name: "", email: "", password: "", role: "STAFF" }); load();
+    } finally { setSaving(false); }
+  }
+
+  async function removeMember(m: Member) {
+    if (!confirm(`Remove ${m.name}?`)) return;
+    setBusy(m.id);
+    try {
+      await fetch(`/api/staff?id=${m.id}`, { method: "DELETE" });
+      toast("Login removed", "info");
+    } finally { setBusy(null); load(); }
   }
 
   return (
@@ -48,7 +62,7 @@ export default function StaffPage() {
             ))}
           </div>
         </div>
-        <button onClick={add} className="mt-3 w-full rounded-2xl bg-orange-600 py-3 text-sm font-black sm:w-auto sm:px-8">+ Create login</button>
+        <button onClick={add} disabled={saving} className="mt-3 w-full rounded-2xl bg-orange-600 py-3 text-sm font-black transition hover:brightness-110 active:scale-[.99] disabled:opacity-60 sm:w-auto sm:px-8">{saving ? "Creating… ⏳" : "+ Create login"}</button>
       </div>
 
       <div className="mt-4 space-y-2">
@@ -58,7 +72,7 @@ export default function StaffPage() {
             <div className="flex-1"><p className="text-sm font-bold">{m.name}</p><p className="text-xs text-stone-400">{m.email}</p></div>
             <StatusPill status={m.role} />
             {m.role !== "OWNER" && (
-              <button onClick={async () => { if (!confirm(`Remove ${m.name}?`)) return; await fetch(`/api/staff?id=${m.id}`, { method: "DELETE" }); toast("Login removed", "info"); load(); }} className="text-xs text-stone-500 hover:text-red-400">Remove</button>
+              <button onClick={() => removeMember(m)} disabled={busy === m.id} className="text-xs text-stone-500 transition hover:text-red-400 active:scale-95 disabled:opacity-60">{busy === m.id ? "… ⏳" : "Remove"}</button>
             )}
           </div>
         ))}

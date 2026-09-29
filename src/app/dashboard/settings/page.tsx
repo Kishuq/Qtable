@@ -5,6 +5,7 @@ import { CURRENCIES } from "@/lib/format";
 export default function SettingsPage() {
   const [f, setF] = useState({ name: "", tagline: "", description: "", upiId: "", gstPct: 5, currency: "INR" });
   const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch("/api/cafe").then((r) => r.json()).then((j) => {
@@ -14,9 +15,12 @@ export default function SettingsPage() {
 
   async function save() {
     setMsg("");
-    const r = await fetch("/api/cafe", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: f.name, tagline: f.tagline, description: f.description, upiId: f.upiId, gstPct: Number(f.gstPct), currency: f.currency }) });
-    const j = await r.json();
-    setMsg(r.ok ? "✅ Saved! Prices across the menu update instantly." : `❌ ${j.error || "Failed"}`);
+    setSaving(true);
+    try {
+      const r = await fetch("/api/cafe", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: f.name, tagline: f.tagline, description: f.description, upiId: f.upiId, gstPct: Number(f.gstPct), currency: f.currency }) });
+      const j = await r.json();
+      setMsg(r.ok ? "✅ Saved! Prices across the menu update instantly." : `❌ ${j.error || "Failed"}`);
+    } finally { setSaving(false); }
   }
 
   return (
@@ -36,7 +40,7 @@ export default function SettingsPage() {
         </div>
         <div><label className="text-xs font-bold text-stone-400">UPI ID — INDIA (INR) ONLY</label><input value={f.upiId} onChange={(e) => setF({ ...f, upiId: e.target.value })} placeholder="outlet@upi" className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
           {f.currency !== "INR" && <p className="mt-1 text-[11px] text-stone-500">UPI auto-hides for non-INR outlets — US/EU outlets use card checkout via Stripe.</p>}</div>
-        <button onClick={save} className="w-full rounded-2xl bg-orange-600 py-3 text-sm font-black">Save settings</button>
+        <button onClick={save} disabled={saving} className="w-full rounded-2xl bg-orange-600 py-3 text-sm font-black transition hover:brightness-110 active:scale-[.99] disabled:opacity-60">{saving ? "Saving… ⏳" : "Save settings"}</button>
         {msg && <p className="text-sm">{msg}</p>}
       </div>
 
