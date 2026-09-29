@@ -139,7 +139,7 @@ export default function TrackPage({ params }: { params: Promise<{ id: string }> 
           </>
         )}
       </div>
-      <Link href="/" className="t-muted mt-4 block text-center text-sm">← Back to menu</Link>
+      <Link href={`/t/${encodeURIComponent(o.tableCode)}`} className="t-muted mt-4 block text-center text-sm">← Back to menu (Table {o.tableCode})</Link>
     </div>
     </ThemeStyles>
   );

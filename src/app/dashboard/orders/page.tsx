@@ -21,6 +21,10 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState("ALL");
   const [q, setQ] = useState("");
   const [calls, setCalls] = useState<WaiterCall[]>([]);
+  // Which card+action is in flight — drives spinners + disabled states so every
+  // tap gives instant visible feedback (optimistic UI, rollback on failure).
+  const [pending, setPending] = useState<{ id: string; action: string } | null>(null);
+  const [busyCall, setBusyCall] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/orders?status=${filter}&q=${encodeURIComponent(q)}`);
@@ -40,31 +44,60 @@ export default function OrdersPage() {
   useEffect(() => { loadCalls(); const t = setInterval(loadCalls, 4000); return () => clearInterval(t); }, [loadCalls]);
 
   async function setCallStatus(id: string, status: string) {
+    const prev = calls;
+    setBusyCall(id);
+    // Optimistic flip so the tap feels instant.
+    setCalls((cs) => cs.map((c) => (c.id === id ? { ...c, status } : c)));
     try {
       const r = await fetch("/api/waiter", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }) });
-      if (!r.ok) toast("Could not update request", "err");
-    } catch {
-      toast("Network hiccup — check connection", "err");
+      if (!r.ok) throw new Error("Could not update request");
+      toast(status === "RESOLVED" ? "Request cleared ✓" : "On the way ✓", "ok");
+    } catch (e: unknown) {
+      setCalls(prev);
+      toast(e instanceof Error ? e.message : "Network hiccup — check connection", "err");
+    } finally {
+      setBusyCall(null);
+      loadCalls();
     }
-    loadCalls();
   }
 
   async function setStatus(id: string, status: string, paymentStatus?: string) {
+    const prev = orders;
+    const target = prev.find((o) => o.id === id);
+    const action = paymentStatus === "PAID" ? "paid" : status;
+    setPending({ id, action });
+    // Optimistic flip — the card moves instantly, server confirms after.
+    setOrders((os) =>
+      os.map((o) => (o.id === id ? { ...o, status: paymentStatus ? o.status : status, paymentStatus: paymentStatus || o.paymentStatus } : o))
+    );
     try {
       const r = await fetch(`/api/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, ...(paymentStatus ? { paymentStatus } : {}) }) });
       const j = await r.json().catch(() => ({}));
-      // Another screen may have moved this order first — say so instead of failing silently.
-      if (!r.ok) toast(j.error || "Someone already moved this order — refreshing", "err");
-    } catch {
-      toast("Network hiccup — check connection", "err");
+      if (!r.ok) throw new Error(j.error || "Someone already moved this order — refreshing");
+      toast(
+        paymentStatus === "PAID"
+          ? `#${target?.tokenNo ?? ""} marked paid ✓`
+          : `#${target?.tokenNo ?? ""} → ${status.charAt(0) + status.slice(1).toLowerCase()} ✓`,
+        "ok"
+      );
+    } catch (e: unknown) {
+      setOrders(prev); // rollback to server truth
+      toast(e instanceof Error ? e.message : "Network hiccup — check connection", "err");
+    } finally {
+      setPending(null);
+      load();
     }
-    load();
   }
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-black">Live orders 🔔</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-black">
+          Live orders 🔔
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-300">
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> AUTO
+          </span>
+        </h1>
         <p className="text-xs text-stone-400">Alarm rings automatically on new orders — toggle in the sidebar.</p>
       </div>
       <div className="mt-3 flex gap-2">
@@ -72,7 +105,7 @@ export default function OrdersPage() {
       </div>
       <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto">
         {FILTERS.map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold ${filter === f ? "bg-orange-600" : "bg-white/5"}`}>{f}</button>
+          <button key={f} onClick={() => setFilter(f)} className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition active:scale-95 ${filter === f ? "bg-orange-600 shadow-lg" : "bg-white/5 hover:bg-white/10"}`}>{f}</button>
         ))}
       </div>
 
@@ -92,9 +125,15 @@ export default function OrdersPage() {
               </div>
               <div className="flex gap-1.5">
                 {c.status === "OPEN" && (
-                  <button onClick={() => setCallStatus(c.id, "ACKNOWLEDGED")} className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-black text-black">On my way ✓</button>
+                  <button onClick={() => setCallStatus(c.id, "ACKNOWLEDGED")} disabled={busyCall === c.id}
+                    className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-black text-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">
+                    {busyCall === c.id ? "… ⏳" : "On my way ✓"}
+                  </button>
                 )}
-                <button onClick={() => setCallStatus(c.id, "RESOLVED")} className="rounded-xl bg-white/10 px-3.5 py-1.5 text-xs font-bold text-stone-200">Done</button>
+                <button onClick={() => setCallStatus(c.id, "RESOLVED")} disabled={busyCall === c.id}
+                  className="rounded-xl bg-white/10 px-3.5 py-1.5 text-xs font-bold text-stone-200 transition hover:bg-white/20 active:scale-95 disabled:opacity-60">
+                  {busyCall === c.id ? "… ⏳" : "Done"}
+                </button>
               </div>
             </div>
           ))}
@@ -127,18 +166,51 @@ export default function OrdersPage() {
               )}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              {o.status === "NEW" && <><button onClick={() => setStatus(o.id, "ACCEPTED")} className="rounded-xl bg-sky-600 px-4 py-2 text-xs font-black">Accept</button><button onClick={() => setStatus(o.id, "CANCELLED")} className="rounded-xl border border-red-500/40 px-4 py-2 text-xs font-bold text-red-300">Cancel</button></>}
-              {o.status === "ACCEPTED" && <button onClick={() => setStatus(o.id, "PREPARING")} className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-black">→ Preparing</button>}
-              {o.status === "PREPARING" && <button onClick={() => setStatus(o.id, "READY")} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black">→ Ready 🎉</button>}
-              {o.status === "READY" && <button onClick={() => setStatus(o.id, "SERVED")} className="rounded-xl bg-teal-600 px-4 py-2 text-xs font-black">→ Served</button>}
-              {o.status === "SERVED" && <button onClick={() => setStatus(o.id, "COMPLETED")} className="rounded-xl bg-stone-600 px-4 py-2 text-xs font-black">→ Complete</button>}
+              {o.status === "NEW" && <>
+                <button onClick={() => setStatus(o.id, "ACCEPTED")} disabled={pending?.id === o.id}
+                  className="rounded-xl bg-sky-600 px-4 py-2 text-xs font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">
+                  {pending?.id === o.id && pending.action === "ACCEPTED" ? "Accepting… ⏳" : "Accept"}
+                </button>
+                <button onClick={() => setStatus(o.id, "CANCELLED")} disabled={pending?.id === o.id}
+                  className="rounded-xl border border-red-500/40 px-4 py-2 text-xs font-bold text-red-300 transition hover:bg-red-500/10 active:scale-95 disabled:opacity-60">
+                  {pending?.id === o.id && pending.action === "CANCELLED" ? "Cancelling… ⏳" : "Cancel"}
+                </button>
+              </>}
+              {o.status === "ACCEPTED" && (
+                <button onClick={() => setStatus(o.id, "PREPARING")} disabled={pending?.id === o.id}
+                  className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">
+                  {pending?.id === o.id ? "Moving… ⏳" : "→ Preparing"}
+                </button>
+              )}
+              {o.status === "PREPARING" && (
+                <button onClick={() => setStatus(o.id, "READY")} disabled={pending?.id === o.id}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">
+                  {pending?.id === o.id ? "Firing… ⏳" : "→ Ready 🎉"}
+                </button>
+              )}
+              {o.status === "READY" && (
+                <button onClick={() => setStatus(o.id, "SERVED")} disabled={pending?.id === o.id}
+                  className="rounded-xl bg-teal-600 px-4 py-2 text-xs font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">
+                  {pending?.id === o.id ? "Moving… ⏳" : "→ Served"}
+                </button>
+              )}
+              {o.status === "SERVED" && (
+                <button onClick={() => setStatus(o.id, "COMPLETED")} disabled={pending?.id === o.id}
+                  className="rounded-xl bg-stone-600 px-4 py-2 text-xs font-black transition hover:brightness-110 active:scale-95 disabled:opacity-60">
+                  {pending?.id === o.id ? "Closing… ⏳" : "→ Complete"}
+                </button>
+              )}
               {o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && (
                 <button onClick={() => {
+                  if (pending?.id === o.id) return;
                   if (o.paymentMode === "UPI") {
                     if (!confirm(`${inr(o.total)} received in your UPI app for order #${o.tokenNo} (${o.tableCode})?`)) return;
                   } else if (!confirm(`Confirm ${inr(o.total)} received (${o.paymentMode}) for order #${o.tokenNo}?`)) return;
                   setStatus(o.id, o.status, "PAID");
-                }} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white">✓ Received</button>
+                }} disabled={pending?.id === o.id}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white transition hover:brightness-110 active:scale-95 disabled:opacity-60">
+                  {pending?.id === o.id && pending.action === "paid" ? "Confirming… ⏳" : "✓ Received"}
+                </button>
               )}
             </div>
           </div>
