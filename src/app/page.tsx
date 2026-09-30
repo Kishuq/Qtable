@@ -89,26 +89,12 @@ export default async function Landing() {
         <div className="mx-auto max-w-4xl">
           <Reveal>
             <h2 className="qafe-serif text-center text-4xl font-black leading-tight md:text-5xl">
-              Running a food business shouldn&apos;t feel chaotic.
+              Busy shifts, running calm.
             </h2>
+            <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-relaxed text-stone-400">
+              Every table ordering itself, the kitchen in flow, the counter always in the know.
+            </p>
           </Reveal>
-          <div className="mt-8 grid gap-2.5 sm:grid-cols-2">
-            {[
-              "Customers waiting, waving for staff",
-              "Greasy paper menus, reprinted weekly",
-              "Missed orders on noisy counters",
-              "Kitchen shouting across the pass",
-              "Table tracking on memory & paper",
-              "Inventory surprises mid-rush",
-            ].map((t, i) => (
-              <Reveal key={t} delay={i * 60}>
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm font-bold text-stone-300">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-red-500/15 text-red-300">✕</span>
-                  {t}
-                </div>
-              </Reveal>
-            ))}
-          </div>
           <Reveal delay={120}>
             <div className="mt-10 rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-600/15 to-transparent p-8 text-center">
               <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-400">The shift</p>
