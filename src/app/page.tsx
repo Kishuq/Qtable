@@ -20,8 +20,8 @@ export default async function Landing() {
       {/* ---------- HERO ---------- */}
       <section className="relative overflow-hidden px-5 pb-14 pt-32 md:pt-40">
         <div className="pointer-events-none absolute inset-0">
-          <div className="animate-drift absolute -top-32 left-1/2 h-96 w-[120%] -translate-x-1/2 rounded-[100%] bg-orange-700/15 blur-3xl" />
-          <div className="animate-drift-2 absolute right-[-80px] top-64 size-72 rounded-full bg-amber-500/[.07] blur-3xl" />
+          <div className="absolute -top-32 left-1/2 h-96 w-[120%] -translate-x-1/2 rounded-[100%] bg-orange-700/15 blur-3xl" />
+          <div className="absolute right-[-80px] top-64 size-72 rounded-full bg-amber-500/[.07] blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-4xl text-center">
           <p className="anim-rise inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-stone-300">
