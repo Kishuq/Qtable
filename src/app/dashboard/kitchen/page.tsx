@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
+import { PlanGate } from "@/components/PlanGate";
 
 type Order = { id: string; tokenNo: number; tableCode: string; status: string; createdAt: string; note: string; items: { name: string; qty: number; note: string }[] };
 
@@ -32,6 +33,7 @@ export default function KitchenPage() {
   }
 
   return (
+    <PlanGate>
     <div>
       <h1 className="text-2xl font-black">👨‍🍳 Kitchen display</h1>
       <p className="text-sm text-stone-400">Big cards, timers, one-tap advance. Open this on the kitchen tab.</p>
@@ -62,5 +64,6 @@ export default function KitchenPage() {
       </div>
       {orders.length === 0 && <p className="py-16 text-center text-stone-500">Kitchen is clear. ✨ New KOTs appear here instantly.</p>}
     </div>
+    </PlanGate>
   );
 }

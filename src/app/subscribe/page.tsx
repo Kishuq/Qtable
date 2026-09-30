@@ -60,9 +60,19 @@ function SubscribeInner() {
               {!state ? "checking…" : state.mode === "none" ? "open (no billing configured)" : state.status.replace("_", " ")}
             </span>
           </p>
-          <p className="mt-1 text-xs text-stone-400">
-            Starter ₹999/mo • Pro ₹1,999/mo. Pay via the billing portal link shared by Qtable support.
-          </p>
+          <div className="mt-3 grid gap-2 text-left">
+            {[
+              ["Menu ₹699/mo", "Digital menu display only"],
+              ["Standard ₹999/mo", "Menu + ordering + payments ★ popular"],
+              ["Pro ₹1,999/mo", "Everything: kitchen, offers, staff"],
+            ].map(([t, d]) => (
+              <div key={t} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <p className="text-xs font-black text-white">{t}</p>
+                <p className="text-[11px] text-stone-400">{d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-stone-400">Pay via the billing portal link shared by Qtable support.</p>
         </div>
 
         {err && <p className="mt-3 rounded-2xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}

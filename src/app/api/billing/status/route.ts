@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getBilling } from "@/lib/billing";
+import { getBilling, getPlan } from "@/lib/billing";
 
 // ✅ Get current billing status for a cafe
-// Returns the shape dashboard layout expects: { billing: {...}, portalUrl }
+// Returns the shape dashboard layout expects: { billing: {...}, portalUrl, plan }
 export async function GET() {
   const billing = await getBilling();
 
@@ -13,5 +13,6 @@ export async function GET() {
       renewsAt: billing.renewsAt,
     },
     portalUrl: null,
+    plan: getPlan(),
   });
 }

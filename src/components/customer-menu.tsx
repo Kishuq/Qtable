@@ -38,6 +38,17 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [waiter, setWaiter] = useState<"idle" | "sending" | "sent">("idle");
   const [usuals, setUsuals] = useState<{ id: string; tokenNo: number; status: string; lines: { menuItemId: string; name: string; qty: number }[] }[]>([]);
+  // Subscription plan — menu plan = read-only display (no ordering stack).
+  // Defaults to full ordering until the billing status loads.
+  const [ordering, setOrdering] = useState(true);
+  useEffect(() => {
+    fetch("/api/billing/status")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.plan === "menu") setOrdering(false);
+      })
+      .catch(() => {});
+  }, []);
   const listRef = useRef<HTMLDivElement>(null);
   const cartKey = `qrserve_cart_${tableCode || "main"}`;
 
@@ -328,7 +339,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
               className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black transition active:scale-95 ${cat === c.id ? "t-grad scale-105 text-white shadow-lg" : "border border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"}`}>{c.name}</button>
           ))}
         </div>
-        {tableCode && (
+        {ordering && tableCode && (
           <div className="px-4 pb-3">
             <button
               onClick={callWaiter}
@@ -367,7 +378,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       })()}
 
       {/* Offers */}
-      {data.coupons.length > 0 && (
+      {ordering && data.coupons.length > 0 && (
         <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-4">
           {data.coupons.map((c) => (
             <button key={c.code} onClick={() => { setForm({ ...form, coupon: c.code }); setCheckout(true); }}
@@ -381,7 +392,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       )}
 
       {/* Your usual — one-tap reorder for regulars */}
-      {count === 0 && usuals.length > 0 && (
+      {ordering && count === 0 && usuals.length > 0 && (
         <div className="px-4 pt-4">
           <div className="glass t-card card-hover anim-rise rounded-3xl border-orange-500/30 p-4">
             <p className="text-sm font-black">👋 Welcome back — your usual?</p>
@@ -417,7 +428,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
                   <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
                 </button>
                 <div className="p-3"><p className="truncate text-xs font-black">{i.name}</p>
-                  <button onClick={() => add(i.id, i.name)} className="t-grad mt-2 w-full rounded-xl py-2 text-[11px] font-black text-white shadow-lg transition hover:brightness-110 active:scale-95">ADD +</button></div>
+                  {ordering && <button onClick={() => add(i.id, i.name)} className="t-grad mt-2 w-full rounded-xl py-2 text-[11px] font-black text-white shadow-lg transition hover:brightness-110 active:scale-95">ADD +</button>}</div>
               </div>
             ))}
           </div>
@@ -437,7 +448,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         </div>
         {flat ? (
           <div className="grid grid-cols-2 gap-3">
-            {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+            {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
           </div>
         ) : (data.categories.map((c) => {
           const list = items.filter((i) => i.categoryId === c.id);
@@ -450,7 +461,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
                 <span className="h-px flex-1 bg-white/10" />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+                {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
               </div>
             </div>
           );
@@ -466,8 +477,16 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         )}
       </div>
 
+      {!ordering && (
+        <div className="px-4 pt-3">
+          <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs font-bold text-stone-300">
+            📖 Menu-only plan — please order at the counter.
+          </p>
+        </div>
+      )}
+
       {/* Cart bar */}
-      {count > 0 && !checkout && !quick && (
+      {ordering && count > 0 && !checkout && !quick && (
         <button onClick={() => setCheckout(true)} className="t-grad animate-pulse-ring fixed bottom-5 left-1/2 z-40 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-3xl border border-white/20 p-4 text-left font-black text-white shadow-2xl transition active:scale-[.98]">
           <span className="flex items-center justify-between gap-3"><span className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-2xl bg-black/25 text-lg">🛒</span><span><span className="block text-sm">{count} item{count > 1 ? "s" : ""} • {inr(subtotal, data.cafe.currency)}</span><span className="block text-[11px] font-bold opacity-80">GST included • tap to review</span></span></span><span className="shrink-0 rounded-full bg-black/25 px-4 py-2 text-sm">Review →</span></span>
         </button>
@@ -587,8 +606,8 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   );
 }
 
-function DishCard({ item, currency, qty, lastAdded, index = 0, onAdd, onSub, onQuick }: {
-  item: Item; currency: string; qty: number; lastAdded: boolean; index?: number;
+function DishCard({ item, currency, qty, lastAdded, index = 0, ordering = true, onAdd, onSub, onQuick }: {
+  item: Item; currency: string; qty: number; lastAdded: boolean; index?: number; ordering?: boolean;
   onAdd: () => void; onSub: () => void; onQuick: () => void;
 }) {
   return (
@@ -605,7 +624,7 @@ function DishCard({ item, currency, qty, lastAdded, index = 0, onAdd, onSub, onQ
         <p className="t-muted mt-0.5 line-clamp-1 text-[11px] leading-relaxed">{item.description}</p>
         <div className="mt-auto flex items-center justify-between pt-2.5">
           <p className="text-sm font-black tracking-tight">{inr(item.price, currency)}</p>
-          {qty > 0 ? (
+          {!ordering ? null : qty > 0 ? (
             <div className={`t-grad flex items-center gap-2.5 rounded-full px-1 py-0.5 text-white shadow-lg ${lastAdded ? "animate-pop" : ""}`}>
               <button onClick={onSub} aria-label="Remove one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">−</button>
               <span className="min-w-4 text-center text-[13px] font-black">{qty}</span>

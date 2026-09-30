@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { EmptyState, SectionTitle, useToast } from "@/components/ux";
 import { StatusPill } from "@/components/StatusPill";
+import { PlanGate } from "@/components/PlanGate";
 
 type Member = { id: string; name: string; email: string; role: string; createdAt: string };
 
@@ -46,6 +47,7 @@ export default function StaffPage() {
   }
 
   return (
+    <PlanGate>
     <div>
       <SectionTitle title="Team & logins 👥" sub="Give counter staff and kitchen their own logins — stop sharing one password." />
       <div className="glass mt-4 rounded-3xl p-5">
@@ -79,5 +81,6 @@ export default function StaffPage() {
       </div>
       {staff.length === 0 && <div className="mt-4"><EmptyState emoji="👥" title="Just you for now" hint="Add your counter + kitchen crew so everyone has their own login." /></div>}
     </div>
+    </PlanGate>
   );
 }

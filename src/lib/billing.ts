@@ -69,3 +69,26 @@ export function getPortalUrl(): string | null {
 export function isBillingBlocked(b: BillingState): boolean {
   return b.mode === "enforced" && (b.status === "past_due" || b.status === "unpaid" || b.status === "canceled");
 }
+
+// ---- Subscription plans (per-outlet, via BILLING_PLAN env) ----
+// menu     ₹699 — digital menu display only (no ordering, payments, waiter)
+// standard ₹999 — menu + ordering + payments + tracking + waiter (most popular)
+// pro      ₹1999 — everything: kitchen, coupons, staff, analytics, design
+// Unset → "pro" (full access, backward compatible for self-hosted).
+export type Plan = "menu" | "standard" | "pro";
+
+export function getPlan(): Plan {
+  const p = (process.env.BILLING_PLAN || "").toLowerCase().trim();
+  if (p === "menu" || p === "standard" || p === "pro") return p;
+  return "pro";
+}
+
+// Customer ordering stack (cart, checkout, payments, waiter, coupons).
+export function planAllowsOrdering(plan: Plan): boolean {
+  return plan === "standard" || plan === "pro";
+}
+
+// Pro-only dashboard modules (kitchen, coupons, staff).
+export function planAllowsPro(plan: Plan): boolean {
+  return plan === "pro";
+}

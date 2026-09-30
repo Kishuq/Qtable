@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { EmptyState, SectionTitle, useToast } from "@/components/ux";
+import { PlanGate } from "@/components/PlanGate";
 
 type Coupon = { id: string; code: string; pct: number; active: boolean };
 
@@ -49,6 +50,7 @@ export default function CouponsPage() {
   }
 
   return (
+    <PlanGate>
     <div>
       <SectionTitle title="Discounts & offers 🏷️" sub="Coupons appear on the customer menu — tap-to-apply at checkout." />
       <div className="glass mt-4 rounded-3xl p-5">
@@ -84,5 +86,6 @@ export default function CouponsPage() {
       </div>
       {coupons.length === 0 && <div className="mt-4"><EmptyState emoji="🎟️" title="No offers yet" hint="Launch WELCOME10 to turn first-time scanners into regulars." /></div>}
     </div>
+    </PlanGate>
   );
 }

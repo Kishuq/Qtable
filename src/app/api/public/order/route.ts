@@ -38,11 +38,14 @@ export async function POST(req: NextRequest) {
   try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 }); }
   if (!cafe.isActive) return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
 
-  // ✅ Strict subscription gate — no ordering while unpaid.
+  // ✅ Strict subscription gate — no ordering while unpaid or on menu-only plan.
   try {
-    const { getBilling, isBillingBlocked } = await import("@/lib/billing");
+    const { getBilling, isBillingBlocked, getPlan, planAllowsOrdering } = await import("@/lib/billing");
     if (isBillingBlocked(await getBilling())) {
       return NextResponse.json({ error: "This outlet's subscription is paused — please contact the counter." }, { status: 402 });
+    }
+    if (!planAllowsOrdering(getPlan())) {
+      return NextResponse.json({ error: "Online ordering isn't enabled at this outlet — please order at the counter." }, { status: 402 });
     }
   } catch {
     // billing check itself failed → fail open, continue to ordering
