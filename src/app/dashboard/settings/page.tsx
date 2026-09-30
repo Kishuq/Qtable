@@ -38,7 +38,15 @@ export default function SettingsPage() {
           </div>
           <div><label className="text-xs font-bold text-stone-400">TAX % (GST / VAT / SALES TAX)</label><input type="number" min={0} max={30} value={f.gstPct} onChange={(e) => setF({ ...f, gstPct: Number(e.target.value) })} className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" /></div>
         </div>
-        <div><label className="text-xs font-bold text-stone-400">UPI ID — INDIA (INR) ONLY</label><input value={f.upiId} onChange={(e) => setF({ ...f, upiId: e.target.value })} placeholder="outlet@upi" className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
+        <div><label className="text-xs font-bold text-stone-400">UPI ID — INDIA (INR) ONLY</label>
+          <div className="mt-1 flex gap-2">
+            <input value={f.upiId} onChange={(e) => setF({ ...f, upiId: e.target.value })} placeholder="outlet@upi" className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
+            {f.upiId && (
+              <button onClick={() => { if (!confirm("Remove UPI ID? Customers will only see Cash/Counter until you add a new one.")) return; setF({ ...f, upiId: "" }); }} className="shrink-0 rounded-2xl border border-red-500/40 px-4 text-xs font-bold text-red-300 transition hover:bg-red-500/10 active:scale-95">
+                Remove ✕
+              </button>
+            )}
+          </div>
           {f.currency !== "INR" && <p className="mt-1 text-[11px] text-stone-500">UPI auto-hides for non-INR outlets — US/EU outlets use card checkout via Stripe.</p>}</div>
         <button onClick={save} disabled={saving} className="w-full rounded-2xl bg-orange-600 py-3 text-sm font-black transition hover:brightness-110 active:scale-[.99] disabled:opacity-60">{saving ? "Saving… ⏳" : "Save settings"}</button>
         {msg && <p className="text-sm">{msg}</p>}
