@@ -46,6 +46,10 @@ model Cafe {
   isActive     Boolean  @default(true)
   ownerId      String
   gstPct       Float    @default(5)
+  // ---- Self-serve Razorpay (per-outlet gateway, AES-encrypted at rest) ----
+  razorpayKeyId        String  @default("")
+  razorpayKeySecretEnc String  @default("")
+  razorpayLive         Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

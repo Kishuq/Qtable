@@ -12,9 +12,12 @@ export async function GET() {
   });
   if (!cafe || !cafe.isActive) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
   const coupons = await db.coupon.findMany({ where: { cafeId: cafe.id, active: true } });
+  // Gateway comes from the outlet's self-serve config first, deployment env second.
+  const hasRzp = Boolean(cafe.razorpayKeySecretEnc || process.env.RAZORPAY_KEY_ID);
+  const onlineProvider = hasRzp ? "razorpay" : process.env.STRIPE_SECRET_KEY ? "stripe" : null;
   return NextResponse.json({
     cafe: { id: cafe.id, name: cafe.name, tagline: cafe.tagline, description: cafe.description, upiId: cafe.upiId, logoEmoji: cafe.logoEmoji, gstPct: cafe.gstPct, currency: cafe.currency,
-      onlineProvider: process.env.RAZORPAY_KEY_ID ? "razorpay" : process.env.STRIPE_SECRET_KEY ? "stripe" : null,
+      onlineProvider,
       theme: { primary: cafe.themePrimary, accent: cafe.themeAccent, bg: cafe.themeBg, bgMode: cafe.themeBgMode, pattern: cafe.themePattern, font: cafe.themeFont, radius: cafe.themeRadius } },
     categories: cafe.categories,
     items: cafe.items,

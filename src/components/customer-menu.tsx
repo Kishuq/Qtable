@@ -33,8 +33,10 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const [quickQty, setQuickQty] = useState(1);
   const [form, setForm] = useState({
     name: "", phone: "", coupon: "", pay: "COUNTER" as "COUNTER" | "UPI" | "ONLINE",
-    note: "", dtype: "DINEIN" as const,
+    note: "", dtype: "DINEIN" as const, utr: "",
   });
+  // 12-digit UPI reference — required before manual "I've paid" claims.
+  const utrOk = /^[0-9]{12}$/.test(form.utr.trim());
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [waiter, setWaiter] = useState<"idle" | "sending" | "sent">("idle");
   const [usuals, setUsuals] = useState<{ id: string; tokenNo: number; status: string; lines: { menuItemId: string; name: string; qty: number }[] }[]>([]);
@@ -191,9 +193,14 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   async function createOrder(): Promise<string> {
     // Table auto-identified from QR only — no manual entry.
     if (!tableCode) throw new Error("Please scan the table QR to order.");
+    // Manual UPI claims require the 12-digit UTR from the payer's app —
+    // the counter cross-checks it before tapping ✓ Received.
+    if (form.pay === "UPI" && !razorAuto && !utrOk) {
+      throw new Error("Enter the 12-digit UPI Ref from your payment app first.");
+    }
     const r = await fetch("/api/public/order", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tableCode, customerName: form.name || "Guest", customerPhone: form.phone, type: "DINEIN", paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
+      body: JSON.stringify({ tableCode, customerName: form.name || "Guest", customerPhone: form.phone, type: "DINEIN", paymentMode: form.pay, coupon: form.coupon, note: form.note, upiRef: form.pay === "UPI" && !razorAuto ? form.utr.trim() : "", items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "Order failed");
@@ -607,7 +614,16 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
                         ))}
                       </div>
                     )}
-                    <p className="mt-2 text-[11px] text-stone-500">Tap your app — amount & UPI ID come pre-filled. Pay there, come back, then tap <b>Place order</b> below.</p>
+                    <p className="mt-2 text-[11px] text-stone-500">Tap your app — amount & UPI ID come pre-filled. Pay there, come back, paste the 12-digit UPI Ref below.</p>
+                    <input
+                      value={form.utr}
+                      onChange={(e) => setForm({ ...form, utr: e.target.value.replace(/\D/g, "").slice(0, 12) })}
+                      placeholder="UPI Ref / UTR — 12 digits"
+                      inputMode="numeric"
+                      className={`mt-2 w-full rounded-2xl border bg-white/5 px-4 py-2.5 text-sm font-bold tracking-widest outline-none ${form.utr && !utrOk ? "border-red-500/60" : utrOk ? "border-emerald-500/60" : "border-white/10"}`}
+                    />
+                    {form.utr && !utrOk && <p className="mt-1 text-[11px] font-bold text-red-300">UTR must be exactly 12 digits — find it in your app&apos;s payment history.</p>}
+                    {utrOk && <p className="mt-1 text-[11px] font-bold text-emerald-300">✓ Ref looks valid — the counter will verify it.</p>}
                     {upiUrl && (
                       <details className="mt-2">
                         <summary className="cursor-pointer text-[11px] font-bold text-stone-400">Paying from another phone? Show QR</summary>
@@ -628,8 +644,15 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             </div>
 
             {err && <p className="mt-3 rounded-2xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
-            <button onClick={place} disabled={placing || cartLines.length === 0 || !tableCode} className="t-grad mt-4 w-full rounded-2xl py-4 font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99] disabled:opacity-50">
-              {placing ? "Sending to kitchen… 🔔" : form.pay === "UPI" ? `✓ I've Paid — Fire My Order • ${inr(total, data.cafe.currency)}` : `Place order • ${inr(total, data.cafe.currency)}`}
+            <button
+              onClick={place}
+              disabled={placing || cartLines.length === 0 || !tableCode || (form.pay === "UPI" && !razorAuto && !utrOk)}
+              className="t-grad mt-4 w-full rounded-2xl py-4 font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99] disabled:opacity-50"
+            >
+              {placing ? "Sending to kitchen… 🔔"
+                : form.pay === "UPI" && razorAuto ? `Pay ${inr(total, data.cafe.currency)} with UPI →`
+                : form.pay === "UPI" ? `✓ I've Paid (UTR ✓) — Fire My Order • ${inr(total, data.cafe.currency)}`
+                : `Place order • ${inr(total, data.cafe.currency)}`}
             </button>
             <p className="mt-2 text-center text-[11px] text-stone-500">Hits the counter + kitchen screens in ~2 seconds 🔔</p>
           </div>

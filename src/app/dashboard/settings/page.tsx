@@ -6,6 +6,50 @@ export default function SettingsPage() {
   const [f, setF] = useState({ name: "", tagline: "", description: "", upiId: "", gstPct: 5, currency: "INR" });
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [gw, setGw] = useState({ configured: false, fromEnv: false, live: false, keyIdMasked: "" });
+  const [keyId, setKeyId] = useState("");
+  const [keySecret, setKeySecret] = useState("");
+  const [liveMode, setLiveMode] = useState(false);
+  const [gwBusy, setGwBusy] = useState(false);
+  const [gwMsg, setGwMsg] = useState("");
+
+  async function loadGateway() {
+    try {
+      const r = await fetch("/api/payments/config");
+      const j = await r.json();
+      if (!j.error) setGw({ configured: j.configured, fromEnv: j.fromEnv, live: j.live, keyIdMasked: j.keyIdMasked || "" });
+    } catch { /* offline */ }
+  }
+
+  useEffect(() => { loadGateway(); }, []);
+
+  async function connectGateway() {
+    setGwMsg("");
+    setGwBusy(true);
+    try {
+      const r = await fetch("/api/payments/config", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyId: keyId.trim(), keySecret: keySecret.trim(), live: liveMode }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Verification failed");
+      setKeyId(""); setKeySecret("");
+      setGwMsg(`✅ Gateway connected (${j.live ? "LIVE — real money" : "TEST — try it with test payments"}). UPI auto-checkout is on.`);
+      loadGateway();
+    } catch (e: unknown) {
+      setGwMsg(`❌ ${e instanceof Error ? e.message : "Verification failed"}`);
+    } finally { setGwBusy(false); }
+  }
+
+  async function disconnectGateway() {
+    if (!confirm("Disconnect the payment gateway? Customers fall back to Cash + manual UPI.")) return;
+    setGwBusy(true);
+    try {
+      await fetch("/api/payments/config", { method: "DELETE" });
+      setGwMsg("Gateway disconnected — Cash + manual UPI only.");
+      loadGateway();
+    } finally { setGwBusy(false); }
+  }
 
   useEffect(() => {
     fetch("/api/cafe").then((r) => r.json()).then((j) => {
@@ -50,6 +94,42 @@ export default function SettingsPage() {
           {f.currency !== "INR" && <p className="mt-1 text-[11px] text-stone-500">UPI auto-hides for non-INR outlets — US/EU outlets use card checkout via Stripe.</p>}</div>
         <button onClick={save} disabled={saving} className="w-full rounded-2xl bg-orange-600 py-3 text-sm font-black transition hover:brightness-110 active:scale-[.99] disabled:opacity-60">{saving ? "Saving… ⏳" : "Save settings"}</button>
         {msg && <p className="text-sm">{msg}</p>}
+      </div>
+
+      <div className="glass mt-4 rounded-3xl p-6">
+        <p className="font-black">💳 Online payments — Razorpay self-setup</p>
+        <p className="mt-1 text-sm text-stone-400">
+          Paste your own Razorpay keys — we verify them live, store the secret encrypted, and UPI auto-checkout
+          switches on instantly. No developer, no redeploy.
+        </p>
+        {gw.configured ? (
+          <div className="mt-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+            <p className="font-black text-emerald-200">
+              {gw.live ? "● LIVE — accepting real money" : "● TEST — verify with test payments"}
+              {gw.fromEnv ? " (keys from server env)" : ` (${gw.keyIdMasked})`}
+            </p>
+            {!gw.fromEnv && (
+              <button onClick={disconnectGateway} disabled={gwBusy} className="mt-2 rounded-xl border border-red-500/40 px-4 py-1.5 text-xs font-bold text-red-300 transition hover:bg-red-500/10 active:scale-95 disabled:opacity-60">
+                {gwBusy ? "… ⏳" : "Disconnect gateway"}
+              </button>
+            )}
+            {gw.fromEnv && <p className="mt-1 text-[11px] text-stone-400">Managed via server env vars — remove them there to use self-serve keys.</p>}
+          </div>
+        ) : (
+          <div className="mt-3 space-y-2">
+            <input value={keyId} onChange={(e) => setKeyId(e.target.value.trim())} placeholder="Razorpay Key ID (rzp_test_… / rzp_live_…)" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
+            <input value={keySecret} onChange={(e) => setKeySecret(e.target.value)} type="password" placeholder="Razorpay Key Secret (paste once — never shown again)" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
+            <label className="flex items-center gap-2 text-xs font-bold text-stone-300">
+              <input type="checkbox" checked={liveMode} onChange={(e) => setLiveMode(e.target.checked)} />
+              These are LIVE keys (real money) — leave off for test mode
+            </label>
+            <button onClick={connectGateway} disabled={gwBusy || !keyId.trim() || !keySecret.trim()} className="w-full rounded-2xl bg-orange-600 py-3 text-sm font-black transition hover:brightness-110 active:scale-[.99] disabled:opacity-60">
+              {gwBusy ? "Verifying with Razorpay… ⏳" : "Verify & enable payments →"}
+            </button>
+            {gwMsg && <p className="text-sm">{gwMsg}</p>}
+            <p className="text-[11px] text-stone-500">Get keys: Razorpay Dashboard → Settings → API Keys. Start in test mode, flip to live after KYC.</p>
+          </div>
+        )}
       </div>
 
       <div className="glass mt-4 rounded-3xl p-6 text-sm">

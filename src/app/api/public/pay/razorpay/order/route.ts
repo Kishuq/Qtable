@@ -4,21 +4,13 @@ import Razorpay from "razorpay";
 import { db } from "@/lib/db";
 import { rateLimit, clientKey, tooMany } from "@/lib/security";
 
-function rzp() {
-  const id = process.env.RAZORPAY_KEY_ID || "";
-  const secret = process.env.RAZORPAY_KEY_SECRET || "";
-  if (!id || !secret) return null;
-  return { client: new Razorpay({ key_id: id, key_secret: secret }), keyId: id };
-}
-
 const Schema = z.object({ orderId: z.string().min(1).max(64) });
 
 // Creates a Razorpay order for an already-placed PENDING order.
 // Amount is taken from OUR database — the client can never set the price.
+// Gateway keys come from the outlet's own self-serve config (env fallback).
 export async function POST(req: NextRequest) {
   if (!rateLimit(clientKey(req, "rzp"), 20, 60_000)) return tooMany();
-  const r = rzp();
-  if (!r) return NextResponse.json({ error: "Online payments not enabled by this cafe yet. Please pay at counter or via UPI." }, { status: 503 });
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);
@@ -28,6 +20,10 @@ export async function POST(req: NextRequest) {
   if (!order || order.paymentStatus === "PAID" || order.status === "CANCELLED") {
     return NextResponse.json({ error: "Order not payable" }, { status: 400 });
   }
+  const { getCafeRazorpay } = await import("@/lib/paykeys");
+  const keys = await getCafeRazorpay(order.cafeId);
+  if (!keys) return NextResponse.json({ error: "Online payments not enabled by this outlet yet. Please pay at counter or via UPI." }, { status: 503 });
+  const r = { client: new Razorpay({ key_id: keys.keyId, key_secret: keys.keySecret }), keyId: keys.keyId };
   try {
     const rzOrder = await r.client.orders.create({ amount: order.total, currency: "INR", receipt: order.id.slice(0, 40) });
     await db.payment.updateMany({ where: { orderId: order.id, status: "PENDING" }, data: { providerRef: String(rzOrder.id) } });
