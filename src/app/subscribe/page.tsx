@@ -11,8 +11,9 @@ function SubscribeInner() {
   const [state, setState] = useState<{ mode: string; status: string } | null>(null);
   const [err, setErr] = useState("");
 
-  // Auto-forward the moment the subscription is paid:
-  // open access (no billing configured) or active/trialing → next step.
+  // Auto-forward only once actually paid (active/trialing).
+  // Open access (no billing configured) shows a Continue button instead of
+  // silently bouncing — so the flow is visible, not mysterious.
   useEffect(() => {
     let stop = false;
     async function check() {
@@ -22,7 +23,7 @@ function SubscribeInner() {
         const b = j?.billing;
         if (!b) return;
         if (!stop) setState({ mode: b.mode, status: b.status });
-        if (!stop && (b.mode === "none" || b.status === "active" || b.status === "trialing")) {
+        if (!stop && b.mode === "enforced" && (b.status === "active" || b.status === "trialing")) {
           router.push(next);
           router.refresh();
         }
@@ -38,7 +39,9 @@ function SubscribeInner() {
     };
   }, [router, next]);
 
-  const blocked = state !== null && !(state.mode === "none" || state.status === "active" || state.status === "trialing");
+  const isOpen = state !== null && state.mode === "none";
+  const isPaid = state !== null && (state.status === "active" || state.status === "trialing");
+  const blocked = state !== null && !isOpen && !isPaid;
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-14">
@@ -75,6 +78,13 @@ function SubscribeInner() {
             <p className="rounded-2xl bg-amber-500/10 p-3 text-xs font-bold text-amber-200">
               ⏳ Waiting for payment… you&apos;ll move forward automatically once it&apos;s active.
             </p>
+          ) : isOpen ? (
+            <Link
+              href={next}
+              className="block w-full rounded-2xl bg-emerald-600 py-3 text-center font-bold hover:bg-emerald-500"
+            >
+              Continue — billing is open, no payment needed yet →
+            </Link>
           ) : (
             <p className="rounded-2xl bg-emerald-500/10 p-3 text-xs font-bold text-emerald-200">
               ✓ Subscription active — forwarding…
