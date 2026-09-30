@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { inr, timeAgo } from "@/lib/format";
 import { StatusPill } from "@/components/StatusPill";
+import { PLANS, type PlanId } from "@/lib/plans";
 
 type Order = { id: string; tokenNo: number; tableCode: string; customerName: string; status: string; total: number; createdAt: string; items: { name: string; qty: number }[] };
 
@@ -10,6 +11,17 @@ export default function Overview() {
   const [stats, setStats] = useState<{ today: { orders: number; revenue: number; open: number }; topItems: { name: string; _sum: { qty: number | null } }[]; avgRating: number; feedbacks: { id: string; rating: number; comment: string; createdAt: string }[] } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [upiMissing, setUpiMissing] = useState(false);
+  // hPanel-style empty state: logged in, but no active subscription → plan picker.
+  const [blocked, setBlocked] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/billing/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        const b = j?.billing;
+        setBlocked(Boolean(b && b.mode === "enforced" && ["past_due", "unpaid", "canceled"].includes(b.status)));
+      })
+      .catch(() => setBlocked(false));
+  }, []);
   async function load() {
     const [a, o, c] = await Promise.all([
       fetch("/api/analytics").then((r) => r.json()).catch(() => null),
@@ -21,6 +33,57 @@ export default function Overview() {
     if (c?.cafe) setUpiMissing(!c.cafe.upiId && (c.cafe.currency || "INR") === "INR");
   }
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
+
+  if (blocked === true) {
+    return (
+      <div className="mx-auto max-w-3xl py-6 text-center">
+        <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">Subscription required</p>
+        <h1 className="mt-2 text-3xl font-black">Everything you need to get your outlet online</h1>
+        <p className="mt-2 text-sm text-stone-400">
+          You&apos;re logged in — pick a plan to unlock orders, kitchen, menu and payments.
+        </p>
+        <div className="mt-6 grid gap-3 text-left sm:grid-cols-3">
+          {(Object.keys(PLANS) as PlanId[]).map((id) => (
+            <div
+              key={id}
+              className={`relative rounded-3xl border p-5 ${
+                id === "standard" ? "border-orange-500/50 bg-gradient-to-b from-orange-600/15 to-transparent" : "border-white/10 bg-white/[.03]"
+              }`}
+            >
+              {id === "standard" && (
+                <span className="absolute -top-2.5 left-5 rounded-full bg-orange-600 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-white">
+                  Most popular
+                </span>
+              )}
+              <p className={`text-sm font-black ${id === "standard" ? "text-orange-300" : "text-stone-300"}`}>
+                {PLANS[id].name}
+              </p>
+              <p className="mt-1.5 text-2xl font-black text-white">
+                ₹{PLANS[id].monthly.toLocaleString("en-IN")}
+                <span className="text-xs font-bold text-stone-500">/mo</span>
+              </p>
+              <ul className="mt-3 space-y-1.5 text-xs text-stone-300">
+                {PLANS[id].features.slice(0, 3).map((t) => (
+                  <li key={t} className="flex gap-1.5">
+                    <span className="text-emerald-300">✓</span> {t}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href={`/subscribe?plan=${id}&billing=monthly&next=/dashboard`}
+                className={`mt-4 block rounded-2xl py-2.5 text-center text-xs font-black transition active:scale-[.98] ${
+                  id === "standard" ? "bg-orange-600 text-white hover:bg-orange-500" : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+              >
+                Choose plan →
+              </Link>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-stone-500">UPI, cards & netbanking • Cancel anytime</p>
+      </div>
+    );
+  }
 
   return (
     <div>
