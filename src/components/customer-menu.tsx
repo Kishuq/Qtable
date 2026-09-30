@@ -577,8 +577,32 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             )}
             {form.pay === "UPI" && data.cafe.upiId && (
               <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
-                <p className="text-xs text-stone-400">Pay <b className="text-white">{inr(total, data.cafe.currency)}</b> to <b className="text-white">{data.cafe.upiId}</b> via GPay / PhonePe / Paytm</p>
-                {upiUrl && <img src={`/api/qr?text=${encodeURIComponent(upiUrl)}`} alt="UPI QR" className="mx-auto mt-2 size-40 rounded-2xl bg-white p-2" />}
+                <p className="text-xs text-stone-400">Pay <b className="text-white">{inr(total, data.cafe.currency)}</b> to <b className="text-white">{data.cafe.upiId}</b></p>
+                {upiUrl && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {[
+                      ["GPay", "G"],
+                      ["PhonePe", "Pe"],
+                      ["Paytm", "P"],
+                    ].map(([label, mark]) => (
+                      <a
+                        key={label}
+                        href={upiUrl}
+                        className="rounded-2xl border border-emerald-500/40 bg-emerald-500/15 py-3 text-center transition hover:bg-emerald-500/25 active:scale-95"
+                      >
+                        <span className="mx-auto grid size-8 place-items-center rounded-full bg-white text-sm font-black text-stone-900">{mark}</span>
+                        <span className="mt-1 block text-[11px] font-black text-emerald-200">{label} →</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-2 text-[11px] text-stone-500">Tap your app — amount & UPI ID come pre-filled. Pay there, come back, then tap <b>Place order</b> below.</p>
+                {upiUrl && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[11px] font-bold text-stone-400">Paying from another phone? Show QR</summary>
+                    <img src={`/api/qr?text=${encodeURIComponent(upiUrl)}`} alt="UPI QR" className="mx-auto mt-2 size-40 rounded-2xl bg-white p-2" />
+                  </details>
+                )}
                 <p className="mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-xs font-bold text-emerald-200">Paid? Just tap <b>Place order</b> below — your order fires to the kitchen instantly. The counter confirms it on their screen. No codes, no waiting. ⚡</p>
               </div>
             )}
