@@ -5,10 +5,12 @@ import { Navbar } from "@/components/landing/Navbar";
 import { Reveal } from "@/components/landing/Reveal";
 import { HeroScene } from "@/components/landing/HeroScene";
 import { ProductTabs } from "@/components/landing/ProductTabs";
+import { Pricing } from "@/components/landing/Pricing";
 
 // Qtable marketing landing — product story, not the outlet menu.
 // Owner with a valid session goes straight to their outlet dashboard.
 // Ordering always happens via table QR (/t/[code]).
+
 export default async function Landing() {
   const s = await getSession();
   if (s) redirect("/dashboard");
@@ -505,68 +507,7 @@ export default async function Landing() {
             <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">Pricing</p>
             <h2 className="qafe-serif mt-2 text-4xl font-black md:text-5xl">One plan per outlet. Zero surprises.</h2>
           </Reveal>
-          <div className="mt-8 grid gap-3 text-left md:grid-cols-3">
-            <Reveal>
-              <div className="h-full rounded-3xl border border-white/10 bg-white/[.03] p-7">
-                <p className="text-sm font-black text-stone-300">Menu</p>
-                <p className="mt-2 text-4xl font-black text-white">
-                  ₹699<span className="text-base font-bold text-stone-500">/mo</span>
-                </p>
-                <ul className="mt-5 space-y-2 text-sm text-stone-300">
-                  {["Digital menu display", "Design studio + themes", "Tables & QR cards", "No ordering or payments"].map((t) => (
-                    <li key={t} className="flex gap-2">
-                      <span className="text-emerald-300">✓</span> {t}
-                    </li>
-                  ))}
-                </ul>
-                <Link href="/subscribe?next=/setup" className="mt-6 block rounded-2xl border border-white/15 bg-white/5 py-3 text-center text-sm font-black text-white transition hover:bg-white/10">
-                  Start with Menu
-                </Link>
-              </div>
-            </Reveal>
-            <Reveal delay={90}>
-              <div className="relative h-full rounded-3xl border border-orange-500/50 bg-gradient-to-b from-orange-600/15 to-transparent p-7">
-                <span className="absolute -top-3 left-6 rounded-full bg-orange-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white">
-                  Most popular
-                </span>
-                <p className="text-sm font-black text-orange-300">Standard</p>
-                <p className="mt-2 text-4xl font-black text-white">
-                  ₹999<span className="text-base font-bold text-stone-500">/mo</span>
-                </p>
-                <ul className="mt-5 space-y-2 text-sm text-stone-200">
-                  {["Everything in Menu", "Table ordering + live tracking", "Cash, UPI & card payments", "Waiter calls + order history"].map((t) => (
-                    <li key={t} className="flex gap-2">
-                      <span className="text-emerald-300">✓</span> {t}
-                    </li>
-                  ))}
-                </ul>
-                <Link href="/subscribe?next=/setup" className="mt-6 block rounded-2xl bg-orange-600 py-3 text-center text-sm font-black text-white shadow-xl transition hover:bg-orange-500">
-                  Start with Standard →
-                </Link>
-              </div>
-            </Reveal>
-            <Reveal delay={140}>
-              <div className="h-full rounded-3xl border border-white/10 bg-white/[.03] p-7">
-                <p className="text-sm font-black text-stone-300">Pro</p>
-                <p className="mt-2 text-4xl font-black text-white">
-                  ₹1,999<span className="text-base font-bold text-stone-500">/mo</span>
-                </p>
-                <ul className="mt-5 space-y-2 text-sm text-stone-300">
-                  {["Everything in Standard", "Kitchen display + staff logins", "Coupons, analytics & history", "Priority support"].map((t) => (
-                    <li key={t} className="flex gap-2">
-                      <span className="text-emerald-300">✓</span> {t}
-                    </li>
-                  ))}
-                </ul>
-                <Link href="/subscribe?next=/setup" className="mt-6 block rounded-2xl border border-white/15 bg-white/5 py-3 text-center text-sm font-black text-white transition hover:bg-white/10">
-                  Start with Pro
-                </Link>
-              </div>
-            </Reveal>
-          </div>
-          <Reveal delay={140}>
-            <p className="mt-5 text-xs text-stone-500">One-time setup help available • Cancel anytime • Ordering never stops mid-service</p>
-          </Reveal>
+          <Pricing />
         </div>
       </section>
 

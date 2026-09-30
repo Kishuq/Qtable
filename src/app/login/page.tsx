@@ -39,21 +39,32 @@ function LoginInner() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-14">
       <div className="glass rounded-3xl p-8">
-        <p className="text-3xl">☕</p>
-        <h1 className="mt-2 text-2xl font-black">Owner login</h1>
-        <p className="mt-1 text-sm text-stone-400">Counter, mobile &amp; kitchen — one login.</p>
+        <p className="flex items-center gap-2 text-lg font-black text-white">
+          <span className="grid size-8 place-items-center rounded-xl bg-orange-600 text-base">Q</span> Qtable
+        </p>
+        <h1 className="mt-3 text-2xl font-black">Log in to your outlet</h1>
+        <p className="mt-1 text-sm text-stone-400">Orders, kitchen, menu & analytics — one login.</p>
         <form onSubmit={submit} className="mt-6 space-y-3">
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required placeholder="owner@business.com"
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />
-          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required minLength={8} placeholder="Password"
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />
+          <label className="block text-left">
+            <span className="mb-1 block text-xs font-bold text-stone-400">Email address</span>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required placeholder="you@youroutlet.com" autoComplete="email"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />
+          </label>
+          <label className="block text-left">
+            <span className="mb-1 flex items-center justify-between text-xs font-bold text-stone-400">
+              Password
+              <Link href="/forgot-password" className="font-bold text-orange-400">Forgot?</Link>
+            </span>
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required minLength={8} placeholder="••••••••" autoComplete="current-password"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />
+          </label>
           {err && <p className="rounded-2xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
-          <button disabled={loading} className="w-full rounded-2xl bg-orange-600 py-3 font-bold hover:bg-orange-500 disabled:opacity-60">
-            {loading ? "Signing in…" : "Sign in →"}
+          <button disabled={loading} className="w-full rounded-2xl bg-orange-600 py-3.5 font-black transition hover:bg-orange-500 active:scale-[.99] disabled:opacity-60">
+            {loading ? "Logging in…" : "Log in →"}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-stone-400">First run? <Link href="/subscribe?next=/setup" className="text-orange-400 font-bold">Set up your cafe</Link></p>
-        <p className="mt-2 text-center text-sm"><Link href="/forgot-password" className="font-bold text-orange-400">Forgot password?</Link></p>
+        <p className="mt-4 text-center text-xs text-stone-500">🔒 Protected by encrypted sessions • 30-day stay-signed-in</p>
+        <p className="mt-3 border-t border-white/10 pt-4 text-center text-sm text-stone-400">New outlet? <Link href="/subscribe?next=/setup" className="text-orange-400 font-bold">See plans & get started</Link></p>
       </div>
     </div>
   );
