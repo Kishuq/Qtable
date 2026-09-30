@@ -637,10 +637,11 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             )}
 
             <div className="mt-4 space-y-1 rounded-2xl bg-white/[.04] p-4 text-sm">
-              <div className="flex justify-between text-stone-400"><span>Subtotal</span><span>{inr(subtotal, data.cafe.currency)}</span></div>
-              {discount > 0 && <div className="flex justify-between text-emerald-300"><span>Discount ({form.coupon})</span><span>−{inr(discount, data.cafe.currency)}</span></div>}
-              <div className="flex justify-between text-stone-400"><span>Tax ({data.cafe.gstPct}%)</span><span>{inr(tax, data.cafe.currency)}</span></div>
-              <div className="flex justify-between border-t border-white/10 pt-2 text-base font-black"><span>To pay</span><span>{inr(total, data.cafe.currency)}</span></div>
+              <div className="flex justify-between text-stone-400"><span>Subtotal</span><span className="tnum">{inr(subtotal, data.cafe.currency)}</span></div>
+              {discount > 0 && <div className="flex justify-between text-emerald-300"><span>Discount ({form.coupon})</span><span className="tnum">−{inr(discount, data.cafe.currency)}</span></div>}
+              <div className="flex justify-between text-stone-400"><span>Tax ({data.cafe.gstPct}%)</span><span className="tnum">{inr(tax, data.cafe.currency)}</span></div>
+              <div className="ticket-perf mx-1" />
+              <div className="flex justify-between pt-2 text-base font-black"><span>To pay</span><span className="tnum">{inr(total, data.cafe.currency)}</span></div>
             </div>
 
             {err && <p className="mt-3 rounded-2xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
@@ -683,7 +684,7 @@ function DishCard({ item, currency, qty, lastAdded, index = 0, ordering = true, 
         <button onClick={onQuick} className="t-heading truncate text-left text-sm font-black leading-snug hover:underline">{item.name}</button>
         <p className="t-muted mt-0.5 line-clamp-1 text-[11px] leading-relaxed">{item.description}</p>
         <div className="mt-auto flex items-center justify-between pt-2.5">
-          <p className="text-sm font-black tracking-tight">{inr(item.price, currency)}</p>
+          <p className="tnum text-sm font-black tracking-tight">{inr(item.price, currency)}</p>
           {!ordering ? null : qty > 0 ? (
             <div className={`t-grad flex items-center gap-2.5 rounded-full px-1 py-0.5 text-white shadow-lg ${lastAdded ? "animate-pop" : ""}`}>
               <button onClick={onSub} aria-label="Remove one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">−</button>

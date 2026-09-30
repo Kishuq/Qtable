@@ -145,14 +145,15 @@ export default function OrdersPage() {
           <div key={o.id} className={`glass animate-slide-up rounded-3xl p-5 ${o.status === "NEW" ? "border-amber-500/40" : ""}`} style={{ animationDelay: `${Math.min(idx, 8) * 50}ms` }}>
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-black">#{o.tokenNo} • Table {o.tableCode} {o.status === "NEW" && <span className="ml-1 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px]">NEW</span>}</p>
+                <p className="font-display text-xl font-bold tracking-tight tnum">#{o.tokenNo} <span className="text-sm font-bold text-stone-400">• Table {o.tableCode}</span> {o.status === "NEW" && <span className="ml-1 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 align-middle text-[10px]">NEW</span>}</p>
                 <p className="text-xs text-stone-400">{o.customerName}{o.customerPhone ? ` • ${o.customerPhone}` : ""} • {timeAgo(o.createdAt)}</p>
               </div>
               <StatusPill status={o.status} />
             </div>
             <div className="mt-3 space-y-1 rounded-2xl bg-white/[.04] p-3 text-sm">
-              {o.items.map((i, k) => <div key={k} className="flex justify-between"><span>{i.qty}× {i.name}{i.note ? <span className="text-stone-500"> ({i.note})</span> : ""}</span><span className="font-bold">{inr(i.price * i.qty)}</span></div>)}
-              <div className="flex justify-between border-t border-white/10 pt-2 text-xs text-stone-400"><span>Sub {inr(o.subtotal)} • Disc {inr(o.discount)} • GST {inr(o.tax)}</span><b className="text-white">{inr(o.total)}</b></div>
+              {o.items.map((i, k) => <div key={k} className="flex justify-between"><span>{i.qty}× {i.name}{i.note ? <span className="text-stone-500"> ({i.note})</span> : ""}</span><span className="tnum font-bold">{inr(i.price * i.qty)}</span></div>)}
+              <div className="ticket-perf mx-1 mt-2" />
+              <div className="flex justify-between pt-2 text-xs text-stone-400"><span>Sub {inr(o.subtotal)} • Disc {inr(o.discount)} • GST {inr(o.tax)}</span><b className="tnum text-white">{inr(o.total)}</b></div>
               {o.note && <p className="text-xs text-amber-300">📝 {o.note}</p>}
               <p className="text-xs text-stone-400">💳 {o.paymentMode} • <StatusPill status={o.paymentStatus} /></p>
               {o.paymentMode === "UPI" && o.paymentStatus !== "PAID" && (

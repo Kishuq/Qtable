@@ -52,6 +52,33 @@ body {
 .card-hover { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
 .card-hover:hover { transform: translateY(-3px); box-shadow: 0 20px 50px -20px rgba(194, 65, 12, 0.45); border-color: rgba(251, 146, 60, 0.4); }
 
+/* ---------- Hand-crafted identity ---------- */
+.font-display { font-family: var(--font-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
+/* Film grain over the whole app — kills the flat AI-template look */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+::selection { background: #ea580c; color: #fff; }
+/* Ticket perforation divider */
+.ticket-perf { position: relative; border-top: 2px dashed rgba(255,255,255,.14); }
+.ticket-perf::before, .ticket-perf::after {
+  content: ""; position: absolute; top: -11px; width: 20px; height: 20px; border-radius: 9999px;
+  background: #0c0a09; border: 1px solid rgba(255,255,255,.1);
+}
+.ticket-perf::before { left: -32px; } .ticket-perf::after { right: -32px; }
+/* Rubber-stamp status */
+.stamp { display: inline-flex; align-items: center; border: 1.5px solid currentColor; border-radius: 8px;
+  padding: 2px 10px; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase;
+  transform: rotate(-2deg); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0.1'/%3E%3CfeComposite operator='in' in2='SourceGraphic'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-size: 120px; }
+/* Tabular money figures */
+.tnum { font-variant-numeric: tabular-nums; }
+/* Thin editorial scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; border: 2px solid #0c0a09; }
+
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 

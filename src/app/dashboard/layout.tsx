@@ -7,18 +7,33 @@ import { useLiveOrders } from "@/hooks/useLiveOrders";
 import { useToast } from "@/components/ux";
 import { inr } from "@/lib/format";
 
-const NAV = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/orders", label: "Orders", icon: ReceiptText },
-  { href: "/dashboard/history", label: "History", icon: History },
-  { href: "/dashboard/kitchen", label: "Kitchen", icon: ChefHat },
-  { href: "/dashboard/menu", label: "Menu", icon: UtensilsCrossed },
-  { href: "/dashboard/coupons", label: "Discounts", icon: BadgePercent },
-  { href: "/dashboard/design", label: "Design", icon: Palette },
-  { href: "/dashboard/tables", label: "Tables & QR", icon: QrCode },
-  { href: "/dashboard/payments", label: "Payments", icon: Wallet },
-  { href: "/dashboard/staff", label: "Staff", icon: Users },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+const NAV_GROUPS = [
+  {
+    title: "Service",
+    items: [
+      { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+      { href: "/dashboard/orders", label: "Orders", icon: ReceiptText },
+      { href: "/dashboard/kitchen", label: "Kitchen", icon: ChefHat },
+    ],
+  },
+  {
+    title: "Manage",
+    items: [
+      { href: "/dashboard/menu", label: "Menu", icon: UtensilsCrossed },
+      { href: "/dashboard/coupons", label: "Discounts", icon: BadgePercent },
+      { href: "/dashboard/tables", label: "Tables & QR", icon: QrCode },
+      { href: "/dashboard/payments", label: "Payments", icon: Wallet },
+      { href: "/dashboard/history", label: "History", icon: History },
+    ],
+  },
+  {
+    title: "Studio",
+    items: [
+      { href: "/dashboard/design", label: "Design", icon: Palette },
+      { href: "/dashboard/staff", label: "Staff", icon: Users },
+      { href: "/dashboard/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -53,8 +68,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside className="no-print sticky top-16 hidden h-[calc(100vh-6rem)] w-60 shrink-0 flex-col rounded-3xl border border-white/10 bg-white/[.03] p-4 md:flex">
         <div className="rounded-2xl bg-orange-600/10 p-4">
-          <p className="text-xs text-stone-400">CAFE</p>
-          <p className="font-black">{cafe?.name || "…"}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-stone-500">Outlet</p>
+          <p className="font-display text-lg font-bold leading-tight">{cafe?.name || "…"}</p>
           <p className="mt-1 flex items-center gap-1 text-[11px] font-bold">
             <span className={`size-2 rounded-full ${connected ? "bg-emerald-400" : "bg-amber-400"}`} />
             {connected ? "LIVE" : "POLLING"} • {open} open
@@ -67,12 +82,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button onClick={testAlarm} title="Test the alarm sound" className="rounded-xl bg-white/5 px-2.5 py-1.5 text-[11px] font-bold text-stone-300 hover:bg-white/10">Test 🔊</button>
           </div>
         </div>
-        <nav className="mt-4 space-y-1">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={`flex items-center gap-3 rounded-2xl px-4 py-2.5 text-sm font-bold ${path === n.href ? "bg-orange-600" : "text-stone-300 hover:bg-white/5"}`}>
-              <n.icon className="size-4" /> {n.label}
-              {n.label === "Orders" && open > 0 && <span className="ml-auto rounded-full bg-white/20 px-2 text-xs">{open}</span>}
-            </Link>
+        <nav className="mt-4 space-y-4">
+          {NAV_GROUPS.map((g) => (
+            <div key={g.title}>
+              <p className="px-4 text-[10px] font-black uppercase tracking-[0.25em] text-stone-500">{g.title}</p>
+              <div className="mt-1.5 space-y-1">
+                {g.items.map((n) => (
+                  <Link key={n.href} href={n.href} className={`flex items-center gap-3 rounded-2xl px-4 py-2.5 text-sm font-bold transition active:scale-[.98] ${path === n.href ? "bg-orange-600 text-white shadow-lg" : "text-stone-300 hover:bg-white/5"}`}>
+                    <n.icon className="size-4" /> {n.label}
+                    {n.label === "Orders" && open > 0 && <span className="ml-auto rounded-full bg-white/20 px-2 text-xs tnum">{open}</span>}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
         <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }} className="mt-auto flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm text-stone-400 hover:bg-white/5">
@@ -104,8 +126,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <nav className="no-print no-scrollbar mb-4 flex gap-2 overflow-x-auto md:hidden">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold ${path === n.href ? "bg-orange-600" : "bg-white/5"}`}>{n.label}</Link>
+          {NAV_GROUPS.flatMap((g) => g.items).map((n) => (
+            <Link key={n.href} href={n.href} className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition active:scale-95 ${path === n.href ? "bg-orange-600" : "bg-white/5"}`}>{n.label}</Link>
           ))}
         </nav>
         {children}
