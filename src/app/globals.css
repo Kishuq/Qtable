@@ -54,9 +54,10 @@ body {
 
 /* ---------- Hand-crafted identity ---------- */
 .font-display { font-family: var(--font-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
-/* Film grain over the whole app — kills the flat AI-template look */
+/* Film grain over the whole app — absolute (scrolls with content) so the
+   compositor never repaints a fixed full-screen layer while scrolling. */
 body::after {
-  content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: .05;
+  content: ""; position: absolute; inset: 0; z-index: 60; pointer-events: none; opacity: .05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
 }
 ::selection { background: #ea580c; color: #fff; }
@@ -67,11 +68,10 @@ body::after {
   background: #0c0a09; border: 1px solid rgba(255,255,255,.1);
 }
 .ticket-perf::before { left: -32px; } .ticket-perf::after { right: -32px; }
-/* Rubber-stamp status */
-.stamp { display: inline-flex; align-items: center; border: 1.5px solid currentColor; border-radius: 8px;
-  padding: 2px 10px; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase;
-  transform: rotate(-2deg); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0.1'/%3E%3CfeComposite operator='in' in2='SourceGraphic'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
-  mask-size: 120px; }
+/* Status seal — crisp bordered badge (no tilt/grunge: unreadable at 11px) */
+.stamp { display: inline-flex; align-items: center; border: 1.5px solid currentColor; border-radius: 9999px;
+  padding: 3px 12px; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase;
+  background: color-mix(in srgb, currentColor 12%, transparent); white-space: nowrap; }
 /* Tabular money figures */
 .tnum { font-variant-numeric: tabular-nums; }
 /* Thin editorial scrollbar */

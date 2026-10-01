@@ -32,7 +32,7 @@ export default function Overview() {
     if (o?.orders) setOrders(o.orders.slice(0, 8));
     if (c?.cafe) setUpiMissing(!c.cafe.upiId && (c.cafe.currency || "INR") === "INR");
   }
-  useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
+  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 5000); return () => clearInterval(t); }, []);
 
   if (blocked === true) {
     return (

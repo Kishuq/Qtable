@@ -179,7 +179,7 @@ export function useLiveOrders(
       es.onerror = () => setConnected(false);
     } catch { /* polling fallback below */ }
     void check();
-    const poll = setInterval(check, 5000);
+    const poll = setInterval(() => { if (!document.hidden) void check(); }, 5000);
     return () => { es?.close(); clearInterval(poll); };
   }, [cafeId, check]);
 

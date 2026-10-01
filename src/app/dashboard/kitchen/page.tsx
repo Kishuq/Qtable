@@ -14,7 +14,7 @@ export default function KitchenPage() {
     const j = await r.json();
     if (j.orders) setOrders(j.orders.filter((o: Order) => ["ACCEPTED", "PREPARING", "NEW"].includes(o.status)));
   }
-  useEffect(() => { load(); const t = setInterval(load, 3500); document.title = "KDS — Kitchen"; return () => clearInterval(t); }, []);
+  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 3500); document.title = "KDS — Kitchen"; return () => clearInterval(t); }, []);
 
   async function setStatus(id: string, status: string) {
     const prev = orders;

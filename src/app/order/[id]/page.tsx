@@ -50,7 +50,7 @@ export default function TrackPage({ params }: { params: Promise<{ id: string }> 
       } catch { /* retry */ }
     }
     load();
-    const t = setInterval(load, 4000);
+    const t = setInterval(() => { if (!document.hidden) load(); }, 4000);
     return () => { alive = false; clearInterval(t); };
   }, [id]);
 

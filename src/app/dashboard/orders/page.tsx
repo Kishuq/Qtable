@@ -40,8 +40,10 @@ export default function OrdersPage() {
     } catch { /* offline — next poll retries */ }
   }, []);
 
-  useEffect(() => { load(); const t = setInterval(load, 3500); return () => clearInterval(t); }, [load]);
-  useEffect(() => { loadCalls(); const t = setInterval(loadCalls, 4000); return () => clearInterval(t); }, [loadCalls]);
+  // Skip ticks while the tab is hidden — counter tablets sit open for hours;
+  // no point burning DB + battery rendering nothing.
+  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 3500); return () => clearInterval(t); }, [load]);
+  useEffect(() => { loadCalls(); const t = setInterval(() => { if (!document.hidden) loadCalls(); }, 4000); return () => clearInterval(t); }, [loadCalls]);
 
   async function setCallStatus(id: string, status: string) {
     const prev = calls;
