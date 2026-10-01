@@ -15,6 +15,8 @@ function SetupInner() {
 
   useEffect(() => {
     if (prefillEmail) setForm((p) => ({ ...p, email: prefillEmail }));
+    const gname = sp.get("gname") || "";
+    if (gname) setForm((p) => ({ ...p, name: p.name || gname }));
     fetch("/api/setup").then(async (r) => {
       const j = await r.json();
       if (!j.needsSetup) router.replace("/login");
@@ -55,6 +57,16 @@ function SetupInner() {
         <p className="text-4xl">☕</p>
         <h1 className="mt-2 text-2xl font-black">Set up your outlet</h1>
         <p className="mt-1 text-sm text-stone-400">One-time, 60 seconds. Menu, tables & QRs are created for you.</p>
+        <a
+          href="/api/auth/google?mode=setup"
+          className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white py-3 text-sm font-black text-stone-900 transition hover:brightness-95 active:scale-[.99]"
+        >
+          <span className="grid size-5 place-items-center rounded-full bg-white font-black text-stone-900 ring-1 ring-stone-300">G</span>
+          Sign up with Google
+        </a>
+        <div className="my-4 flex items-center gap-3 text-[11px] font-bold text-stone-500">
+          <span className="h-px flex-1 bg-white/10" /> or fill manually <span className="h-px flex-1 bg-white/10" />
+        </div>
         {paidFirst && (
           <p className="mt-3 rounded-2xl bg-emerald-500/10 p-3 text-sm font-bold text-emerald-200">
             ✓ Payment received — finish setup and your outlet goes live.

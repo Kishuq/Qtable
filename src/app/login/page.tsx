@@ -8,7 +8,7 @@ function LoginInner() {
   const sp = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState(sp.get("error") || "");
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -63,6 +63,16 @@ function LoginInner() {
             {loading ? "Logging in…" : "Log in →"}
           </button>
         </form>
+        <div className="my-4 flex items-center gap-3 text-[11px] font-bold text-stone-500">
+          <span className="h-px flex-1 bg-white/10" /> OR <span className="h-px flex-1 bg-white/10" />
+        </div>
+        <a
+          href={`/api/auth/google?mode=login&next=${encodeURIComponent(sp.get("next") || "/dashboard")}`}
+          className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white py-3.5 text-sm font-black text-stone-900 transition hover:brightness-95 active:scale-[.99]"
+        >
+          <span className="grid size-5 place-items-center rounded-full bg-white font-black text-stone-900 ring-1 ring-stone-300">G</span>
+          Continue with Google
+        </a>
         <p className="mt-4 text-center text-xs text-stone-500">🔒 Protected by encrypted sessions • 30-day stay-signed-in</p>
         <p className="mt-3 border-t border-white/10 pt-4 text-center text-sm text-stone-400">New outlet? <Link href="/subscribe?next=/setup" className="text-orange-400 font-bold">See plans & get started</Link></p>
       </div>
