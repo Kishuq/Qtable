@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { PLANS, planQuote, type Billing, type PlanId } from "@/lib/plans";
+import { COMPARE, PLANS, planQuote, type Billing, type PlanId } from "@/lib/plans";
 import { Reveal } from "./Reveal";
 
 const ORDER: PlanId[] = ["menu", "standard", "pro"];
@@ -97,6 +97,33 @@ export function Pricing() {
         <p className="mt-5 text-center text-xs text-stone-500">
           Cancel anytime • UPI, cards & netbanking • Ordering never stops mid-service
         </p>
+      </Reveal>
+
+      {/* Feature comparison — exactly what each tier unlocks in the product */}
+      <Reveal delay={120}>
+        <div className="mx-auto mt-8 max-w-3xl overflow-hidden rounded-3xl border border-white/10">
+          <div className="grid grid-cols-[1fr_repeat(3,64px)] items-center gap-1 bg-white/[.04] px-4 py-3 text-center text-[11px] font-black sm:grid-cols-[1fr_repeat(3,90px)]">
+            <span className="text-left text-stone-400">Compare plans</span>
+            <span className="text-stone-200">Menu</span>
+            <span className="text-orange-300">Std.</span>
+            <span className="text-stone-200">Pro</span>
+          </div>
+          {COMPARE.map((r, i) => (
+            <div
+              key={r.label}
+              className={`grid grid-cols-[1fr_repeat(3,64px)] items-center gap-1 px-4 py-2.5 text-center text-xs sm:grid-cols-[1fr_repeat(3,90px)] ${
+                i % 2 ? "bg-white/[.02]" : ""
+              }`}
+            >
+              <span className="text-left font-bold text-stone-300">{r.label}</span>
+              {([r.menu, r.standard, r.pro] as boolean[]).map((v, k) => (
+                <span key={k} className={v ? "text-base text-emerald-300" : "text-base text-stone-700"}>
+                  {v ? "✓" : "—"}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
       </Reveal>
     </div>
   );

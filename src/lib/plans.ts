@@ -8,28 +8,28 @@ export const PLANS: Record<
   { name: string; blurb: string; monthly: number; mrp: number; yearlyTotal: number; features: string[] }
 > = {
   menu: {
-    name: "Menu",
+    name: "Basic",
     blurb: "Digital menu display for a single outlet.",
-    monthly: 699,
-    mrp: 849,
-    yearlyTotal: 6990,
+    monthly: 499,
+    mrp: 649,
+    yearlyTotal: 4990,
     features: ["Digital menu display", "Design studio + themes", "Tables & QR cards", "No ordering or payments"],
   },
   standard: {
     name: "Standard",
     blurb: "Ordering + payments for a busy outlet.",
-    monthly: 999,
-    mrp: 1249,
-    yearlyTotal: 9990,
-    features: ["Everything in Menu", "Table ordering + live tracking", "Cash, UPI & card payments", "Waiter calls + order history"],
+    monthly: 699,
+    mrp: 899,
+    yearlyTotal: 6990,
+    features: ["Everything in Basic", "Table ordering + live tracking", "Cash, UPI & card payments", "Waiter calls + history"],
   },
   pro: {
     name: "Pro",
     blurb: "The full operating system.",
-    monthly: 1999,
-    mrp: 2499,
-    yearlyTotal: 19990,
-    features: ["Everything in Standard", "Kitchen display + staff logins", "Coupons, analytics & history", "Priority support"],
+    monthly: 1299,
+    mrp: 1699,
+    yearlyTotal: 12990,
+    features: ["Everything in Standard", "Kitchen display (KDS)", "Coupons & staff logins", "Priority support"],
   },
 };
 
@@ -48,3 +48,18 @@ export function parsePlan(v: string | null): PlanId {
 export function parseBilling(v: string | null): Billing {
   return v === "yearly" ? "yearly" : "monthly";
 }
+
+// Feature comparison matrix — the exact split enforced in code
+// (ordering stack gated in MenuApp + order/waiter APIs, pro modules via PlanGate).
+export const COMPARE: { label: string; menu: boolean; standard: boolean; pro: boolean }[] = [
+  { label: "Digital menu + themes", menu: true, standard: true, pro: true },
+  { label: "Tables & QR cards", menu: true, standard: true, pro: true },
+  { label: "Table ordering", menu: false, standard: true, pro: true },
+  { label: "Cash, UPI & card payments", menu: false, standard: true, pro: true },
+  { label: "Live order tracking + ETA", menu: false, standard: true, pro: true },
+  { label: "Waiter calls", menu: false, standard: true, pro: true },
+  { label: "Order history & ledger", menu: false, standard: true, pro: true },
+  { label: "Kitchen display (KDS)", menu: false, standard: false, pro: true },
+  { label: "Coupons & offers", menu: false, standard: false, pro: true },
+  { label: "Staff logins", menu: false, standard: false, pro: true },
+];
