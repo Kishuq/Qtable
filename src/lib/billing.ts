@@ -7,16 +7,30 @@ export type BillingState = {
   renewsAt?: number; // Unix timestamp (ms) when subscription renews
 };
 
-// ✅ Returns billing state based on Stripe configuration
-// - No Stripe keys → mode "none" (app works fully open for launch)
-// - Stripe configured → subscription MUST be active to allow ordering
+// Which gateway holds YOUR platform subscription for this outlet:
+// "stripe" (default) or "razorpay". Razorpay fits Indian outlets (UPI Autopay).
+function billingProvider(): "stripe" | "razorpay" | "none" {
+  const subId = process.env.BILLING_SUBSCRIPTION_ID || "";
+  if (!subId) return "none";
+  const p = (process.env.BILLING_PROVIDER || "").toLowerCase();
+  if (p === "razorpay") return "razorpay";
+  if (p === "stripe") return "stripe";
+  // Auto-detect: prefer whichever platform keys are present.
+  if (process.env.BILLING_RAZORPAY_KEY_ID || (!process.env.STRIPE_SECRET_KEY && process.env.RAZORPAY_KEY_ID)) return "razorpay";
+  if (process.env.STRIPE_SECRET_KEY) return "stripe";
+  return "none";
+}
+
+// ✅ Returns billing state for THIS outlet's platform subscription.
+// - No subscription configured → mode "none" (app works fully open for launch)
+// - Configured → subscription MUST be active to allow ordering
 export async function getBilling(): Promise<BillingState> {
+  const provider = billingProvider();
+  if (provider === "razorpay") return getRazorpayBilling();
+  if (provider === "none") return { mode: "none", status: "open" };
+
   const subId = process.env.BILLING_SUBSCRIPTION_ID || "";
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
-  const hasStripe = !!stripeSecretKey;
-
-  // If Stripe not configured at all → mode "none" (app works fully open)
-  if (!hasStripe || !subId) return { mode: "none", status: "open" };
 
   // ✅ STRICT: Stripe IS configured → subscription must be active
   try {
@@ -32,23 +46,63 @@ export async function getBilling(): Promise<BillingState> {
 
     // ✅ Active or on trial → allow ordering
     if (status === "active" || status === "trialing") {
-      return { 
-        mode: "enforced", 
+      return {
+        mode: "enforced",
         status: status,
-        renewsAt 
+        renewsAt
       };
     }
 
     // ✅ STRICT: Any other status (past_due, canceled, unpaid, etc.) → enforced but problematic
-    return { 
-      mode: "enforced", 
-      status, 
+    return {
+      mode: "enforced",
+      status,
       renewsAt,
       // status will be "past_due", "canceled", "unpaid" etc.
     };
 
   } catch (error) {
     // Stripe error → enforced but unknown
+    console.error("Billing check error", error);
+    return { mode: "enforced", status: "unknown" };
+  }
+}
+
+// Razorpay platform subscription check (UPI Autopay e-mandates).
+// Uses YOUR platform keys (not the outlet's gateway keys):
+// BILLING_RAZORPAY_KEY_ID + BILLING_RAZORPAY_KEY_SECRET.
+async function getRazorpayBilling(): Promise<BillingState> {
+  const subId = process.env.BILLING_SUBSCRIPTION_ID || "";
+  const keyId = process.env.BILLING_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || "";
+  const keySecret = process.env.BILLING_RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || "";
+  if (!subId || !keyId || !keySecret) return { mode: "none", status: "open" };
+
+  try {
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const r = await fetch(`https://api.razorpay.com/v1/subscriptions/${subId}`, {
+      headers: { Authorization: `Basic ${auth}` },
+    });
+    if (!r.ok) throw new Error(`razorpay ${r.status}`);
+    const sub = (await r.json()) as {
+      status?: string;
+      current_end?: number | null;
+      charge_at?: number | null;
+    };
+    // Razorpay: active | authenticated | pending | halted | cancelled | completed | expired
+    const raw = (sub.status || "").toLowerCase();
+    const status: BillingState["status"] =
+      raw === "active" || raw === "authenticated"
+        ? "active"
+        : raw === "pending"
+          ? "trialing"
+          : raw === "halted"
+            ? "past_due"
+            : raw === "cancelled" || raw === "completed" || raw === "expired"
+              ? "canceled"
+              : "unknown";
+    const endTs = sub.current_end || sub.charge_at;
+    return { mode: "enforced", status, renewsAt: endTs ? endTs * 1000 : undefined };
+  } catch (error) {
     console.error("Billing check error", error);
     return { mode: "enforced", status: "unknown" };
   }
