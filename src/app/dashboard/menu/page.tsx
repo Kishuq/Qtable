@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { inr } from "@/lib/format";
 import { ItemPhoto, useToast } from "@/components/ux";
 
@@ -18,6 +18,7 @@ export default function MenuPage() {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     const r = await fetch("/api/menu");
@@ -90,14 +91,21 @@ export default function MenuPage() {
               <input value={f.imageUrl} onChange={(e) => setF({ ...f, imageUrl: e.target.value })} placeholder="Photo URL (https://…) — or upload ↓" className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
               {f.imageUrl.startsWith("http") && <img src={f.imageUrl} alt="" className="size-11 rounded-xl object-cover" />}
             </div>
-            <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[.03] px-4 py-2.5 text-xs font-bold text-stone-300 transition hover:bg-white/[.07] active:scale-[.99] ${uploading ? "opacity-60" : ""}`}>
-              {uploading ? "Uploading… ⏳" : "📷 Upload photo from device (JPG/PNG/WebP, ≤2 MB)"}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                disabled={uploading}
-                onChange={async (e) => {
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[.03] px-4 py-2.5 text-xs font-bold text-stone-300 transition hover:bg-white/[.07] active:scale-[.99] disabled:opacity-60"
+            >
+              {uploading ? "Uploading… ⏳" : "📷 Upload photo — gallery opens, pick one, done"}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              aria-hidden="true"
+              tabIndex={-1}
+              onChange={async (e) => {
                   const file = e.target.files?.[0];
                   e.target.value = "";
                   if (!file) return;
@@ -115,7 +123,6 @@ export default function MenuPage() {
                   } finally { setUploading(false); }
                 }}
               />
-            </label>
             <div className="flex flex-wrap gap-1.5">{EMOJIS.map((e) => <button key={e} onClick={() => setF({ ...f, imageEmoji: e })} className={`rounded-xl border p-1.5 text-lg ${f.imageEmoji === e ? "border-orange-500 bg-orange-500/15" : "border-white/10"}`}>{e}</button>)}</div>
             <div className="flex gap-4 text-sm">
               <label className="flex items-center gap-2"><input type="checkbox" checked={f.veg} onChange={(e) => setF({ ...f, veg: e.target.checked })} /> Veg</label>
