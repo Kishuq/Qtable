@@ -8,7 +8,7 @@ import { PLANS, type PlanId } from "@/lib/plans";
 type Order = { id: string; tokenNo: number; tableCode: string; customerName: string; status: string; total: number; createdAt: string; items: { name: string; qty: number }[] };
 
 export default function Overview() {
-  const [stats, setStats] = useState<{ today: { orders: number; revenue: number; open: number }; topItems: { name: string; _sum: { qty: number | null } }[]; avgRating: number; feedbacks: { id: string; rating: number; comment: string; createdAt: string }[] } | null>(null);
+  const [stats, setStats] = useState<{ today: { orders: number; revenue: number; open: number }; topItems: { name: string; _sum: { qty: number | null } }[]; avgRating: number; feedbacks: { id: string; rating: number; comment: string; createdAt: string }[]; lowStock?: { name: string; stock: number }[] } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [upiMissing, setUpiMissing] = useState(false);
   // First-run onboarding checklist — auto-checks as the owner completes setup.
@@ -111,6 +111,12 @@ export default function Overview() {
       {upiMissing && (
         <Link href="/dashboard/settings" className="mb-4 block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-bold text-amber-200">
           ⚠️ No UPI ID set — customers can only pay at the counter. Tap here to add it in Settings (30 seconds).
+        </Link>
+      )}
+      {stats?.lowStock && stats.lowStock.length > 0 && (
+        <Link href="/dashboard/menu" className="mb-4 block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-bold text-amber-200">
+          ⚠️ Running low: {stats.lowStock.slice(0, 3).map((l) => `${l.name} (${l.stock})`).join(", ")}
+          {stats.lowStock.length > 3 ? ` +${stats.lowStock.length - 3} more` : ""} — restock in Menu before the rush.
         </Link>
       )}
       {!guideOff && guide && (!guide.menu || !guide.tables || !guide.team || upiMissing) && (

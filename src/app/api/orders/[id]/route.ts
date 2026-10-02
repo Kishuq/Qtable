@@ -30,6 +30,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (p.data.paymentStatus === "PAID") {
     await db.payment.updateMany({ where: { orderId: id, status: "PENDING" }, data: { status: "PAID" } });
   }
+  // Cancel restocks tracked inventory (Pro only) — no phantom shortages.
+  if (isCancel && ["NEW", "ACCEPTED", "PREPARING"].includes(order.status)) {
+    try {
+      const { getPlan, planAllowsPro } = await import("@/lib/billing");
+      if (planAllowsPro(getPlan())) {
+        const olines = await db.orderItem.findMany({ where: { orderId: id } });
+        const mids = [...new Set(olines.map((l) => l.menuItemId).filter(Boolean))];
+        if (mids.length > 0) {
+          const tracked = await db.menuItem.findMany({ where: { id: { in: mids } } });
+          const isTracked = new Set(tracked.filter((m) => m.stock !== null && m.stock !== undefined).map((m) => m.id));
+          for (const l of olines) {
+            if (l.menuItemId && isTracked.has(l.menuItemId)) {
+              await db.menuItem.update({ where: { id: l.menuItemId }, data: { stock: { increment: l.qty } } });
+            }
+          }
+        }
+      }
+    } catch { /* restock must never break cancellation */ }
+  }
   await db.auditLog.create({ data: { cafeId: s.cafeId, userId: s.uid, action: "ORDER_STATUS", meta: `${id} ${order.status}->${p.data.status}` } });
   return NextResponse.json({ ok: true, order: updated });
 }

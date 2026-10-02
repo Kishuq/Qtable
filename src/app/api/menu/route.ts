@@ -35,6 +35,9 @@ const Upsert = z.object({
   veg: z.boolean().optional().default(true),
   available: z.boolean().optional().default(true),
   popular: z.boolean().optional().default(false),
+  // Inventory (Pro only): stock null = untracked, otherwise live count.
+  stock: z.number().int().min(0).max(1000000).nullable().optional(),
+  lowAt: z.number().int().min(0).max(1000000).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -51,9 +54,15 @@ export async function POST(req: NextRequest) {
   }
   const count = await db.menuItem.count({ where: { cafeId: s.cafeId } });
   const photo = isValidImageUrl(d.imageUrl) ? d.imageUrl : "";
+  // Stock fields are Pro-only — stripped on lower plans so crafted requests can't enable them.
+  const { getPlan, planAllowsPro } = await import("@/lib/billing");
+  const pro = planAllowsPro(getPlan());
+  const stockData = pro
+    ? { stock: d.stock === undefined ? undefined : d.stock, lowAt: d.lowAt === undefined ? undefined : d.lowAt }
+    : {};
   const item = d.id
-    ? await db.menuItem.update({ where: { id: d.id }, data: { categoryId: d.categoryId || null, name: cleanStr(d.name, 80), description: cleanStr(d.description, 300), price: d.price, imageEmoji: cleanStr(d.imageEmoji, 12) || "🍽️", imageUrl: photo, veg: d.veg, available: d.available, popular: d.popular } })
-    : await db.menuItem.create({ data: { cafeId: s.cafeId!, categoryId: d.categoryId || null, name: cleanStr(d.name, 80), description: cleanStr(d.description, 300), price: d.price, imageEmoji: cleanStr(d.imageEmoji, 12) || "🍽️", imageUrl: photo, veg: d.veg, available: d.available, popular: d.popular, sort: count } });
+    ? await db.menuItem.update({ where: { id: d.id }, data: { categoryId: d.categoryId || null, name: cleanStr(d.name, 80), description: cleanStr(d.description, 300), price: d.price, imageEmoji: cleanStr(d.imageEmoji, 12) || "🍽️", imageUrl: photo, veg: d.veg, available: d.available, popular: d.popular, ...stockData } })
+    : await db.menuItem.create({ data: { cafeId: s.cafeId!, categoryId: d.categoryId || null, name: cleanStr(d.name, 80), description: cleanStr(d.description, 300), price: d.price, imageEmoji: cleanStr(d.imageEmoji, 12) || "🍽️", imageUrl: photo, veg: d.veg, available: d.available, popular: d.popular, sort: count, ...stockData } });
   return NextResponse.json({ ok: true, item });
 }
 

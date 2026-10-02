@@ -56,7 +56,10 @@ export async function POST(req: NextRequest) {
 
   // Validate items against live menu (price taken from server — never trust client)
   const ids = [...new Set(d.items.map((i) => i.id))];
-  const menu = await db.menuItem.findMany({ where: { id: { in: ids }, cafeId: cafe.id, available: true } });
+  // Out-of-stock (tracked, count hit 0) items are unorderable — same as unavailable.
+  const menu = await db.menuItem.findMany({
+    where: { id: { in: ids }, cafeId: cafe.id, available: true, OR: [{ stock: null }, { stock: { gt: 0 } }] },
+  });
   if (menu.length !== ids.length) return NextResponse.json({ error: "Menu changed — some items unavailable. Refresh menu." }, { status: 409 });
   const priceOf = new Map(menu.map((m) => [m.id, m]));
 
@@ -129,6 +132,23 @@ export async function POST(req: NextRequest) {
     console.error("ORDER_CREATE_FAIL", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Kitchen is slammed right now — tap Place order once more." }, { status: 503 });
   }
+  // Inventory (Pro only): decrement tracked stock per line. Guarded per-item
+  // with gte so a same-millisecond rush can never drive counts negative.
+  // Best-effort — a stock failure must never break a paid order.
+  try {
+    const { getPlan, planAllowsPro } = await import("@/lib/billing");
+    if (planAllowsPro(getPlan())) {
+      for (const line of lines) {
+        const m = priceOf.get(line.menuItemId);
+        if (m && m.stock !== null && m.stock !== undefined) {
+          await db.menuItem.updateMany({
+            where: { id: m.id, stock: { gte: line.qty } },
+            data: { stock: { decrement: line.qty } },
+          });
+        }
+      }
+    }
+  } catch { /* stock must never break ordering */ }
   try {
     await db.auditLog.create({ data: { cafeId: cafe.id, action: "ORDER_CREATED", meta: `${order.id} ${order.tableCode} ${total} ${d.paymentMode}${upiRef ? ` ref=${upiRef}` : ""}` } });
   } catch { /* audit must never break ordering */ }

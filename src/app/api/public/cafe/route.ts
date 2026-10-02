@@ -8,7 +8,7 @@ export async function GET() {
   try { cafeId = (await requireCafe()).id; } catch { return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 }); }
   const cafe = await db.cafe.findUnique({
     where: { id: cafeId },
-    include: { categories: { orderBy: { sort: "asc" } }, items: { where: { available: true }, orderBy: { sort: "asc" } }, tables: { where: { active: true }, orderBy: { code: "asc" } } },
+    include: { categories: { orderBy: { sort: "asc" } }, items: { where: { available: true, OR: [{ stock: null }, { stock: { gt: 0 } }] }, orderBy: { sort: "asc" } }, tables: { where: { active: true }, orderBy: { code: "asc" } } },
   });
   if (!cafe || !cafe.isActive) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
   const coupons = await db.coupon.findMany({ where: { cafeId: cafe.id, active: true } });
