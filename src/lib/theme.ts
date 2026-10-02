@@ -47,13 +47,13 @@ export const THEME_PRESETS: { name: string; vibe: string; theme: Theme }[] = [
   { name: "Broadsheet", vibe: "Newspaper light", theme: { ...DEFAULT_THEME, primary: "#1c1917", accent: "#c2410c", bg: "#faf8f2", pattern: "grid", font: "lora", radius: "sharp" } },
   { name: "Palm Court", vibe: "Tropical green", theme: { ...DEFAULT_THEME, primary: "#16a34a", accent: "#fde047", bg: "#04160c", pattern: "dots", font: "nunito", radius: "rounded" } },
   { name: "Neon Diner", vibe: "Retro after-dark", theme: { ...DEFAULT_THEME, primary: "#ff2d78", accent: "#22d3ee", bg: "#0a0a12", bgMode: "gradient", pattern: "grid", font: "space", radius: "sharp" } },
-  { name: "Terracotta", vibe: "Baked earth", theme: { ...DEFAULT_THEME, primary: "#c96f4a", accent: "#eab308", bg: "#201009", pattern: "dots", font: "nunito", radius: "rounded" } },
+  { name: "Blueprint", vibe: "Drafting-table blue", theme: { ...DEFAULT_THEME, primary: "#1d4ed8", accent: "#f97316", bg: "#eef2fd", pattern: "grid", font: "space", radius: "sharp" } },
   { name: "Rose Gold", vibe: "Blush premium", theme: { ...DEFAULT_THEME, primary: "#9d174d", accent: "#f9a8d4", bg: "#fdf2f4", pattern: "none", font: "playfair", radius: "soft" } },
   { name: "Masala Night", vibe: "Chili & ghee", theme: { ...DEFAULT_THEME, primary: "#dc2626", accent: "#fbbf24", bg: "#0d0204", bgMode: "gradient", pattern: "dots", font: "poppins", radius: "rounded" } },
-  { name: "Lagoon Pearl", vibe: "Deep sea calm", theme: { ...DEFAULT_THEME, primary: "#0ea5e9", accent: "#99f6e0", bg: "#031824", pattern: "waves", font: "quicksand", radius: "soft" } },
+  { name: "Lagoon Pearl", vibe: "Deep sea calm", theme: { ...DEFAULT_THEME, primary: "#0ea5e9", accent: "#99f6e0", bg: "#031824", pattern: "none", font: "quicksand", radius: "soft" } },
   { name: "Matcha House", vibe: "Stone-ground calm", theme: { ...DEFAULT_THEME, primary: "#4d7c0f", accent: "#d9f99d", bg: "#0c1a0e", pattern: "grid", font: "lora", radius: "rounded" } },
-  { name: "Copper Still", vibe: "Brewery copper", theme: { ...DEFAULT_THEME, primary: "#b45309", accent: "#fcd34d", bg: "#120b06", pattern: "none", font: "dmserif", radius: "sharp" } },
-  { name: "Gulmohar", vibe: "Flame-tree red", theme: { ...DEFAULT_THEME, primary: "#f97316", accent: "#fde047", bg: "#160607", bgMode: "gradient", pattern: "waves", font: "poppins", radius: "soft" } },
+  { name: "Sage & Stone", vibe: "Muted garden calm", theme: { ...DEFAULT_THEME, primary: "#4d6a4f", accent: "#b7791f", bg: "#edf0e8", pattern: "none", font: "inter", radius: "soft" } },
+  { name: "Jaipur Blush", vibe: "Pink-city neon", theme: { ...DEFAULT_THEME, primary: "#ec4899", accent: "#fde68a", bg: "#25060f", pattern: "dots", font: "poppins", radius: "rounded" } },
 ];
 
 export function themeFromCafe(cafe: Record<string, string | undefined> | null | undefined): Theme {
