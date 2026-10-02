@@ -11,6 +11,27 @@ export default function Overview() {
   const [stats, setStats] = useState<{ today: { orders: number; revenue: number; open: number }; topItems: { name: string; _sum: { qty: number | null } }[]; avgRating: number; feedbacks: { id: string; rating: number; comment: string; createdAt: string }[] } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [upiMissing, setUpiMissing] = useState(false);
+  // First-run onboarding checklist — auto-checks as the owner completes setup.
+  const [guide, setGuide] = useState<{ menu: boolean; tables: boolean; team: boolean } | null>(null);
+  const [guideOff, setGuideOff] = useState(() => {
+    try { return localStorage.getItem("qtable_guide_done") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    (async () => {
+      try {
+        const [m, t, s] = await Promise.all([
+          fetch("/api/menu").then((r) => r.json()).catch(() => null),
+          fetch("/api/tables").then((r) => r.json()).catch(() => null),
+          fetch("/api/staff").then((r) => r.json()).catch(() => null),
+        ]);
+        setGuide({
+          menu: Array.isArray(m?.items) && m.items.length > 0,
+          tables: Array.isArray(t?.tables) && t.tables.length > 0,
+          team: Array.isArray(s?.staff) && s.staff.length > 1,
+        });
+      } catch { /* offline — checklist waits */ }
+    })();
+  }, []);
   // hPanel-style empty state: logged in, but no active subscription → plan picker.
   const [blocked, setBlocked] = useState<boolean | null>(null);
   useEffect(() => {
@@ -91,6 +112,38 @@ export default function Overview() {
         <Link href="/dashboard/settings" className="mb-4 block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-bold text-amber-200">
           ⚠️ No UPI ID set — customers can only pay at the counter. Tap here to add it in Settings (30 seconds).
         </Link>
+      )}
+      {!guideOff && guide && (!guide.menu || !guide.tables || !guide.team || upiMissing) && (
+        <div className="mb-4 rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-600/10 to-transparent p-5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-black">🚀 Getting started {[guide.menu, guide.tables, guide.team, !upiMissing].filter(Boolean).length}/4</p>
+            <button
+              onClick={() => { try { localStorage.setItem("qtable_guide_done", "1"); } catch {} setGuideOff(true); }}
+              className="text-xs text-stone-500 hover:text-stone-200"
+            >
+              Dismiss ✕
+            </button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {[
+              { done: !upiMissing, label: "Add your UPI ID", hint: "Settings → payments in 30 seconds", href: "/dashboard/settings" },
+              { done: guide.menu, label: "Add menu items", hint: "Photos, prices, categories", href: "/dashboard/menu" },
+              { done: guide.tables, label: "Add tables & print QRs", hint: "Laminate + test-scan every table", href: "/dashboard/tables" },
+              { done: guide.team, label: "Invite your team", hint: "Counter + kitchen logins", href: "/dashboard/staff" },
+            ].map((s) => (
+              <Link key={s.label} href={s.href} className="flex items-center gap-3 rounded-2xl bg-black/25 p-3 text-sm transition hover:bg-black/40">
+                <span className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-black ${s.done ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-stone-400"}`}>
+                  {s.done ? "✓" : "○"}
+                </span>
+                <span>
+                  <span className={`block font-bold ${s.done ? "text-stone-500 line-through" : "text-white"}`}>{s.label}</span>
+                  <span className="block text-xs text-stone-400">{s.hint}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+          <Link href="/dashboard/guide" className="mt-3 inline-block text-sm font-bold text-orange-400">📖 Open the full owner guide →</Link>
+        </div>
       )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-black">Good to see you 👋</h1>
