@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
-import { rateLimit, clientKey, tooMany, cleanStr } from "@/lib/security";
+import { limitRequest, tooMany, cleanStr } from "@/lib/security";
 
 const Schema = z.object({ tableCode: z.string().min(1).max(12) });
 
 // Customer taps "Call Waiter" — creates a service request for the counter.
 // Cooldown: one open request per table per 3 minutes (prevents spam-tapping).
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "waiter"), 5, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "waiter", 5, 60_000))) return tooMany();
   let body: unknown;
   try {
     body = await req.json();

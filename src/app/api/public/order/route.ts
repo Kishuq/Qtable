@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
-import { rateLimit, clientKey, tooMany, cleanStr, cleanPhone } from "@/lib/security";
+import { limitRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 
 const Item = z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20), note: z.string().max(120).optional().default("") });
 const Schema = z.object({
@@ -21,7 +21,7 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   // 60/min: a whole cafe shares one public IP (NAT), so per-IP budget must
   // cover every table at once. Abuse is still capped; proxies must forward XFF.
-  if (!rateLimit(clientKey(req, "order"), 60, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "order", 60, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = Schema.safeParse(body);
@@ -85,8 +85,9 @@ export async function POST(req: NextRequest) {
   // collision we simply retry. Single statements queue on the write lock and
   // drain in milliseconds, so 50 phones ordering at once all succeed instead of
   // timing out inside a 5-second transaction window.
-  const now = new Date();
-  const tokenDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  // Token series follows the cafe clock (IST), not server UTC.
+  const { tokenDayIST } = await import("@/lib/day");
+  const tokenDay = tokenDayIST();
   const baseData = {
     cafeId: cafe.id, tableId: table?.id, tableCode: d.type === "DINEIN" ? d.tableCode : "TAKEAWAY",
     tokenDay,

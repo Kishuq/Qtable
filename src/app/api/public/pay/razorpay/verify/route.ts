@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
 import { db } from "@/lib/db";
-import { rateLimit, clientKey, tooMany } from "@/lib/security";
+import { limitRequest, tooMany } from "@/lib/security";
 
 const Schema = z.object({
   orderId: z.string().min(1).max(64),
@@ -15,7 +15,7 @@ const Schema = z.object({
 // Money is ONLY marked PAID if the gateway's own signature checks out —
 // a customer can never fake this from devtools.
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "rzp-verify"), 30, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "rzp-verify", 30, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);

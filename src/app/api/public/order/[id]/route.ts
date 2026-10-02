@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
-import { rateLimit, clientKey, tooMany, cleanStr, cleanPhone } from "@/lib/security";
+import { limitRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 import { z } from "zod";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -45,7 +45,7 @@ const PaySchema = z.object({ upiRef: z.string().max(64).optional().default("") }
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const cafe = await requireCafe();
   if (!cafe) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
-  if (!rateLimit(clientKey(req, "pay-claim"), 20, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "pay-claim", 20, 60_000))) return tooMany();
   const { id } = await ctx.params;
   let body: unknown = {};
   try { body = await req.json(); } catch { body = {}; }

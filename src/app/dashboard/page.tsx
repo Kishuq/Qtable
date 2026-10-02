@@ -11,6 +11,14 @@ export default function Overview() {
   const [stats, setStats] = useState<{ today: { orders: number; revenue: number; open: number }; topItems: { name: string; _sum: { qty: number | null } }[]; avgRating: number; feedbacks: { id: string; rating: number; comment: string; createdAt: string }[]; lowStock?: { name: string; stock: number }[] } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [upiMissing, setUpiMissing] = useState(false);
+  // Plain-words system status: silent when healthy, loud + actionable when not.
+  // Owners should never have to interpret logs or status codes.
+  const [sysHealth, setSysHealth] = useState<"ok" | "bad" | null>(null);
+  useEffect(() => {
+    fetch("/api/health", { cache: "no-store" })
+      .then((r) => setSysHealth(r.ok ? "ok" : "bad"))
+      .catch(() => setSysHealth("bad"));
+  }, []);
   // First-run onboarding checklist — auto-checks as the owner completes setup.
   const [guide, setGuide] = useState<{ menu: boolean; tables: boolean; team: boolean } | null>(null);
   const [guideOff, setGuideOff] = useState(() => {
@@ -108,6 +116,12 @@ export default function Overview() {
 
   return (
     <div>
+      {sysHealth === "bad" && (
+        <div className="mb-4 rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-sm font-bold text-red-200">
+          🔴 Something&apos;s wrong on our side — orders may be slow or failing. Don&apos;t change anything;
+          take cash/UPI directly, and contact Qtable support. This banner clears itself when systems recover.
+        </div>
+      )}
       {upiMissing && (
         <Link href="/dashboard/settings" className="mb-4 block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-bold text-amber-200">
           ⚠️ No UPI ID set — customers can only pay at the counter. Tap here to add it in Settings (30 seconds).

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { hashPassword, setSessionCookie } from "@/lib/auth";
-import { rateLimit, clientKey, tooMany, cleanStr, isEmail } from "@/lib/security";
+import { limitRequest, tooMany, cleanStr, isEmail } from "@/lib/security";
 import { DEMO_CATEGORIES, DEMO_ITEMS } from "@/lib/demo-data";
 
 const Schema = z.object({
@@ -15,7 +15,7 @@ const Schema = z.object({
 
 // First-run setup: creates THE cafe + owner. Locked forever after first use.
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "setup"), 10, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "setup", 10, 60_000))) return tooMany();
   // ✅ Strict subscription gate — no cafe setup until subscribed.
   try {
     const { getBilling, isBillingBlocked } = await import("@/lib/billing");

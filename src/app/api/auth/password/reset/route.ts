@@ -3,7 +3,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
-import { rateLimit, clientKey, tooMany, isEmail } from "@/lib/security";
+import { limitRequest, tooMany, isEmail } from "@/lib/security";
 
 const Schema = z.object({
   email: z.string().email().max(120),
@@ -19,7 +19,7 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "pw-reset"), 10, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "pw-reset", 10, 60_000))) return tooMany();
   let body: unknown;
   try {
     body = await req.json();

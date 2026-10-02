@@ -2,17 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { verifyPassword, setSessionCookie, generateResetToken, clearResetToken } from "@/lib/auth";
-import { rateLimit, clientKey, tooMany } from "@/lib/security";
+import { limitRequest, clientKey, tooMany } from "@/lib/security";
 import { isEmail } from "@/lib/security";
 
 const LoginSchema = z.object({ email: z.string().email().max(120), password: z.string().min(8).max(128) });
 const ResetSchema = z.object({ email: z.string().email().max(120) });
 
 export async function POST(req: NextRequest) {
-  const key = clientKey(req, "login");
-
-  // ✅ Progressive rate limiting: start at 15/60s, after 5 failures throttle to 1/60s
-  if (!rateLimit(key, 15, 60_000)) {
+  // ✅ Distributed rate limiting (Upstash when configured, memory fallback)
+  if (!(await limitRequest(req, "login", 15, 60_000))) {
     // ✅ Log rate limit exceeded attempt
     try { await db.auditLog.create({ data: { action: "LOGIN_RATE_LIMIT", meta: `ip=${clientKey(req, "login")}` } }); } catch {}
     return tooMany();

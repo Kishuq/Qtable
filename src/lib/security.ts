@@ -43,6 +43,33 @@ export function tooMany() {
   return NextResponse.json({ error: "Too many requests. Slow down." }, { status: 429 });
 }
 
+// ---- Distributed rate limit (Upstash Redis) with in-memory fallback ----
+// The in-memory buckets above reset on every serverless cold start, so they
+// only slow casual abuse. When UPSTASH_REDIS_REST_URL + TOKEN are set, this
+// enforces limits globally across all instances (sliding window).
+export async function limitRequest(req: NextRequest, suffix: string, max = 30, windowMs = 60_000): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL || "";
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || "";
+  if (url && token) {
+    try {
+      const { Redis } = await import("@upstash/redis");
+      const { Ratelimit } = await import("@upstash/ratelimit");
+      const redis = new Redis({ url, token });
+      const limiter = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(max, `${Math.max(1000, windowMs)} ms`),
+        analytics: true,
+        prefix: "qtable",
+      });
+      const { success } = await limiter.limit(clientKey(req, suffix));
+      return success;
+    } catch {
+      // Redis hiccup → fall through to the local limiter, never block traffic.
+    }
+  }
+  return rateLimit(clientKey(req, suffix), max, windowMs);
+}
+
 // ---- Input hygiene ----
 export function cleanStr(v: unknown, max = 200): string {
   if (typeof v !== "string") return "";

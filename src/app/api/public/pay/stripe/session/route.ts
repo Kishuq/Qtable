@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import Stripe from "stripe";
 import { db } from "@/lib/db";
-import { rateLimit, clientKey, tooMany } from "@/lib/security";
+import { limitRequest, tooMany } from "@/lib/security";
 
 const Schema = z.object({ orderId: z.string().min(1).max(64) });
 
 // Stripe Checkout Session (hosted, redirect). Amount comes from OUR database.
 // Confirmation arrives via webhook — never trust the redirect alone.
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "stripe"), 20, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "stripe", 20, 60_000))) return tooMany();
   if (!process.env.STRIPE_SECRET_KEY) return NextResponse.json({ error: "Online payments not enabled by this cafe yet." }, { status: 503 });
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { googleAuthUrl, googleConfigured, newState } from "@/lib/google";
-import { rateLimit, clientKey, tooMany } from "@/lib/security";
+import { limitRequest, tooMany } from "@/lib/security";
 
 // Starts Google OAuth for owners (?mode=login|setup, ?next=/dashboard).
 export async function GET(req: NextRequest) {
   if (!googleConfigured()) {
     return NextResponse.json({ error: "Google login isn't configured by this outlet yet." }, { status: 503 });
   }
-  if (!rateLimit(clientKey(req, "google"), 20, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "google", 20, 60_000))) return tooMany();
   const mode = req.nextUrl.searchParams.get("mode") === "setup" ? "setup" : "login";
   const next = req.nextUrl.searchParams.get("next") || "/dashboard";
   const state = newState();

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import Razorpay from "razorpay";
 import { db } from "@/lib/db";
-import { rateLimit, clientKey, tooMany } from "@/lib/security";
+import { limitRequest, tooMany } from "@/lib/security";
 
 const Schema = z.object({ orderId: z.string().min(1).max(64) });
 
@@ -10,7 +10,7 @@ const Schema = z.object({ orderId: z.string().min(1).max(64) });
 // Amount is taken from OUR database — the client can never set the price.
 // Gateway keys come from the outlet's own self-serve config (env fallback).
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "rzp"), 20, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "rzp", 20, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);

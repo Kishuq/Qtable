@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { encryptSecret, verifyRazorpayKeys } from "@/lib/paykeys";
-import { cleanStr, rateLimit, clientKey, tooMany } from "@/lib/security";
+import { cleanStr, limitRequest, tooMany } from "@/lib/security";
 
 // Owner self-serve gateway: paste Razorpay keys → we verify live against
 // Razorpay → store AES-encrypted. No Vercel trips, no developer needed.
@@ -30,7 +30,7 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
-  if (!rateLimit(clientKey(req, "paycfg"), 10, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "paycfg", 10, 60_000))) return tooMany();
   let body: unknown;
   try {
     body = await req.json();

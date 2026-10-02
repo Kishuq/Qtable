@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession, hashPassword, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { cleanStr, isEmail, rateLimit, clientKey, tooMany } from "@/lib/security";
+import { cleanStr, isEmail, limitRequest, tooMany } from "@/lib/security";
 
 export async function GET() {
   const s = await getSession();
@@ -26,7 +26,7 @@ const PatchSchema = z.object({
 export async function PATCH(req: NextRequest) {
   const s = await getSession();
   if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!rateLimit(clientKey(req, "me-patch"), 20, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "me-patch", 20, 60_000))) return tooMany();
   let body: unknown;
   try {
     body = await req.json();

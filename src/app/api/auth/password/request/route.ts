@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
 import { db } from "@/lib/db";
-import { rateLimit, clientKey, tooMany, isEmail } from "@/lib/security";
+import { limitRequest, tooMany, isEmail } from "@/lib/security";
 
 const Schema = z.object({ email: z.string().email().max(120) });
 
@@ -11,7 +11,7 @@ const Schema = z.object({ email: z.string().email().max(120) });
 // retrieved by the owner from the database (Neon → users → resetToken)
 // or a future mail integration. Token expires in 24h.
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "pw-request"), 5, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "pw-request", 5, 60_000))) return tooMany();
   let body: unknown;
   try {
     body = await req.json();

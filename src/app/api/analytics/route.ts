@@ -14,7 +14,9 @@ export async function GET() {
   const hit = cache.get(cafeId);
   if (hit && Date.now() - hit.at < CACHE_MS) return NextResponse.json(hit.data);
 
-  const since = new Date(); since.setHours(0, 0, 0, 0);
+  // "Today" follows the cafe clock (IST), not server UTC.
+  const { istMidnightUTC } = await import("@/lib/day");
+  const since = istMidnightUTC();
   const { getPlan, planAllowsPro } = await import("@/lib/billing");
   const pro = planAllowsPro(getPlan());
   const [todayOrders, openOrders, payments, topItems, feedbacks, lowItems] = await Promise.all([

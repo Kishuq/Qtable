@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import crypto from "crypto";
 import { getSession } from "@/lib/auth";
-import { rateLimit, clientKey, tooMany } from "@/lib/security";
+import { limitRequest, tooMany } from "@/lib/security";
 
 const ALLOWED = new Map([
   ["image/jpeg", "jpg"],
@@ -16,7 +16,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB — menu thumbs stay fast
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!rateLimit(clientKey(req, "photo"), 20, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "photo", 20, 60_000))) return tooMany();
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json({ error: "Photo storage isn't connected — add BLOB_READ_WRITE_TOKEN in Vercel." }, { status: 503 });
   }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { cleanStr, isEmail, rateLimit, clientKey, tooMany } from "@/lib/security";
+import { cleanStr, isEmail, limitRequest, tooMany } from "@/lib/security";
 
 // Owner creates STAFF / KITCHEN logins so the team shares the load (not the password).
 export async function GET() {
@@ -27,7 +27,7 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
-  if (!rateLimit(clientKey(req, "staff"), 20, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "staff", 20, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);

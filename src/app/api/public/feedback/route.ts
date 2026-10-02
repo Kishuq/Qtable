@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCafe } from "@/lib/cafe";
 import { db } from "@/lib/db";
-import { rateLimit, clientKey, tooMany, cleanStr } from "@/lib/security";
+import { limitRequest, tooMany, cleanStr } from "@/lib/security";
 
 // Order IDs are Prisma cuid() strings — format checked loosely here because
 // ownership is verified against the DB below (the real protection).
@@ -13,7 +13,7 @@ const Schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  if (!rateLimit(clientKey(req, "feedback"), 10, 60_000)) return tooMany();
+  if (!(await limitRequest(req, "feedback", 10, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);
