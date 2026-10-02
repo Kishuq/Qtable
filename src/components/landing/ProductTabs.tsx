@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const TABS = ["Customer", "Orders", "Kitchen", "Tables", "Menu", "Analytics"] as const;
+const TABS = ["Customer", "Orders", "Tables", "Menu", "Analytics"] as const;
 type Tab = (typeof TABS)[number];
 
 function Panel({ tab }: { tab: Tab }) {
@@ -51,22 +51,6 @@ function Panel({ tab }: { tab: Tab }) {
             >
               {s}
             </span>
-          </div>
-        ))}
-      </div>
-    );
-  if (tab === "Kitchen")
-    return (
-      <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-2">
-        {[
-          ["#104", "04:12", true],
-          ["#103", "01:48", true],
-          ["#102", "00:32", false],
-          ["#099", "done", false],
-        ].map(([id, t, hot]) => (
-          <div key={id as string} className={`rounded-2xl border p-4 text-center ${hot ? "border-amber-500/40 bg-amber-500/10" : "border-white/10 bg-white/5"}`}>
-            <p className="text-sm font-black text-white">{id}</p>
-            <p className={`mt-1 font-mono text-xl font-black ${hot ? "text-amber-300" : "text-stone-500"}`}>{t}</p>
           </div>
         ))}
       </div>

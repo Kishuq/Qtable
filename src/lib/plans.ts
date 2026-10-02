@@ -29,7 +29,7 @@ export const PLANS: Record<
     monthly: 1299,
     mrp: 1699,
     yearlyTotal: 12990,
-    features: ["Everything in Standard", "Kitchen display (KDS)", "Coupons & staff logins", "Priority support"],
+    features: ["Everything in Standard", "Coupons & offers engine", "Staff logins + roles", "Priority support"],
   },
 };
 
@@ -59,7 +59,6 @@ export const COMPARE: { label: string; menu: boolean; standard: boolean; pro: bo
   { label: "Live order tracking + ETA", menu: false, standard: true, pro: true },
   { label: "Waiter calls", menu: false, standard: true, pro: true },
   { label: "Order history & ledger", menu: false, standard: true, pro: true },
-  { label: "Kitchen display (KDS)", menu: false, standard: false, pro: true },
   { label: "Coupons & offers", menu: false, standard: false, pro: true },
   { label: "Staff logins", menu: false, standard: false, pro: true },
 ];

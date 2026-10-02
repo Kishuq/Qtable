@@ -232,7 +232,7 @@ export default async function Landing() {
           </div>
           <Reveal delay={120}>
             <div className="mt-3 flex flex-wrap gap-2">
-              {["Orders", "Kitchen", "Tables", "Inventory", "Staff", "Analytics"].map((m) => (
+              {["Orders", "Waiter calls", "Tables", "Inventory", "Staff", "Analytics"].map((m) => (
                 <span key={m} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-stone-200">
                   {m}
                 </span>
@@ -446,11 +446,11 @@ export default async function Landing() {
             {[
               ["Digital Menu", "Beautiful, fast, mobile-first menus.", true],
               ["Smart Ordering", "Customers order from their table.", false],
-              ["Live Kitchen", "Orders reach the kitchen instantly.", true],
+              ["Waiter Calls", "Tables summon staff instantly.", true],
               ["Table Management", "Know every table's live status.", false],
               ["Inventory", "Track stock and availability.", false],
               ["Analytics", "Revenue, rush hours, top items.", true],
-              ["Staff Roles", "Owner, staff and kitchen access.", false],
+              ["Staff Roles", "Owner and staff logins.", false],
               ["QR Management", "Create and print table QRs.", false],
               ["Secure Payments", "Trusted UPI, card & counter flows.", true],
             ].map(([t, d, big], i) => (

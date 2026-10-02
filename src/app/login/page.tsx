@@ -43,7 +43,7 @@ function LoginInner() {
           <span className="grid size-8 place-items-center rounded-xl bg-orange-600 text-base">Q</span> Qtable
         </p>
         <h1 className="mt-3 text-2xl font-black">Log in to your outlet</h1>
-        <p className="mt-1 text-sm text-stone-400">Orders, kitchen, menu & analytics — one login.</p>
+        <p className="mt-1 text-sm text-stone-400">Orders, menu, payments & analytics — one login.</p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <label className="block text-left">
             <span className="mb-1 block text-xs font-bold text-stone-400">Email address</span>

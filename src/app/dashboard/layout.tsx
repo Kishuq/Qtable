@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, ReceiptText, ChefHat, UtensilsCrossed, QrCode, Settings, LogOut, BadgePercent, Users, Wallet, Palette, History, Bell, BellOff } from "lucide-react";
+import { LayoutDashboard, ReceiptText, UtensilsCrossed, QrCode, Settings, LogOut, BadgePercent, Users, Wallet, Palette, History, Bell, BellOff } from "lucide-react";
 import { useLiveOrders } from "@/hooks/useLiveOrders";
 import { useToast } from "@/components/ux";
 import { inr } from "@/lib/format";
@@ -13,7 +13,6 @@ const NAV_GROUPS = [
     items: [
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/orders", label: "Orders", icon: ReceiptText },
-      { href: "/dashboard/kitchen", label: "Kitchen", icon: ChefHat },
     ],
   },
   {

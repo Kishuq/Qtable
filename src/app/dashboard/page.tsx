@@ -40,7 +40,7 @@ export default function Overview() {
         <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">Subscription required</p>
         <h1 className="mt-2 text-3xl font-black">Everything you need to get your outlet online</h1>
         <p className="mt-2 text-sm text-stone-400">
-          You&apos;re logged in — pick a plan to unlock orders, kitchen, menu and payments.
+          You&apos;re logged in — pick a plan to unlock orders, menu and payments.
         </p>
         <div className="mt-6 grid gap-3 text-left sm:grid-cols-3">
           {(Object.keys(PLANS) as PlanId[]).map((id) => (

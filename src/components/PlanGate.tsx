@@ -23,7 +23,7 @@ export function PlanGate({ children }: { children: ReactNode }) {
       <p className="mx-auto grid size-16 place-items-center rounded-3xl bg-orange-600/15 text-3xl">🔒</p>
       <h1 className="mt-4 text-2xl font-black">Pro feature</h1>
       <p className="mt-2 text-sm leading-relaxed text-stone-400">
-        This module (kitchen display, offers & team logins) unlocks on the{" "}
+        This module (offers & team logins) unlocks on the{" "}
         <b className="text-stone-200">Pro ₹1,299/mo</b> plan. Your current plan:{" "}
         <b className="text-stone-200">{plan === "menu" ? "Basic ₹499/mo" : "Standard ₹699/mo"}</b>.
       </p>
