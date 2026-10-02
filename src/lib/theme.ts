@@ -40,20 +40,20 @@ export const PATTERNS = [
 ] as const;
 
 export const THEME_PRESETS: { name: string; vibe: string; theme: Theme }[] = [
-  { name: "Espresso", vibe: "Classic cafe", theme: { ...DEFAULT_THEME } },
-  { name: "Matcha", vibe: "Fresh & green", theme: { ...DEFAULT_THEME, primary: "#15803d", accent: "#a3e635", bg: "#052e16", font: "nunito" } },
-  { name: "Berry", vibe: "Bold & sweet", theme: { ...DEFAULT_THEME, primary: "#be185d", accent: "#f472b6", bg: "#1c0a12", bgMode: "gradient", font: "poppins" } },
-  { name: "Royal", vibe: "Premium serif", theme: { ...DEFAULT_THEME, primary: "#6d28d9", accent: "#fbbf24", bg: "#0f0a1e", bgMode: "gradient", pattern: "dots", font: "playfair" } },
-  { name: "Ocean", vibe: "Cool & edgy", theme: { ...DEFAULT_THEME, primary: "#0369a1", accent: "#22d3ee", bg: "#082f49", pattern: "waves", font: "space" } },
-  { name: "Cream", vibe: "Light & elegant", theme: { ...DEFAULT_THEME, primary: "#b45309", accent: "#dc2626", bg: "#faf6ef", pattern: "dots", font: "dmserif" } },
-  { name: "Sunset", vibe: "Warm gradient", theme: { ...DEFAULT_THEME, primary: "#ea580c", accent: "#facc15", bg: "#1c0f08", bgMode: "gradient", pattern: "waves", font: "poppins", radius: "soft" } },
-  { name: "Midnight", vibe: "Neon night", theme: { ...DEFAULT_THEME, primary: "#38bdf8", accent: "#818cf8", bg: "#020617", bgMode: "gradient", pattern: "dots", font: "space", radius: "sharp" } },
-  { name: "Rosewood", vibe: "Deep red serif", theme: { ...DEFAULT_THEME, primary: "#b91c1c", accent: "#fda4af", bg: "#160608", pattern: "none", font: "lora", radius: "soft" } },
-  { name: "Lemon", vibe: "Light & zesty", theme: { ...DEFAULT_THEME, primary: "#a16207", accent: "#4d7c0f", bg: "#fffbeb", pattern: "grid", font: "quicksand" } },
-  { name: "Cocoa", vibe: "Dark chocolate", theme: { ...DEFAULT_THEME, primary: "#92400e", accent: "#e7b958", bg: "#120b06", pattern: "none", font: "dmserif", radius: "sharp" } },
-  { name: "Forest", vibe: "Deep woods", theme: { ...DEFAULT_THEME, primary: "#166534", accent: "#4ade80", bg: "#04120b", bgMode: "gradient", pattern: "waves", font: "inter" } },
-  { name: "Lavender", vibe: "Soft purple", theme: { ...DEFAULT_THEME, primary: "#7c3aed", accent: "#c4b5fd", bg: "#14101f", pattern: "dots", font: "nunito", radius: "soft" } },
-  { name: "Noir", vibe: "Minimal mono", theme: { ...DEFAULT_THEME, primary: "#e7e5e4", accent: "#a8a29e", bg: "#000000", pattern: "grid", font: "space", radius: "sharp" } },
+  { name: "Tandoor", vibe: "Ember & smoke", theme: { ...DEFAULT_THEME, primary: "#ea580c", accent: "#fbbf24", bg: "#170806", bgMode: "gradient", pattern: "waves", font: "dmserif", radius: "soft" } },
+  { name: "Marigold", vibe: "Festive light", theme: { ...DEFAULT_THEME, primary: "#b45309", accent: "#dc2626", bg: "#fff7e6", pattern: "dots", font: "dmserif", radius: "soft" } },
+  { name: "Monsoon", vibe: "Teal ink rain", theme: { ...DEFAULT_THEME, primary: "#14b8a6", accent: "#a5f3fc", bg: "#062a2e", pattern: "waves", font: "space", radius: "sharp" } },
+  { name: "Gilt", vibe: "Gold on charcoal", theme: { ...DEFAULT_THEME, primary: "#d4af37", accent: "#f5f5f4", bg: "#101010", pattern: "none", font: "playfair", radius: "sharp" } },
+  { name: "Broadsheet", vibe: "Newspaper light", theme: { ...DEFAULT_THEME, primary: "#1c1917", accent: "#c2410c", bg: "#faf8f2", pattern: "grid", font: "lora", radius: "sharp" } },
+  { name: "Palm Court", vibe: "Tropical green", theme: { ...DEFAULT_THEME, primary: "#16a34a", accent: "#fde047", bg: "#04160c", pattern: "dots", font: "nunito", radius: "rounded" } },
+  { name: "Neon Diner", vibe: "Retro after-dark", theme: { ...DEFAULT_THEME, primary: "#ff2d78", accent: "#22d3ee", bg: "#0a0a12", bgMode: "gradient", pattern: "grid", font: "space", radius: "sharp" } },
+  { name: "Terracotta", vibe: "Baked earth", theme: { ...DEFAULT_THEME, primary: "#c96f4a", accent: "#eab308", bg: "#201009", pattern: "dots", font: "nunito", radius: "rounded" } },
+  { name: "Rose Gold", vibe: "Blush premium", theme: { ...DEFAULT_THEME, primary: "#9d174d", accent: "#f9a8d4", bg: "#fdf2f4", pattern: "none", font: "playfair", radius: "soft" } },
+  { name: "Masala Night", vibe: "Chili & ghee", theme: { ...DEFAULT_THEME, primary: "#dc2626", accent: "#fbbf24", bg: "#0d0204", bgMode: "gradient", pattern: "dots", font: "poppins", radius: "rounded" } },
+  { name: "Lagoon Pearl", vibe: "Deep sea calm", theme: { ...DEFAULT_THEME, primary: "#0ea5e9", accent: "#99f6e0", bg: "#031824", pattern: "waves", font: "quicksand", radius: "soft" } },
+  { name: "Matcha House", vibe: "Stone-ground calm", theme: { ...DEFAULT_THEME, primary: "#4d7c0f", accent: "#d9f99d", bg: "#0c1a0e", pattern: "grid", font: "lora", radius: "rounded" } },
+  { name: "Copper Still", vibe: "Brewery copper", theme: { ...DEFAULT_THEME, primary: "#b45309", accent: "#fcd34d", bg: "#120b06", pattern: "none", font: "dmserif", radius: "sharp" } },
+  { name: "Gulmohar", vibe: "Flame-tree red", theme: { ...DEFAULT_THEME, primary: "#f97316", accent: "#fde047", bg: "#160607", bgMode: "gradient", pattern: "waves", font: "poppins", radius: "soft" } },
 ];
 
 export function themeFromCafe(cafe: Record<string, string | undefined> | null | undefined): Theme {
