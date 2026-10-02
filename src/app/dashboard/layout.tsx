@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { LayoutDashboard, ReceiptText, UtensilsCrossed, QrCode, Settings, LogOut, BadgePercent, Users, Wallet, Palette, History, Bell, BellOff, BookOpen } from "lucide-react";
 import { useLiveOrders } from "@/hooks/useLiveOrders";
 import { useToast } from "@/components/ux";
+import { Tour } from "@/components/Tour";
 import { inr } from "@/lib/format";
 
 const NAV_GROUPS = [
@@ -132,6 +133,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
         {children}
       </div>
+      <Tour />
     </div>
   );
 }

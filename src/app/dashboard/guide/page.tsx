@@ -100,6 +100,9 @@ export default function GuidePage() {
       <p className="mt-2 text-sm leading-relaxed text-stone-400">
         Everything a new owner needs — no trainer required. Work top to bottom once, then keep this page bookmarked for rush-hour questions.
       </p>
+      <Link href="/dashboard?tour=1" className="mt-4 inline-block rounded-2xl bg-orange-600 px-6 py-3 text-sm font-black text-white shadow-xl transition hover:bg-orange-500 active:scale-95">
+        ▶ Replay the guided tour
+      </Link>
       <div className="mt-6 space-y-3">
         {SECTIONS.map((s, i) => (
           <details key={s.title} open={i < 2} className="glass group rounded-3xl p-5 open:pb-5">
