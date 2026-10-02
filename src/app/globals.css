@@ -12,9 +12,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; background: #0c0a09; }
 
 body {
+  position: relative; /* anchors body::after grain to the full page, not the viewport */
   background: #0c0a09;
   color: #fafaf9;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
