@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
   const exists = await db.user.findUnique({ where: { email } });
   if (exists) return NextResponse.json({ error: "Email already in use" }, { status: 409 });
   const u = await db.user.create({
-    data: { name: cleanStr(p.data.name, 60), email, passwordHash: await hashPassword(p.data.password), role: p.data.role, cafeId: s.cafeId },
+    // Owner-created logins are pre-verified — the owner vetted this person directly.
+    data: { name: cleanStr(p.data.name, 60), email, passwordHash: await hashPassword(p.data.password), role: p.data.role, cafeId: s.cafeId, verified: true },
   });
   await db.auditLog.create({ data: { cafeId: s.cafeId, userId: s.uid, action: "STAFF_CREATED", meta: `${email} ${p.data.role}` } });
   return NextResponse.json({ ok: true, staff: { id: u.id, name: u.name, email: u.email, role: u.role } });
