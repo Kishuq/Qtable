@@ -85,6 +85,7 @@ export const THEME_PRESETS: { name: string; vibe: string; theme: Theme }[] = [
 ];
 
 const STYLE_IDS: ThemeStyle[] = ["cards", "editorial", "list", "poster", "tickets"];
+const DATA_IMAGE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 
 export function themeFromCafe(cafe: Record<string, string | undefined> | null | undefined): Theme {
   if (!cafe) return DEFAULT_THEME;
@@ -105,7 +106,9 @@ export function themeFromCafe(cafe: Record<string, string | undefined> | null | 
     font: font && FONTS[font] ? font : "inter",
     radius: (["soft", "sharp"] as const).includes(radius as never) ? (radius as Theme["radius"]) : "rounded",
     style: STYLE_IDS.includes(style as ThemeStyle) ? (style as ThemeStyle) : "cards",
-    image: /^https:\/\//.test(image) ? image : "",
+    // Backdrops are either a stored Blob URL (legacy) or a small data URL
+    // embedded in the cafe row — no file-storage service required.
+    image: /^https:\/\//.test(image) || (DATA_IMAGE.test(image) && image.length <= 400_000) ? image : "",
   };
 }
 

@@ -62,6 +62,35 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+// Shrinks a photo into a small self-contained data URL (~35–60 KB). Stored in
+// the cafe row itself, so photo backdrops need no file-storage service at all.
+export async function fileToCompactDataUrl(file: File, maxChars = 60_000): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(objectUrl);
+    for (const maxSide of [760, 620, 500, 400, 320]) {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("This browser can't prepare images — try another browser.");
+      ctx.drawImage(img, 0, 0, w, h);
+
+      for (const q of [0.74, 0.64, 0.54, 0.44, 0.34, 0.26]) {
+        let out = canvas.toDataURL("image/webp", q);
+        // Older Safari silently returns PNG for WebP — use JPEG instead.
+        if (!out.startsWith("data:image/webp")) out = canvas.toDataURL("image/jpeg", q);
+        if (out.length <= maxChars) return out;
+      }
+    }
+    throw new Error("That image is very detailed — try a simpler photo or a smaller crop.");
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export async function analyzeImage(src: string): Promise<PhotoAnalysis> {
   const img = await loadImage(src);
   const size = 72;

@@ -29,8 +29,12 @@ const Schema = z.object({
   themeFont: z.string().max(20).optional(),
   themeRadius: z.enum(["rounded", "soft", "sharp"]).optional(),
   themeStyle: z.enum(["cards", "editorial", "list", "poster", "tickets"]).optional(),
-  // Empty string clears the backdrop. Only https URLs (Blob storage) accepted.
-  themeImage: z.string().max(600).regex(/^$|^https:\/\/[^\s"']+$/).optional(),
+  // Empty string clears the backdrop. Accepts a Blob URL or a small,
+  // self-contained data image (no third-party storage needed).
+  themeImage: z.string().max(400_000).refine(
+    (v) => v === "" || /^https:\/\/[^\s"']+$/.test(v) || /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v),
+    "Invalid image",
+  ).optional(),
 });
 
 export async function PATCH(req: NextRequest) {

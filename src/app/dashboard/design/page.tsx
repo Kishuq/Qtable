@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_THEME, FONTS, PATTERNS, STYLES, THEME_PRESETS, themeFromCafe, type Theme, type ThemeStyle } from "@/lib/theme";
-import { analyzeImage, looksFromPhoto, type PhotoLook } from "@/lib/palette";
+import { analyzeImage, fileToCompactDataUrl, looksFromPhoto, type PhotoLook } from "@/lib/palette";
 import { SectionTitle, useToast } from "@/components/ux";
 import { ThemeStyles } from "@/components/theme";
 
@@ -68,7 +68,7 @@ export default function DesignPage() {
   const [logo, setLogo] = useState("☕");
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [photo, setPhoto] = useState<{ name: string; localUrl: string; uploaded: string } | null>(null);
+  const [photo, setPhoto] = useState<{ name: string; dataUrl: string } | null>(null);
   const [looks, setLooks] = useState<PhotoLook[]>([]);
   const [photoErr, setPhotoErr] = useState("");
   const [useBackdrop, setUseBackdrop] = useState(false);
@@ -88,43 +88,28 @@ export default function DesignPage() {
     }).catch(() => {});
   }, []);
 
-  // When the background upload finishes, apply it if the owner asked for it.
-  useEffect(() => {
-    if (useBackdrop && photo?.uploaded) {
-      setTheme((t) => (t.image === photo.uploaded ? t : { ...t, image: photo.uploaded }));
-    }
-  }, [useBackdrop, photo?.uploaded]);
-
   async function onPhoto(file: File) {
     if (!file.type.startsWith("image/")) { setPhotoErr("Choose a JPG, PNG or WebP image."); return; }
-    if (file.size > 2 * 1024 * 1024) { setPhotoErr("Keep the image under 2 MB — compress it once and retry."); return; }
+    if (file.size > 12 * 1024 * 1024) { setPhotoErr("That photo is over 12 MB — pick a smaller one."); return; }
     setAnalyzing(true); setPhotoErr("");
     try {
-      const localUrl = URL.createObjectURL(file);
-      const analysis = await analyzeImage(localUrl);
+      const dataUrl = await fileToCompactDataUrl(file);
+      const analysis = await analyzeImage(dataUrl);
       setLooks(looksFromPhoto(analysis));
-      setPhoto({ name: file.name, localUrl, uploaded: "" });
-      // Ask the server to store it too, so it can become the menu backdrop.
-      const fd = new FormData();
-      fd.append("photo", file);
-      fd.append("kind", "theme");
-      fetch("/api/menu/photo", { method: "POST", body: fd })
-        .then(async (r) => { const j = await r.json().catch(() => ({})); if (r.ok && j.url) setPhoto((p) => (p ? { ...p, uploaded: j.url } : p)); })
-        .catch(() => {});
+      setPhoto({ name: file.name, dataUrl });
     } catch (e: unknown) {
       setPhotoErr(e instanceof Error ? e.message : "Couldn't read that image.");
     } finally { setAnalyzing(false); }
   }
 
   function applyLook(look: PhotoLook) {
-    setTheme({ ...look.theme, image: useBackdrop && photo?.uploaded ? photo.uploaded : "" });
+    setTheme({ ...look.theme, image: useBackdrop && photo ? photo.dataUrl : "" });
     toast(`${look.label} applied — tweak it or publish ✨`);
   }
 
   function toggleBackdrop(on: boolean) {
     setUseBackdrop(on);
-    setTheme((t) => ({ ...t, image: on && photo?.uploaded ? photo.uploaded : "" }));
-    if (on && photo && !photo.uploaded) toast("Saving your photo — the backdrop lands in a second.", "ok");
+    setTheme((t) => ({ ...t, image: on && photo ? photo.dataUrl : "" }));
   }
 
   function clearPhoto() {
@@ -162,7 +147,7 @@ export default function DesignPage() {
           <div>
             <p className="text-sm font-black">✨ Match your menu to a photo</p>
             <p className="mt-0.5 max-w-md text-xs leading-relaxed text-stone-400">
-              Upload your logo, interior, packaging or a moodboard. We read its colours and build three complete menu designs — no design skills, no upload to any AI service.
+              Upload your logo, interior, packaging or a moodboard. We read its colours and build three complete menu designs — no design skills, no AI service, no storage service.
             </p>
           </div>
           <button onClick={() => fileRef.current?.click()} disabled={analyzing}
@@ -178,10 +163,10 @@ export default function DesignPage() {
         {photo && (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/25 p-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.localUrl} alt="Your upload" className="size-16 rounded-xl object-cover" />
+            <img src={photo.dataUrl} alt="Your upload" className="size-16 rounded-xl object-cover" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-black">{photo.name}</p>
-              <p className="text-[11px] text-stone-400">{photo.uploaded ? "Saved — can be used as the menu backdrop." : "Read for colours. Backdrop saves on publish."}</p>
+              <p className="text-[11px] text-stone-400">Bundled into your design — no storage service needed.</p>
             </div>
             <label className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black ${useBackdrop ? "border-orange-400 bg-orange-500/20 text-orange-100" : "border-white/15 text-stone-300"}`}>
               <input type="checkbox" checked={useBackdrop} onChange={(e) => toggleBackdrop(e.target.checked)} className="accent-orange-500" />
@@ -240,7 +225,7 @@ export default function DesignPage() {
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {(showAllPresets ? THEME_PRESETS : THEME_PRESETS.slice(0, 8)).map((p) => (
-          <button key={p.name} onClick={() => setTheme({ ...p.theme, image: useBackdrop && photo?.uploaded ? photo.uploaded : "" })}
+          <button key={p.name} onClick={() => setTheme({ ...p.theme, image: useBackdrop && photo ? photo.dataUrl : "" })}
             className="rounded-2xl border border-white/10 bg-white/[.03] p-3 text-left transition hover:border-white/25 hover:bg-white/[.06] active:scale-[.99]">
             <span className="flex -space-x-1.5">
               <span className="size-6 rounded-full border-2 border-stone-900" style={{ background: p.theme.primary }} />
