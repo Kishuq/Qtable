@@ -4,12 +4,12 @@ import Link from "next/link";
 import { inr, upiLink } from "@/lib/format";
 import { CardSkeleton, ItemPhoto, useToast } from "@/components/ux";
 import { ThemeStyles } from "@/components/theme";
-import { themeFromCafe, type Theme } from "@/lib/theme";
+import { themeFromCafe, type Theme, type ThemeStyle } from "@/lib/theme";
 
 type Item = { id: string; name: string; description: string; price: number; imageEmoji: string; imageUrl: string; veg: boolean; popular: boolean; categoryId: string | null };
 type Cat = { id: string; name: string };
 type Coupon = { code: string; pct: number };
-type CafeTheme = { primary: string; accent: string; bg: string; bgMode: string; pattern: string; font: string; radius: string };
+type CafeTheme = { primary: string; accent: string; bg: string; bgMode: string; pattern: string; font: string; radius: string; style: string; image: string };
 type Data = {
   cafe: { name: string; tagline: string; description: string; upiId: string; gstPct: number; currency: string; logoEmoji: string; onlineProvider: string | null; theme: CafeTheme };
   categories: Cat[]; items: Item[]; tables: { code: string }[]; coupons: Coupon[];
@@ -302,6 +302,16 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const upiUrl = data.cafe.upiId ? upiLink(data.cafe.upiId, data.cafe.name, total / 100, `Table ${effectiveTable}`) : "";
   const catName = (id: string | null) => data.categories.find((c) => c.id === id)?.name || "Chef's picks";
   const flat = sort !== "rel";
+  // Layout families: photo-heavy styles keep the 2-up grid, text styles go
+  // full width so names, dotted leaders and ticket rules have room.
+  const gridClass =
+    theme.style === "cards" || theme.style === "poster"
+      ? "grid grid-cols-2 gap-3"
+      : theme.style === "list"
+        ? "space-y-2"
+        : theme.style === "tickets"
+          ? "space-y-1.5"
+          : "space-y-0";
 
   return (
     <ThemeStyles theme={theme}>
@@ -452,21 +462,17 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           <span className="h-px flex-1 bg-white/10" />
         </div>
         {flat ? (
-          <div className="grid grid-cols-2 gap-3">
-            {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+          <div className={gridClass}>
+            {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
           </div>
         ) : (data.categories.map((c) => {
           const list = items.filter((i) => i.categoryId === c.id);
           if (list.length === 0) return null;
           return (
             <div key={c.id}>
-              <div className="mb-2.5 flex items-center gap-2">
-                <p className="t-heading text-sm font-black uppercase tracking-wider">{c.name}</p>
-                <span className="t-grad rounded-full px-2 py-0.5 text-[10px] font-black text-white">{list.length}</span>
-                <span className="h-px flex-1 bg-white/10" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+              <CategoryHead name={c.name} count={list.length} style={theme.style} />
+              <div className={gridClass}>
+                {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
               </div>
             </div>
           );
@@ -651,10 +657,142 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   );
 }
 
-function DishCard({ item, currency, qty, lastAdded, index = 0, ordering = true, onAdd, onSub, onQuick }: {
-  item: Item; currency: string; qty: number; lastAdded: boolean; index?: number; ordering?: boolean;
+function CategoryHead({ name, count, style }: { name: string; count: number; style: ThemeStyle }) {
+  if (style === "editorial") {
+    return (
+      <div className="mb-3 mt-1 text-center">
+        <p className="t-heading text-[11px] font-black uppercase tracking-[0.35em] opacity-60">{name}</p>
+        <div className="mx-auto mt-2 h-px w-14 bg-current opacity-20" />
+      </div>
+    );
+  }
+  if (style === "tickets") {
+    return (
+      <div className="mb-2 flex items-center gap-2">
+        <span className="t-grad grid size-6 place-items-center rounded-full text-[10px] font-black text-white">{count}</span>
+        <p className="t-heading text-xs font-black uppercase tracking-[0.22em]">{name}</p>
+        <span className="flex-1 border-t border-dashed border-current opacity-25" />
+      </div>
+    );
+  }
+  if (style === "poster") {
+    return (
+      <div className="mb-2 flex items-end justify-between">
+        <p className="t-heading text-lg font-black uppercase tracking-tight">{name}</p>
+        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black">{count}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-2.5 flex items-center gap-2">
+      <p className="t-heading text-sm font-black uppercase tracking-wider">{name}</p>
+      <span className="t-grad rounded-full px-2 py-0.5 text-[10px] font-black text-white">{count}</span>
+      <span className="h-px flex-1 bg-white/10" />
+    </div>
+  );
+}
+
+function DishCard({ item, currency, style, qty, lastAdded, index = 0, ordering = true, onAdd, onSub, onQuick }: {
+  item: Item; currency: string; style: ThemeStyle; qty: number; lastAdded: boolean; index?: number; ordering?: boolean;
   onAdd: () => void; onSub: () => void; onQuick: () => void;
 }) {
+  const ownerTone = lastAdded ? "animate-pop" : "";
+  const controls = !ordering ? null : qty > 0 ? (
+    <div className={`t-grad flex items-center gap-2 rounded-full px-1 py-0.5 text-white shadow-lg ${ownerTone}`}>
+      <button onClick={onSub} aria-label="Remove one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">−</button>
+      <span className="min-w-4 text-center text-[13px] font-black">{qty}</span>
+      <button onClick={onAdd} aria-label="Add one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">+</button>
+    </div>
+  ) : (
+    <button onClick={onAdd} className="t-grad rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow transition hover:brightness-110 active:scale-95">ADD +</button>
+  );
+  const vegDot = <span className={`grid size-3.5 shrink-0 place-items-center rounded border text-[8px] ${item.veg ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}`} title={item.veg ? "Veg" : "Non-veg"}>●</span>;
+  const price = inr(item.price, currency);
+  const desc = item.description?.trim();
+
+  // Menu paper — no photos, dotted price leaders, printed-menu feel.
+  if (style === "editorial") {
+    return (
+      <div className="animate-slide-up border-b border-current/15 py-3" style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}>
+        <div className="flex items-baseline gap-2">
+          <button onClick={onQuick} className="t-heading text-left text-[15px] font-black leading-snug transition hover:opacity-70">{item.name}</button>
+          <span className="mb-1 min-w-3 flex-1 border-b border-dotted border-current opacity-30" />
+          <span className="tnum text-sm font-black">{price}</span>
+        </div>
+        {desc && <p className="t-muted mt-0.5 line-clamp-1 text-[11px]">{desc}</p>}
+        <div className="mt-1.5 flex items-center gap-2">
+          {vegDot}
+          {item.popular && <span className="text-[10px] font-black uppercase tracking-wider opacity-60">★ Popular</span>}
+          <span className="flex-1" />
+          {controls}
+        </div>
+      </div>
+    );
+  }
+
+  // Cafe board — dense thumbnail rows, easy scanning for long menus.
+  if (style === "list") {
+    return (
+      <div className="glass t-card card-hover animate-slide-up flex items-center gap-3 p-2.5" style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}>
+        <button onClick={onQuick} className="relative size-16 shrink-0 overflow-hidden rounded-2xl" title="Quick view">
+          <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} size="size-full" rounded="rounded-none" />
+          {item.popular && <span className="absolute inset-x-0 bottom-0 bg-black/55 py-0.5 text-center text-[9px] font-black text-amber-300">★ POPULAR</span>}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            {vegDot}
+            <button onClick={onQuick} className="truncate text-left text-sm font-black">{item.name}</button>
+          </div>
+          <p className="t-muted line-clamp-1 text-[11px]">{desc}</p>
+          <p className="tnum mt-0.5 text-sm font-black">{price}</p>
+        </div>
+        <div className="shrink-0">{controls}</div>
+      </div>
+    );
+  }
+
+  // Ticket stubs — dashed receipt rows, street-food energy.
+  if (style === "tickets") {
+    return (
+      <div className="animate-slide-up border border-dashed border-current/25 px-3 py-2.5" style={{ borderRadius: "calc(var(--tr) * .45)", animationDelay: `${Math.min(index, 10) * 30}ms` }}>
+        <div className="flex items-baseline gap-2">
+          <button onClick={onQuick} className="truncate text-left text-sm font-black uppercase tracking-wide">{item.name}</button>
+          <span className="mb-1 min-w-3 flex-1 border-b border-dotted border-current opacity-25" />
+          <span className="tnum text-sm font-black">{price}</span>
+        </div>
+        {desc && <p className="t-muted mt-0.5 line-clamp-1 text-[11px]">{desc}</p>}
+        <div className="mt-1.5 flex items-center gap-2">
+          {vegDot}
+          {item.popular && <span className="text-[10px] font-black uppercase tracking-wider opacity-60">★ Popular</span>}
+          <span className="flex-1" />
+          {controls}
+        </div>
+      </div>
+    );
+  }
+
+  // Poster grid — photo-forward tiles with the name laid over.
+  if (style === "poster") {
+    return (
+      <div className="t-card card-hover animate-slide-up relative overflow-hidden" style={{ animationDelay: `${Math.min(index, 10) * 45}ms` }}>
+        <button onClick={onQuick} className="group relative block aspect-[3/4] w-full overflow-hidden text-left" title="Quick view">
+          <span className="block size-full transition duration-300 group-hover:scale-105">
+            <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} size="size-full" rounded="rounded-none" />
+          </span>
+          <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-black/10" />
+          {item.popular && <span className="t-grad absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow-lg">★ POPULAR</span>}
+          <span className={`absolute right-2 top-2 grid size-5 place-items-center rounded-md border bg-black/55 text-[10px] backdrop-blur ${item.veg ? "border-green-400/80 text-green-300" : "border-red-400/80 text-red-300"}`} title={item.veg ? "Veg" : "Non-veg"}>●</span>
+          <span className="absolute inset-x-0 bottom-0 block p-3 text-white">
+            <span className="block text-sm font-black leading-tight drop-shadow">{item.name}</span>
+            <span className="tnum mt-0.5 block text-sm font-black opacity-95">{price}</span>
+          </span>
+        </button>
+        <div className="absolute bottom-2.5 right-2.5">{controls}</div>
+      </div>
+    );
+  }
+
+  // Default: appetising photo cards in a 2-up grid.
   return (
     <div className="glass t-card card-hover animate-slide-up flex flex-col overflow-hidden" style={{ animationDelay: `${Math.min(index, 10) * 45}ms` }}>
       <button onClick={onQuick} className="group relative block aspect-[4/3] w-full overflow-hidden" title="Quick view">
@@ -668,18 +806,11 @@ function DishCard({ item, currency, qty, lastAdded, index = 0, ordering = true, 
         <button onClick={onQuick} className="t-heading truncate text-left text-sm font-black leading-snug hover:underline">{item.name}</button>
         <p className="t-muted mt-0.5 line-clamp-1 text-[11px] leading-relaxed">{item.description}</p>
         <div className="mt-auto flex items-center justify-between pt-2.5">
-          <p className="tnum text-sm font-black tracking-tight">{inr(item.price, currency)}</p>
-          {!ordering ? null : qty > 0 ? (
-            <div className={`t-grad flex items-center gap-2.5 rounded-full px-1 py-0.5 text-white shadow-lg ${lastAdded ? "animate-pop" : ""}`}>
-              <button onClick={onSub} aria-label="Remove one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">−</button>
-              <span className="min-w-4 text-center text-[13px] font-black">{qty}</span>
-              <button onClick={onAdd} aria-label="Add one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">+</button>
-            </div>
-          ) : (
-            <button onClick={onAdd} className="t-grad rounded-full px-4 py-1.5 text-[11px] font-black text-white shadow transition hover:brightness-110 active:scale-95">ADD +</button>
-          )}
+          <p className="tnum text-sm font-black tracking-tight">{price}</p>
+          {controls}
         </div>
       </div>
     </div>
   );
 }
+

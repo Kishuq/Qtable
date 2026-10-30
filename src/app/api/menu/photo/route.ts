@@ -22,10 +22,12 @@ export async function POST(req: NextRequest) {
   }
 
   let file: File | null = null;
+  let kind = "menu";
   try {
     const form = await req.formData();
     const v = form.get("photo");
     if (v instanceof File) file = v;
+    if (form.get("kind") === "theme") kind = "theme";
   } catch {
     return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
   }
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "Photo must be under 2 MB" }, { status: 400 });
 
   try {
-    const key = `menu/${s.cafeId}/${crypto.randomBytes(12).toString("hex")}.${ext}`;
+    const key = `${kind}/${s.cafeId}/${crypto.randomBytes(12).toString("hex")}.${ext}`;
     const blob = await put(key, file, { access: "public", contentType: file.type });
     return NextResponse.json({ ok: true, url: blob.url });
   } catch (e) {

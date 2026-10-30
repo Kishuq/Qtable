@@ -68,7 +68,7 @@ const SECTIONS: { title: string; emoji: string; body: string[]; link?: { href: s
     body: [
       "Discounts: create codes (WELCOME10) — customers tap-to-apply them at checkout. Pause anytime without deleting.",
       "Staff: give counter and kitchen their own logins (OWNER / STAFF). Never share one password — every action is audit-logged per user.",
-      "Design studio: 14 one-tap themes + unlimited colours, 6 fonts, patterns. Publishes instantly to customer phones, zero redeploy.",
+      "Design studio: 24 curated themes, 5 menu layouts (photo cards, menu paper, cafe board, poster grid, ticket stubs) + unlimited colours and fonts. Upload a logo or interior photo and it pulls the colours into three ready designs. Publishes instantly to customer phones, zero redeploy.",
     ],
   },
   {

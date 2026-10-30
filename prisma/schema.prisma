@@ -43,6 +43,8 @@ model Cafe {
   themePattern String   @default("none") // none | dots | grid | waves
   themeFont    String   @default("inter") // inter | playfair | poppins | dmserif | nunito | space
   themeRadius  String   @default("rounded") // rounded | soft | sharp
+  themeStyle   String   @default("cards") // cards | editorial | list | poster | tickets
+  themeImage   String   @default("") // optional uploaded brand photo used as menu backdrop
   isActive     Boolean  @default(true)
   ownerId      String
   gstPct       Float    @default(5)

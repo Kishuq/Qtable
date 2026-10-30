@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
-import { FONTS, PATTERNS, THEME_PRESETS, themeFromCafe, type Theme } from "@/lib/theme";
+import { useEffect, useRef, useState } from "react";
+import { DEFAULT_THEME, FONTS, PATTERNS, STYLES, THEME_PRESETS, themeFromCafe, type Theme, type ThemeStyle } from "@/lib/theme";
+import { analyzeImage, looksFromPhoto, type PhotoLook } from "@/lib/palette";
 import { SectionTitle, useToast } from "@/components/ux";
 import { ThemeStyles } from "@/components/theme";
 
@@ -22,12 +23,57 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
   );
 }
 
+// Tiny wireframe so each layout is recognisable before you tap it.
+function StyleGlyph({ id }: { id: ThemeStyle }) {
+  const bar = "rounded-sm bg-current";
+  if (id === "editorial") return (
+    <span className="flex w-12 flex-col gap-1.5 opacity-70">
+      <span className="mx-auto h-1 w-8 rounded bg-current" />
+      <span className={`h-px w-full ${bar}`} />
+      <span className={`h-px w-11/12 ${bar}`} />
+      <span className={`h-px w-full ${bar}`} />
+      <span className={`h-px w-10/12 ${bar}`} />
+    </span>
+  );
+  if (id === "list") return (
+    <span className="flex w-12 flex-col gap-1.5 opacity-70">
+      {[0, 1, 2].map((i) => <span key={i} className="flex items-center gap-1"><span className="size-3 rounded bg-current" /><span className={`h-1 flex-1 ${bar}`} /></span>)}
+    </span>
+  );
+  if (id === "poster") return (
+    <span className="grid w-12 grid-cols-2 gap-1 opacity-70">
+      <span className="h-8 rounded-sm bg-current" />
+      <span className="h-8 rounded-sm bg-current/70" />
+      <span className="h-8 rounded-sm bg-current/70" />
+      <span className="h-8 rounded-sm bg-current" />
+    </span>
+  );
+  if (id === "tickets") return (
+    <span className="flex w-12 flex-col gap-1.5 opacity-70">
+      {[0, 1].map((i) => <span key={i} className="h-4 rounded-sm border border-dashed border-current" />)}
+    </span>
+  );
+  return (
+    <span className="grid w-12 grid-cols-2 gap-1 opacity-70">
+      <span className="rounded-sm bg-current" style={{ height: 22 }} />
+      <span className="rounded-sm bg-current/70" style={{ height: 22 }} />
+    </span>
+  );
+}
+
 export default function DesignPage() {
   const toast = useToast();
-  const [theme, setTheme] = useState<Theme>({ primary: "#c2410c", accent: "#f59e0b", bg: "#0c0a09", bgMode: "solid", pattern: "none", font: "inter", radius: "rounded" });
+  const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
   const [cafeName, setCafeName] = useState("Your Outlet");
   const [logo, setLogo] = useState("☕");
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [photo, setPhoto] = useState<{ name: string; localUrl: string; uploaded: string } | null>(null);
+  const [looks, setLooks] = useState<PhotoLook[]>([]);
+  const [photoErr, setPhotoErr] = useState("");
+  const [useBackdrop, setUseBackdrop] = useState(false);
+  const [showAllPresets, setShowAllPresets] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const set = (k: keyof Theme) => (v: Theme[keyof Theme]) => setTheme((t) => ({ ...t, [k]: v }));
 
   useEffect(() => {
@@ -35,10 +81,57 @@ export default function DesignPage() {
       const j = await r.json();
       if (j.cafe) {
         setCafeName(j.cafe.name); setLogo(j.cafe.logoEmoji || "☕");
-        setTheme(themeFromCafe(j.cafe));
+        const t = themeFromCafe(j.cafe);
+        setTheme(t);
+        if (t.image) setUseBackdrop(true);
       }
     }).catch(() => {});
   }, []);
+
+  // When the background upload finishes, apply it if the owner asked for it.
+  useEffect(() => {
+    if (useBackdrop && photo?.uploaded) {
+      setTheme((t) => (t.image === photo.uploaded ? t : { ...t, image: photo.uploaded }));
+    }
+  }, [useBackdrop, photo?.uploaded]);
+
+  async function onPhoto(file: File) {
+    if (!file.type.startsWith("image/")) { setPhotoErr("Choose a JPG, PNG or WebP image."); return; }
+    if (file.size > 2 * 1024 * 1024) { setPhotoErr("Keep the image under 2 MB — compress it once and retry."); return; }
+    setAnalyzing(true); setPhotoErr("");
+    try {
+      const localUrl = URL.createObjectURL(file);
+      const analysis = await analyzeImage(localUrl);
+      setLooks(looksFromPhoto(analysis));
+      setPhoto({ name: file.name, localUrl, uploaded: "" });
+      // Ask the server to store it too, so it can become the menu backdrop.
+      const fd = new FormData();
+      fd.append("photo", file);
+      fd.append("kind", "theme");
+      fetch("/api/menu/photo", { method: "POST", body: fd })
+        .then(async (r) => { const j = await r.json().catch(() => ({})); if (r.ok && j.url) setPhoto((p) => (p ? { ...p, uploaded: j.url } : p)); })
+        .catch(() => {});
+    } catch (e: unknown) {
+      setPhotoErr(e instanceof Error ? e.message : "Couldn't read that image.");
+    } finally { setAnalyzing(false); }
+  }
+
+  function applyLook(look: PhotoLook) {
+    setTheme({ ...look.theme, image: useBackdrop && photo?.uploaded ? photo.uploaded : "" });
+    toast(`${look.label} applied — tweak it or publish ✨`);
+  }
+
+  function toggleBackdrop(on: boolean) {
+    setUseBackdrop(on);
+    setTheme((t) => ({ ...t, image: on && photo?.uploaded ? photo.uploaded : "" }));
+    if (on && photo && !photo.uploaded) toast("Saving your photo — the backdrop lands in a second.", "ok");
+  }
+
+  function clearPhoto() {
+    setPhoto(null); setLooks([]); setUseBackdrop(false);
+    setTheme((t) => ({ ...t, image: "" }));
+    if (fileRef.current) fileRef.current.value = "";
+  }
 
   async function save() {
     setSaving(true);
@@ -47,7 +140,8 @@ export default function DesignPage() {
       const r = await fetch("/api/cafe", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: cafe.name, tagline: cafe.tagline, description: cafe.description, upiId: cafe.upiId, gstPct: cafe.gstPct,
-          themePrimary: theme.primary, themeAccent: theme.accent, themeBg: theme.bg, themeBgMode: theme.bgMode, themePattern: theme.pattern, themeFont: theme.font, themeRadius: theme.radius }),
+          themePrimary: theme.primary, themeAccent: theme.accent, themeBg: theme.bg, themeBgMode: theme.bgMode, themePattern: theme.pattern,
+          themeFont: theme.font, themeRadius: theme.radius, themeStyle: theme.style, themeImage: theme.image || "" }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Save failed");
@@ -55,24 +149,106 @@ export default function DesignPage() {
     } catch (e: unknown) { toast(e instanceof Error ? e.message : "Save failed", "err"); } finally { setSaving(false); }
   }
 
+  const activeStyle = STYLES.find((s) => s.id === theme.style) || STYLES[0];
+
   return (
     <div>
-      <SectionTitle title="Design studio 🎨" sub="Recolour, refont and repattern the entire customer app. Live preview, one tap to publish."
+      <SectionTitle title="Design studio 🎨" sub="24 hand-built looks, five real menu layouts, or upload a photo and we pull the palette out of it. Live preview, one tap to publish."
         right={<button onClick={save} disabled={saving} className="rounded-full bg-gradient-to-r from-orange-600 to-amber-600 px-6 py-2.5 text-sm font-black disabled:opacity-60">{saving ? "Publishing…" : "Publish ✨"}</button>} />
 
-      {/* Presets */}
-      <p className="mt-4 text-xs font-black tracking-wider text-stone-400">ONE-TAP THEMES</p>
+      {/* ---------- Match a photo ---------- */}
+      <div className="relative mt-4 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-orange-500/15 via-stone-900 to-stone-900 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-black">✨ Match your menu to a photo</p>
+            <p className="mt-0.5 max-w-md text-xs leading-relaxed text-stone-400">
+              Upload your logo, interior, packaging or a moodboard. We read its colours and build three complete menu designs — no design skills, no upload to any AI service.
+            </p>
+          </div>
+          <button onClick={() => fileRef.current?.click()} disabled={analyzing}
+            className="rounded-full bg-white px-5 py-2.5 text-xs font-black text-stone-900 transition active:scale-95 disabled:opacity-60">
+            {analyzing ? "Reading your photo…" : photo ? "Choose another photo" : "Upload a photo"}
+          </button>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onPhoto(f); }} />
+        </div>
+
+        {photoErr && <p className="mt-3 rounded-xl bg-red-500/15 px-3 py-2 text-xs font-bold text-red-200">{photoErr}</p>}
+
+        {photo && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/25 p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo.localUrl} alt="Your upload" className="size-16 rounded-xl object-cover" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-black">{photo.name}</p>
+              <p className="text-[11px] text-stone-400">{photo.uploaded ? "Saved — can be used as the menu backdrop." : "Read for colours. Backdrop saves on publish."}</p>
+            </div>
+            <label className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black ${useBackdrop ? "border-orange-400 bg-orange-500/20 text-orange-100" : "border-white/15 text-stone-300"}`}>
+              <input type="checkbox" checked={useBackdrop} onChange={(e) => toggleBackdrop(e.target.checked)} className="accent-orange-500" />
+              Use as backdrop
+            </label>
+            <button onClick={clearPhoto} className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-bold text-stone-400">Remove</button>
+          </div>
+        )}
+
+        {looks.length > 0 && (
+          <>
+            <p className="mt-4 text-xs font-black tracking-wider text-stone-400">THREE DESIGNS FROM THIS PHOTO — TAP ONE</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              {looks.map((look) => (
+                <button key={look.label} onClick={() => applyLook(look)}
+                  className="group rounded-2xl border border-white/10 bg-white/[.03] p-3 text-left transition hover:border-white/30 hover:bg-white/[.06] active:scale-[.99]">
+                  <span className="flex items-center gap-1.5">
+                    {[look.theme.primary, look.theme.accent, look.theme.bg].map((c, i) => (
+                      <span key={i} className="size-6 rounded-full border-2 border-stone-900 ring-1 ring-white/15" style={{ background: c }} />
+                    ))}
+                    <span className="ml-auto text-[10px] font-black uppercase tracking-wider text-stone-500">{look.theme.style}</span>
+                  </span>
+                  <span className="mt-2 block text-sm font-black">{look.label}</span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-stone-400">{look.note}</span>
+                  <span className="mt-2 block text-[11px] font-black text-orange-300 transition group-hover:translate-x-0.5">Apply this look →</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ---------- Layout style ---------- */}
+      <div className="mt-5 flex items-end justify-between gap-2">
+        <div>
+          <p className="text-xs font-black tracking-wider text-stone-400">MENU LAYOUT</p>
+          <p className="mt-0.5 text-[11px] text-stone-500">{activeStyle.note}</p>
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {STYLES.map((s) => (
+          <button key={s.id} onClick={() => setTheme({ ...theme, style: s.id })}
+            className={`flex flex-col items-center gap-2 rounded-2xl border px-2 py-3 transition active:scale-[.98] ${theme.style === s.id ? "border-orange-500 bg-orange-500/15 text-orange-100" : "border-white/10 bg-white/[.03] text-stone-400 hover:border-white/25"}`}>
+            <StyleGlyph id={s.id} />
+            <span className="text-[11px] font-black">{s.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ---------- Presets ---------- */}
+      <div className="mt-5 flex items-end justify-between gap-2">
+        <p className="text-xs font-black tracking-wider text-stone-400">CURATED THEMES — 24 TO START FROM</p>
+        <button onClick={() => setShowAllPresets((v) => !v)} className="text-[11px] font-black text-orange-300">
+          {showAllPresets ? "Show less" : `Show all ${THEME_PRESETS.length}`}
+        </button>
+      </div>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {THEME_PRESETS.map((p) => (
-          <button key={p.name} onClick={() => setTheme(p.theme)}
-            className="rounded-2xl border border-white/10 bg-white/[.03] p-3 text-left hover:border-white/25">
+        {(showAllPresets ? THEME_PRESETS : THEME_PRESETS.slice(0, 8)).map((p) => (
+          <button key={p.name} onClick={() => setTheme({ ...p.theme, image: useBackdrop && photo?.uploaded ? photo.uploaded : "" })}
+            className="rounded-2xl border border-white/10 bg-white/[.03] p-3 text-left transition hover:border-white/25 hover:bg-white/[.06] active:scale-[.99]">
             <span className="flex -space-x-1.5">
               <span className="size-6 rounded-full border-2 border-stone-900" style={{ background: p.theme.primary }} />
               <span className="size-6 rounded-full border-2 border-stone-900" style={{ background: p.theme.accent }} />
               <span className="size-6 rounded-full border-2 border-stone-900" style={{ background: p.theme.bg }} />
             </span>
             <span className="mt-1.5 block text-sm font-black">{p.name}</span>
-            <span className="block text-[11px] text-stone-500">{p.vibe} • {FONTS[p.theme.font]?.label.split(" (")[0]}</span>
+            <span className="block text-[11px] text-stone-500">{p.vibe} • {STYLES.find((s) => s.id === p.theme.style)?.label}</span>
           </button>
         ))}
       </div>
@@ -115,6 +291,12 @@ export default function DesignPage() {
               <button key={r.id} onClick={() => setTheme({ ...theme, radius: r.id })} className={`border py-2 text-xs font-bold ${theme.radius === r.id ? "border-orange-500 bg-orange-500/15" : "border-white/10 text-stone-400"}`} style={{ borderRadius: r.id === "sharp" ? 6 : r.id === "soft" ? 22 : 14 }}>{r.label}</button>
             ))}
           </div>
+
+          {theme.image && (
+            <button onClick={() => toggleBackdrop(false)} className="w-full rounded-2xl border border-white/10 py-2 text-xs font-black text-stone-300">
+              Remove photo backdrop
+            </button>
+          )}
         </div>
 
         {/* Live phone preview */}
@@ -133,25 +315,86 @@ export default function DesignPage() {
                   <span className="rounded-full bg-white/5 px-4 py-1.5 text-xs font-bold opacity-80">⭐ Popular</span>
                   <span className="rounded-full bg-white/5 px-4 py-1.5 text-xs font-bold opacity-80">Coffee</span>
                 </div>
-                <div className="glass t-card mt-3 p-3.5">
-                  <div className="flex gap-3">
-                    <span className="grid size-20 shrink-0 place-items-center rounded-2xl bg-white/10 text-3xl">☕</span>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold">Cappuccino</p>
-                      <p className="t-muted text-xs">Double shot, velvety milk foam</p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <p className="font-black">₹149</p>
-                        <span className="t-primary-border t-primary-text rounded-full border px-5 py-1.5 text-xs font-black">ADD +</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <PreviewBody style={theme.style} />
                 <div className="t-grad mt-3 rounded-2xl p-4 text-sm font-black text-white">🛒 2 items • ₹298 <span className="float-right">Review order →</span></div>
               </div>
             </ThemeStyles>
           </div>
+          <p className="mt-2 text-center text-[11px] text-stone-500">Layout: {activeStyle.label} • {FONTS[theme.font]?.label.split(" (")[0]}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PreviewBody({ style }: { style: ThemeStyle }) {
+  const dishes = [
+    { name: "Cappuccino", desc: "Double shot, velvety milk foam", price: "₹149", emoji: "☕" },
+    { name: "Masala Toast", desc: "Sourdough, chilli butter, coriander", price: "₹189", emoji: "🍞" },
+  ];
+  if (style === "editorial") {
+    return (
+      <div className="mt-4">
+        <p className="t-heading text-center text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Coffee</p>
+        <div className="mx-auto mb-2 mt-1.5 h-px w-10 bg-current opacity-20" />
+        {dishes.map((d) => (
+          <div key={d.name} className="border-b border-current/15 py-2.5">
+            <div className="flex items-baseline gap-2"><span className="text-[13px] font-black">{d.name}</span><span className="mb-0.5 flex-1 border-b border-dotted border-current opacity-30" /><span className="text-xs font-black">{d.price}</span></div>
+            <p className="t-muted mt-0.5 text-[10px]">{d.desc}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (style === "list") {
+    return (
+      <div className="mt-3 space-y-2">
+        {dishes.map((d) => (
+          <div key={d.name} className="t-card flex items-center gap-2.5 bg-white/5 p-2">
+            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/10 text-xl">{d.emoji}</span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{d.name}</span><span className="t-muted block truncate text-[10px]">{d.desc}</span></span>
+            <span className="text-xs font-black">{d.price}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (style === "tickets") {
+    return (
+      <div className="mt-3 space-y-2">
+        {dishes.map((d) => (
+          <div key={d.name} className="border border-dashed border-current/30 px-2.5 py-2" style={{ borderRadius: 10 }}>
+            <div className="flex items-baseline gap-2"><span className="text-[11px] font-black uppercase tracking-wide">{d.name}</span><span className="mb-0.5 flex-1 border-b border-dotted border-current opacity-25" /><span className="text-xs font-black">{d.price}</span></div>
+            <p className="t-muted mt-0.5 text-[10px]">{d.desc}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (style === "poster") {
+    return (
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {dishes.map((d) => (
+          <div key={d.name} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/20 to-white/5" style={{ aspectRatio: "3 / 4" }}>
+            <div className="grid size-full place-items-center text-4xl opacity-80">{d.emoji}</div>
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-white">
+              <p className="text-[11px] font-black leading-tight">{d.name}</p>
+              <p className="text-[11px] font-black opacity-95">{d.price}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      {dishes.map((d) => (
+        <div key={d.name} className="t-card overflow-hidden bg-white/5">
+          <div className="grid h-16 place-items-center bg-white/10 text-2xl">{d.emoji}</div>
+          <div className="p-2"><p className="truncate text-[11px] font-black">{d.name}</p><p className="t-muted line-clamp-1 text-[9px]">{d.desc}</p>
+            <div className="mt-1 flex items-center justify-between"><span className="text-[11px] font-black">{d.price}</span><span className="t-grad rounded-full px-2 py-0.5 text-[9px] font-black text-white">ADD +</span></div></div>
+        </div>
+      ))}
     </div>
   );
 }

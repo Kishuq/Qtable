@@ -18,7 +18,7 @@ export async function GET() {
   return NextResponse.json({
     cafe: { id: cafe.id, name: cafe.name, tagline: cafe.tagline, description: cafe.description, upiId: cafe.upiId, logoEmoji: cafe.logoEmoji, gstPct: cafe.gstPct, currency: cafe.currency,
       onlineProvider,
-      theme: { primary: cafe.themePrimary, accent: cafe.themeAccent, bg: cafe.themeBg, bgMode: cafe.themeBgMode, pattern: cafe.themePattern, font: cafe.themeFont, radius: cafe.themeRadius } },
+      theme: { primary: cafe.themePrimary, accent: cafe.themeAccent, bg: cafe.themeBg, bgMode: cafe.themeBgMode, pattern: cafe.themePattern, font: cafe.themeFont, radius: cafe.themeRadius, style: cafe.themeStyle, image: cafe.themeImage } },
     categories: cafe.categories,
     items: cafe.items,
     tables: cafe.tables.map((t) => ({ code: t.code, name: t.name })),

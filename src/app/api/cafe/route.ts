@@ -28,6 +28,9 @@ const Schema = z.object({
   themePattern: z.enum(["none", "dots", "grid", "waves"]).optional(),
   themeFont: z.string().max(20).optional(),
   themeRadius: z.enum(["rounded", "soft", "sharp"]).optional(),
+  themeStyle: z.enum(["cards", "editorial", "list", "poster", "tickets"]).optional(),
+  // Empty string clears the backdrop. Only https URLs (Blob storage) accepted.
+  themeImage: z.string().max(600).regex(/^$|^https:\/\/[^\s"']+$/).optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -46,6 +49,8 @@ export async function PATCH(req: NextRequest) {
   if (d.themePattern) theme.themePattern = d.themePattern;
   if (d.themeFont) theme.themeFont = cleanStr(d.themeFont, 20);
   if (d.themeRadius) theme.themeRadius = d.themeRadius;
+  if (d.themeStyle) theme.themeStyle = d.themeStyle;
+  if (typeof d.themeImage === "string") theme.themeImage = d.themeImage;
   const ALLOWED_CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SAR", "CAD", "AUD", "SGD", "JPY"];
   const cafe = await db.cafe.update({
     where: { id: s.cafeId },

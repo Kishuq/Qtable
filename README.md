@@ -29,9 +29,11 @@ your outlet + owner login + starter menu, tables and first coupon. Locked foreve
 
 ## 🎨 Design studio + themes
 
-Dashboard → **Design**: 14 one-tap presets (Tandoor, Marigold, Monsoon, Gilt…), unlimited
-colours, 8 fonts, solid/gradient backgrounds, dots/grid/waves patterns, 3 corner styles.
-Publishes instantly — customer phones update with zero redeploy.
+Dashboard → **Design**: 24 curated themes, **5 real menu layouts** (photo cards, menu paper,
+cafe board, poster grid, ticket stubs), unlimited colours, 8 fonts, solid/gradient
+backgrounds, dots/grid/waves patterns, 3 corner styles — plus **photo matching**: upload a
+logo, interior or packaging shot and the studio pulls its palette into three ready designs.
+Optionally use that photo as the menu backdrop. Publishes instantly — zero redeploy.
 
 ## 📚 Plans (enforced in code, not just marketing)
 

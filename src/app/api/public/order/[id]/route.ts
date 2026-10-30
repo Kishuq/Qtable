@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       paymentStatus: order.paymentStatus, customerName: order.customerName, createdAt: order.createdAt,
       cafeName: order.cafe.name, upiId: order.cafe.upiId, currency: order.cafe.currency,
       queueAhead, etaMinutes,
-      theme: { primary: order.cafe.themePrimary, accent: order.cafe.themeAccent, bg: order.cafe.themeBg, bgMode: order.cafe.themeBgMode, pattern: order.cafe.themeFont, font: order.cafe.themeFont, radius: order.cafe.themeRadius },
+      theme: { primary: order.cafe.themePrimary, accent: order.cafe.themeAccent, bg: order.cafe.themeBg, bgMode: order.cafe.themeBgMode, pattern: order.cafe.themePattern, font: order.cafe.themeFont, radius: order.cafe.themeRadius, style: order.cafe.themeStyle, image: order.cafe.themeImage },
       items: order.items,
     },
   });

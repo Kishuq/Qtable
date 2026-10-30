@@ -207,6 +207,88 @@ export default async function Landing() {
         </div>
       </section>
 
+      {/* ---------- DESIGN STUDIO ---------- */}
+      <section className="px-5 py-20">
+        <div className="mx-auto max-w-5xl">
+          <Reveal>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">Design studio</p>
+            <h2 className="qafe-serif mt-2 text-4xl font-black md:text-5xl">Menus that look like your place — not a template.</h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-stone-400">
+              24 curated palettes, five real menu layouts, eight fonts. Or upload your logo, interior or packaging — the studio reads its colours and builds three complete designs from it.
+            </p>
+          </Reveal>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <Reveal delay={60}>
+              <div className="h-full overflow-hidden rounded-3xl border border-black/10 bg-[#faf6ec] p-4 text-[#231a12] shadow-xl">
+                <p className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-[#0f766e]">Kerala Postcard</p>
+                <p className="mt-0.5 text-center text-[9px] font-bold text-[#0f766e]/70">Coffee &amp; all-day plates</p>
+                <div className="my-2.5 h-px bg-black/10" />
+                {[["Cappuccino", "₹149"], ["Masala Toast", "₹189"], ["Filter Coffee", "₹89"]].map(([n, p]) => (
+                  <div key={n} className="flex items-baseline gap-2 py-1">
+                    <span className="qafe-serif text-[12px] font-bold">{n}</span>
+                    <span className="mb-0.5 flex-1 border-b border-dotted border-black/25" />
+                    <span className="text-[11px] font-black">{p}</span>
+                  </div>
+                ))}
+                <div className="mt-2 flex gap-1.5">
+                  {["#0f766e", "#f59e0b", "#faf6ec"].map((c) => <span key={c} className="size-3.5 rounded-full ring-1 ring-black/15" style={{ background: c }} />)}
+                  <span className="ml-auto text-[9px] font-black uppercase tracking-wider text-black/40">Menu paper</span>
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={130}>
+              <div className="h-full overflow-hidden rounded-3xl border border-white/15 bg-[#170806] p-4 text-white shadow-xl">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#fbbf24]">Tandoor</p>
+                <p className="mt-0.5 text-[9px] font-bold text-white/50">Ember &amp; smoke</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {[["🍢", "Seekh"], ["🍛", "Biryani"]].map(([e, n]) => (
+                    <div key={n} className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#ea580c]/60 to-[#170806]" style={{ aspectRatio: "3 / 4" }}>
+                      <span className="grid size-full place-items-center text-2xl">{e}</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-1.5">
+                        <span className="block text-[9px] font-black">{n}</span>
+                        <span className="block text-[9px] font-black text-[#fde68a]">₹249</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-1.5">
+                  {["#ea580c", "#fbbf24", "#170806"].map((c) => <span key={c} className="size-3.5 rounded-full ring-1 ring-white/25" style={{ background: c }} />)}
+                  <span className="ml-auto text-[9px] font-black uppercase tracking-wider text-white/40">Poster grid</span>
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={200}>
+              <div className="h-full overflow-hidden rounded-3xl border border-black/10 bg-[#fff7e6] p-4 text-[#3b1d05] shadow-xl">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#b45309]">Marigold</p>
+                <p className="mt-0.5 text-[9px] font-bold text-[#b45309]/70">Festive light</p>
+                <div className="mt-3 space-y-2">
+                  {[["Chai", "₹40"], ["Samosa (2)", "₹50"], ["Thali", "₹220"]].map(([n, p]) => (
+                    <div key={n} className="flex items-baseline gap-2 rounded-lg border border-dashed border-[#b45309]/40 px-2 py-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wide">{n}</span>
+                      <span className="mb-0.5 flex-1 border-b border-dotted border-[#b45309]/30" />
+                      <span className="text-[10px] font-black">{p}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-1.5">
+                  {["#b45309", "#dc2626", "#fff7e6"].map((c) => <span key={c} className="size-3.5 rounded-full ring-1 ring-black/15" style={{ background: c }} />)}
+                  <span className="ml-auto text-[9px] font-black uppercase tracking-wider text-black/40">Ticket stubs</span>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+
+          <Reveal delay={240}>
+            <p className="mt-4 text-[11px] leading-relaxed text-stone-500">
+              Every look is live in seconds — colours, font, layout and background push to customer phones without a redeploy. No two outlets need to look alike.
+            </p>
+          </Reveal>
+        </div>
+      </section>
+
       {/* ---------- OWNER ---------- */}
       <section id="cafes" className="scroll-mt-24 border-y border-white/10 bg-white/[.02] px-5 py-20">
         <div className="mx-auto max-w-5xl">
