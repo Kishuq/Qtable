@@ -214,7 +214,7 @@ export default async function Landing() {
             <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">Design studio</p>
             <h2 className="qafe-serif mt-2 text-4xl font-black md:text-5xl">Menus that look like your place — not a template.</h2>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-stone-400">
-              24 curated palettes, five real menu layouts, eight fonts. Or upload your logo, interior or packaging — the studio reads its colours and builds three complete designs from it.
+              24 curated palettes, five real menu layouts, eight fonts. Or upload a photo of your outlet — the studio reads its warmth, contrast and detail, then builds the whole menu from it: colours, layout, typography, texture, corners and a matching backdrop.
             </p>
           </Reveal>
 
