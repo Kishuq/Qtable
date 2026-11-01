@@ -301,7 +301,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   // Desktop gets real menu columns instead of one stretched phone column.
   const gridClass =
     theme.style === "cards" || theme.style === "poster"
-      ? "grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4"
+      ? "grid grid-cols-2 gap-3 sm:gap-3.5 lg:gap-4 xl:grid-cols-3"
       : theme.style === "list"
         ? "space-y-2 lg:grid lg:grid-cols-2 lg:gap-2 lg:space-y-0"
         : theme.style === "tickets"
@@ -311,26 +311,29 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   // "Most loved" must fill its rows — no orphan cards leaving a hole.
   const popCols =
     popular.length === 5 || (popular.length > 4 && popular.length % 3 === 0)
-      ? "lg:grid-cols-3"
-      : "lg:grid-cols-4";
+      ? "xl:grid-cols-3"
+      : "xl:grid-cols-4";
 
   return (
     <ThemeStyles theme={theme}>
-    <div className="animate-fade-in mx-auto flex w-full max-w-xl flex-1 flex-col pb-32 lg:my-6 lg:max-w-6xl">
-      {/* Header — branded hero, photo behind it, sticky controls below */}
-      <div className="relative overflow-hidden">
+    <div className="animate-fade-in mx-auto flex w-full max-w-xl flex-1 flex-col pb-32 lg:my-6 lg:grid lg:max-w-7xl lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:pb-0">
+      {/* Header — branded hero. On phones the photo sits behind it; on desktop
+          it becomes a sticky photo panel beside the menu. */}
+      <div className="relative overflow-hidden lg:sticky lg:top-6 lg:flex lg:min-h-[32rem] lg:flex-col lg:justify-center lg:rounded-[2rem] lg:border lg:border-white/10 lg:shadow-2xl">
         <div className="t-grad pointer-events-none absolute -top-20 left-1/2 h-56 w-[130%] -translate-x-1/2 rounded-[100%] opacity-25 blur-2xl" />
         <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--tbg) 72%, transparent) 0%, transparent 100%)" }} />
-        <div className="relative flex items-center gap-3 px-4 pb-2 pt-5 lg:px-10 lg:pb-3 lg:pt-8">
-          <span className="t-grad grid size-14 shrink-0 place-items-center rounded-3xl text-3xl shadow-xl ring-1 ring-white/20 lg:size-16 lg:text-4xl">{data.cafe.logoEmoji}</span>
+        <div className="pointer-events-none absolute inset-0 hidden lg:block" style={{ background: "color-mix(in srgb, var(--tbg) 50%, transparent)" }} />
+        <div className="relative flex items-center gap-3 px-4 pb-2 pt-5 lg:flex-col lg:items-start lg:gap-4 lg:p-8">
+          <span className="t-grad grid size-14 shrink-0 place-items-center rounded-3xl text-3xl shadow-xl ring-1 ring-white/20 lg:size-20 lg:text-5xl">{data.cafe.logoEmoji}</span>
           <div className="min-w-0 flex-1">
-            <p className="t-heading truncate text-xl font-black leading-tight tracking-tight lg:text-3xl">{data.cafe.name}</p>
-            <p className="t-accent-text truncate text-xs font-bold lg:text-sm">{data.cafe.tagline}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <p className="t-heading truncate text-xl font-black leading-tight tracking-tight lg:whitespace-normal lg:text-4xl">{data.cafe.name}</p>
+            <p className="t-accent-text truncate text-xs font-bold lg:whitespace-normal lg:text-base">{data.cafe.tagline}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 lg:mt-3">
               <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open now</span>
               {tableCode && <span className="t-grad rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow">Table {tableCode} • Dine-in</span>}
               <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-300">{data.items.length} dishes</span>
             </div>
+            <p className="mt-6 hidden max-w-[15rem] text-sm leading-relaxed text-stone-300 lg:block">Scan. Order. Enjoy. — your table, your pace, no waiting to catch an eye.</p>
           </div>
         </div>
       </div>
@@ -341,11 +344,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       <div className="relative flex flex-1 flex-col rounded-t-[1.75rem] border-t border-white/10 lg:mb-6 lg:rounded-t-[2rem] lg:rounded-b-[2rem] lg:border lg:border-white/10 lg:shadow-2xl"
         style={{ background: "color-mix(in srgb, var(--tbg) 90%, transparent)" }}>
       <div className="sticky top-0 z-30 rounded-t-[1.75rem] border-b border-white/10 backdrop-blur-xl lg:rounded-t-[2rem]" style={{ background: "color-mix(in srgb, var(--tbg) 93%, transparent)" }}>
-        <div className="px-4 pb-2.5 pt-2 lg:px-10 lg:pt-3">
-        <div className="hidden items-center justify-between gap-3 pb-2.5 lg:flex">
-          <p className="t-heading min-w-0 truncate text-sm font-black">{data.cafe.logoEmoji} {data.cafe.name}</p>
-          <span className="shrink-0 text-[11px] font-bold text-stone-400">{tableCode ? `Table ${tableCode} • Dine-in` : "Dine-in menu"}</span>
-        </div>
+        <div className="px-4 pb-2.5 pt-2 lg:px-8 lg:pt-3">
         <div className="flex gap-2 pb-2.5">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Craving something? Search…" className="t-card min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition focus:border-orange-500/60 focus:bg-white/10" />
           <button onClick={() => setVegOnly(!vegOnly)} className={`shrink-0 rounded-full border px-3.5 text-xs font-black transition active:scale-95 ${vegOnly ? "border-green-500 bg-green-500/15 text-green-300 shadow-lg shadow-green-500/20" : "border-white/10 bg-white/5 opacity-70 hover:opacity-100"}`}>● VEG</button>
@@ -367,7 +366,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           ))}
         </div>
         {ordering && tableCode && (
-          <div className="px-4 pb-3 lg:px-10">
+          <div className="px-4 pb-3 lg:px-8">
             <button
               onClick={callWaiter}
               disabled={waiter !== "idle"}
@@ -389,7 +388,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         const live = usuals.find((u) => ["NEW", "ACCEPTED", "PREPARING", "READY"].includes(u.status));
         if (!live) return null;
         return (
-          <div className="px-4 pt-3 lg:px-10">
+          <div className="px-4 pt-3 lg:px-8">
             <Link
               href={`/order/${live.id}`}
               className="t-grad anim-rise flex items-center justify-between rounded-2xl p-4 text-white shadow-xl transition hover:brightness-110 active:scale-[.99]"
@@ -406,7 +405,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Offers */}
       {ordering && data.coupons.length > 0 && (
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-4 lg:px-10">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-4 lg:px-8">
           {data.coupons.map((c) => (
             <button key={c.code} onClick={() => { setForm({ ...form, coupon: c.code }); setCheckout(true); }}
               className="card-hover group flex shrink-0 items-center gap-2.5 rounded-2xl border border-dashed border-amber-500/60 bg-gradient-to-r from-amber-500/15 to-orange-500/10 px-4 py-2.5 text-xs font-black text-amber-200 shadow-lg shadow-amber-500/10">
@@ -420,7 +419,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Your usual — one-tap reorder for regulars */}
       {ordering && count === 0 && usuals.length > 0 && (
-        <div className="px-4 pt-4 lg:px-10">
+        <div className="px-4 pt-4 lg:px-8">
           <div className="glass t-card card-hover anim-rise rounded-3xl border-orange-500/30 p-4">
             <p className="text-sm font-black">👋 Welcome back — your usual?</p>
             {usuals.slice(0, 1).map((u) => (
@@ -443,14 +442,14 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       {/* Popular rail */}
       {cat === "ALL" && !q && sort === "rel" && popular.length > 0 && (
         <div className="pt-5">
-          <div className="flex items-center justify-between px-4 lg:px-10">
+          <div className="flex items-center justify-between px-4 lg:px-8">
             <p className="t-heading text-sm font-black">🔥 Most loved right now</p>
             <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{popular.length} picks</span>
           </div>
-          <div className={`no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5 lg:grid ${popCols} lg:gap-4 lg:overflow-visible lg:px-10 lg:pt-3`}>
+          <div className={`no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5 xl:grid ${popCols} xl:gap-4 xl:overflow-visible xl:px-8 xl:pt-3`}>
             {popular.map((i, idx) => (
-              <div key={i.id} className="glass t-card card-hover animate-slide-up w-44 shrink-0 snap-start overflow-hidden lg:w-auto" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
-                <button className="group relative block h-28 w-full overflow-hidden lg:h-44" onClick={() => { setQuick(i); setQuickQty(1); }}>
+              <div key={i.id} className="glass t-card card-hover animate-slide-up w-44 shrink-0 snap-start overflow-hidden xl:w-auto" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
+                <button className="group relative block h-28 w-full overflow-hidden xl:h-44" onClick={() => { setQuick(i); setQuickQty(1); }}>
                   <span className="block size-full transition duration-300 group-hover:scale-105"><ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" /></span>
                   <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
                 </button>
@@ -463,7 +462,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       )}
 
       {/* Items */}
-      <div ref={listRef} className="scroll-mt-44 space-y-6 px-4 pt-5 lg:space-y-8 lg:px-10 lg:pt-7">
+      <div ref={listRef} className="scroll-mt-44 space-y-6 px-4 pt-5 lg:space-y-8 lg:px-8 lg:pt-7">
         <div className="flex flex-wrap items-center gap-2">
           <p className="t-heading text-sm font-black">Explore the menu</p>
           <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">
@@ -501,7 +500,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       </div>
 
       {!ordering && (
-        <div className="px-4 pt-3 lg:px-10">
+        <div className="px-4 pt-3 lg:px-8">
           <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs font-bold text-stone-300">
             📖 Menu-only plan — please order at the counter.
           </p>
