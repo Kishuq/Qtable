@@ -9,7 +9,7 @@ const display = Bricolage_Grotesque({ variable: "--font-display", subsets: ["lat
 
 export const metadata: Metadata = {
   title: "Qtable — The Digital Operating System for Modern Food Businesses",
-  description: "Transform your restaurant, cafe or food business with QR ordering, digital menus, real-time kitchen management, tables, inventory and analytics — all in one platform.",
+  description: "Transform your restaurant, cafe or food business with QR ordering, digital menus, live order tracking, tables, inventory and analytics — all in one platform.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Qtable" },
   openGraph: {
@@ -24,6 +24,12 @@ export const viewport: Viewport = { themeColor: "#0c0a09", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}>
+      <head>
+        {/* Customer menus load their chosen Google font at runtime — warm the
+            connections while the JS bundle is still downloading. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
       <body className="min-h-full flex flex-col bg-stone-950 text-stone-50"><ToastProvider>{children}</ToastProvider></body>
     </html>
   );

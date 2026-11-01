@@ -88,6 +88,14 @@ fallback otherwise. Token days + "today" stats follow Asia/Kolkata.
 Many outlets = many isolated deployments (one Vercel project each). Past ~50 busy outlets:
 bigger Neon tier, Upstash Redis limits on, Sentry DSN set, UptimeRobot on `/api/health`.
 
+### Latency: keep functions next to the database
+
+`vercel.json` pins functions to **sin1 (Singapore)** because the Neon database lives in
+`ap-southeast-1`. A mismatched region (e.g. functions in `iad1`) adds ~230 ms to *every*
+query — a menu load became 2–3 s and `/api/health` ~800 ms. Keep the two in the same
+region; the public menu is also edge-cached (`s-maxage=15`) so a rush costs one DB read,
+not one per scan, and order tracking polls only the order (no 50 KB backdrop per tick).
+
 ## 🖨️ QR setup guide (per outlet)
 
 1. Deploy, open the dashboard **via the public domain** (never localhost/preview —

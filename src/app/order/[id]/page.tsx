@@ -41,16 +41,17 @@ export default function TrackPage({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     let alive = true;
-    async function load() {
+    async function load(full: boolean) {
       try {
-        const r = await fetch(`/api/public/order/${id}`);
+        const r = await fetch(`/api/public/order/${id}${full ? "?full=1" : ""}`);
         const j = await r.json();
-        if (alive && r.ok) setO(j.order);
-        else if (alive && !r.ok) setLoadErr(j.error || "Order not found.");
+        if (!alive) return;
+        if (r.ok) setO((prev) => (prev ? { ...prev, ...j.order, theme: prev.theme } : j.order));
+        else setLoadErr(j.error || "Order not found.");
       } catch { /* retry */ }
     }
-    load();
-    const t = setInterval(() => { if (!document.hidden) load(); }, 4000);
+    load(true);
+    const t = setInterval(() => { if (!document.hidden) load(false); }, 4000);
     return () => { alive = false; clearInterval(t); };
   }, [id]);
 

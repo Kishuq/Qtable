@@ -13,6 +13,7 @@ type CafeTheme = { primary: string; accent: string; bg: string; bgMode: string; 
 type Data = {
   cafe: { name: string; tagline: string; description: string; upiId: string; gstPct: number; currency: string; logoEmoji: string; onlineProvider: string | null; theme: CafeTheme };
   categories: Cat[]; items: Item[]; tables: { code: string }[]; coupons: Coupon[];
+  plan?: "menu" | "standard" | "pro";
 };
 
 type Sort = "rel" | "lo" | "hi" | "pop";
@@ -38,17 +39,9 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [waiter, setWaiter] = useState<"idle" | "sending" | "sent">("idle");
   const [usuals, setUsuals] = useState<{ id: string; tokenNo: number; status: string; lines: { menuItemId: string; name: string; qty: number }[] }[]>([]);
-  // Subscription plan — menu plan = read-only display (no ordering stack).
-  // Defaults to full ordering until the billing status loads.
+  // Subscription plan — the menu plan is read-only (no ordering stack). The
+  // plan arrives with the menu payload, so a scan makes one request, not two.
   const [ordering, setOrdering] = useState(true);
-  useEffect(() => {
-    fetch("/api/billing/status")
-      .then((r) => r.json())
-      .then((j) => {
-        if (j?.plan === "menu") setOrdering(false);
-      })
-      .catch(() => {});
-  }, []);
   const listRef = useRef<HTMLDivElement>(null);
   const cartKey = `qrserve_cart_${tableCode || "main"}`;
 
@@ -56,6 +49,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
     fetch("/api/public/cafe").then(async (r) => {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Cafe not found");
+      if (j?.plan === "menu") setOrdering(false);
       setData(j);
     }).catch((e) => setErr(e.message));
     try {
