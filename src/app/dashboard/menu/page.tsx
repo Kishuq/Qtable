@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { inr } from "@/lib/format";
 import { ItemPhoto, useToast } from "@/components/ux";
+import { fileToOptimizedBlob } from "@/lib/palette";
 
 type Item = { id: string; name: string; description: string; price: number; imageEmoji: string; imageUrl: string; veg: boolean; available: boolean; popular: boolean; categoryId: string | null; stock: number | null; lowAt: number };
 type Cat = { id: string; name: string };
@@ -114,7 +115,7 @@ export default function MenuPage() {
             <input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="Short description" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
             <div className="flex gap-2">
               <input value={f.imageUrl} onChange={(e) => setF({ ...f, imageUrl: e.target.value })} placeholder="Photo URL (https://…) — or upload ↓" className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
-              {f.imageUrl.startsWith("http") && <img src={f.imageUrl} alt="" className="size-11 rounded-xl object-cover" />}
+              {f.imageUrl && <img src={f.imageUrl} alt="" className="size-11 rounded-xl object-cover" />}
             </div>
             <button
               onClick={() => fileRef.current?.click()}
@@ -136,8 +137,10 @@ export default function MenuPage() {
                   if (!file) return;
                   setUploading(true);
                   try {
+                    // Shrink in the browser first: faster menus, smaller storage.
+                    const ready = await fileToOptimizedBlob(file);
                     const fd = new FormData();
-                    fd.append("photo", file);
+                    fd.append("photo", ready);
                     const r = await fetch("/api/menu/photo", { method: "POST", body: fd });
                     const j = await r.json().catch(() => ({}));
                     if (!r.ok) throw new Error(j.error || "Upload failed");

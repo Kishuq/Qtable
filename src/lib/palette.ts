@@ -91,6 +91,50 @@ export async function fileToCompactDataUrl(file: File, maxChars = 60_000): Promi
   }
 }
 
+function canvasToBlob(canvas: HTMLCanvasElement, q: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((b) => {
+      if (!b || b.type === "image/webp") return resolve(b);
+      // Browser can't encode WebP (old Safari) → JPEG.
+      canvas.toBlob((j) => resolve(j), "image/jpeg", q);
+    }, "image/webp", q);
+  });
+}
+
+// Resizes a dish photo before upload: ~1200px WebP, under 300 KB. Keeps menus
+// fast and lets the built-in database store hold photos comfortably.
+export async function fileToOptimizedBlob(file: File, maxBytes = 300_000): Promise<File> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(objectUrl);
+    for (const maxSide of [1200, 1000, 820, 680]) {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+      ctx.drawImage(img, 0, 0, w, h);
+
+      for (const q of [0.82, 0.72, 0.62, 0.52, 0.42]) {
+        const blob = await canvasToBlob(canvas, q);
+        if (blob && blob.size <= maxBytes) {
+          const ext = blob.type === "image/png" ? "png" : blob.type === "image/jpeg" ? "jpg" : "webp";
+          const name = file.name.replace(/\.[^.]+$/, "") || "photo";
+          return new File([blob], `${name}.${ext}`, { type: blob.type });
+        }
+      }
+    }
+    return file;
+  } catch {
+    // Any decode hiccup → let the server validate the original.
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export async function analyzeImage(src: string): Promise<PhotoAnalysis> {
   const img = await loadImage(src);
   const size = 72;

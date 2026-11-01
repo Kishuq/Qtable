@@ -63,6 +63,20 @@ model Cafe {
   payments   Payment[]
   coupons    Coupon[]
   feedbacks  Feedback[]
+  photos     MenuPhoto[]
+}
+
+// Built-in photo storage: used when no Vercel Blob token is configured, so the
+// app is fully self-contained. Served through a cached public route.
+model MenuPhoto {
+  id        String   @id @default(cuid())
+  cafeId    String
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  data      Bytes
+  mime      String   @default("image/webp")
+  createdAt DateTime @default(now())
+
+  @@index([cafeId])
 }
 
 model Category {

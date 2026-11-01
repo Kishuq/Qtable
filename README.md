@@ -59,7 +59,7 @@ Per-outlet env: `BILLING_PLAN=menu|standard|pro` (unset = full access). See `src
 ## 🧱 Stack
 
 Next.js 16 · TypeScript · Tailwind v4 · Prisma 6 + Postgres (Neon) · SSE + polling realtime ·
-server-side QR PNGs · Vercel Blob uploads · Resend mail · Upstash Redis limits (optional) · Sentry (optional).
+server-side QR PNGs · built-in photo storage (Vercel Blob optional) · Resend mail · Upstash Redis limits (optional) · Sentry (optional).
 
 Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_APP_URL`,
 `BILLING_*`, `RAZORPAY_*` / `STRIPE_*`, `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`,
