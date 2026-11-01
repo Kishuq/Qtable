@@ -16,6 +16,11 @@ export type PhotoAnalysis = {
   saturation: number;      // 0 → 1
   busy: boolean;           // lots of distinct colours (photos, textures)
   light: boolean;          // overall bright image
+  temperature: number;     // 0 cool → 1 warm
+  contrast: number;        // 0 flat → 1 deep shadows/highlights
+  edge: number;            // 0 smooth → 1 richly detailed
+  neutralShare: number;    // 0 colourful → 1 mostly neutrals
+  hueSpread: number;       // 0 monochrome → 1 many hues
 };
 
 export type PhotoLook = { label: string; note: string; theme: Theme };
@@ -147,7 +152,8 @@ export async function analyzeImage(src: string): Promise<PhotoAnalysis> {
   const { data } = ctx.getImageData(0, 0, size, size);
 
   const buckets = new Map<string, { n: number; r: number; g: number; b: number }>();
-  let totalLight = 0, totalSat = 0, counted = 0;
+  const lums = new Float32Array(size * size);
+  let totalLight = 0, totalSat = 0, counted = 0, warmSum = 0, warmWeight = 0;
 
   for (let i = 0; i < data.length; i += 4) {
     const a = data[i + 3];
@@ -157,8 +163,14 @@ export async function analyzeImage(src: string): Promise<PhotoAnalysis> {
     const bucket = buckets.get(key) || { n: 0, r: 0, g: 0, b: 0 };
     bucket.n += 1; bucket.r += r; bucket.g += g; bucket.b += b;
     buckets.set(key, bucket);
-    const { s, l } = rgbToHsl(r, g, b);
+    const { h, s, l } = rgbToHsl(r, g, b);
+    lums[i / 4] = l;
     totalLight += l; totalSat += s; counted += 1;
+    if (s > 0.12) {
+      // 1 = fully warm (orange/red), 0 = fully cool (blue/teal)
+      warmSum += ((Math.cos(((h - 25) * Math.PI) / 180) + 1) / 2) * s;
+      warmWeight += s;
+    }
   }
   if (!counted) throw new Error("That image looks empty — try another one.");
 
@@ -174,7 +186,27 @@ export async function analyzeImage(src: string): Promise<PhotoAnalysis> {
   const avgLightness = totalLight / counted;
   const saturation = totalSat / counted;
   const meaningful = list.filter((b) => b.weight > 0.012);
-  const busy = meaningful.length >= 12;
+
+  // Contrast: spread of light and shadow in the frame.
+  let variance = 0;
+  for (let i = 0; i < lums.length; i++) variance += (lums[i] - avgLightness) ** 2;
+  const contrast = Math.min(1, Math.sqrt(variance / Math.max(1, counted)) * 2.6);
+
+  // Edge/detail: average difference between neighbouring pixels. Interiors and
+  // textures score high; flat graphics and minimal logos score low.
+  let edgeSum = 0, edgeCount = 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = y * size + x;
+      if (x < size - 1) { edgeSum += Math.abs(lums[i] - lums[i + 1]); edgeCount += 1; }
+      if (y < size - 1) { edgeSum += Math.abs(lums[i] - lums[i + size]); edgeCount += 1; }
+    }
+  }
+  const edge = Math.min(1, (edgeSum / Math.max(1, edgeCount)) * 9);
+
+  const neutralShare = list.filter((b) => b.s < 0.12).reduce((acc, b) => acc + b.weight, 0);
+  const temperature = warmWeight > 0 ? warmSum / warmWeight : 0.5;
+  const busy = meaningful.length >= 10 || edge > 0.34;
 
   // Brand colour: the most present colour that is vivid enough to carry buttons.
   const vivid = meaningful
@@ -189,6 +221,12 @@ export async function analyzeImage(src: string): Promise<PhotoAnalysis> {
     ? hsl(other.h, clamp(other.s, 0.6, 0.95), clamp(other.l, 0.58, 0.78))
     : hsl(base.h + 150, 0.7, 0.62);
 
+  const topHues = vivid.slice(0, 4).map((b) => b.h);
+  let spread = 0;
+  for (let i = 0; i < topHues.length; i++) {
+    for (let j = i + 1; j < topHues.length; j++) spread = Math.max(spread, hueGap(topHues[i], topHues[j]));
+  }
+
   return {
     colors: meaningful.slice(0, 6).map((b) => b.hex),
     primary,
@@ -197,61 +235,108 @@ export async function analyzeImage(src: string): Promise<PhotoAnalysis> {
     saturation,
     busy,
     light: avgLightness > 0.62,
+    temperature,
+    contrast,
+    edge,
+    neutralShare,
+    hueSpread: spread / 180,
   };
 }
 
-// Three complete designs from one photo. Each is visually distinct — same
-// photo can read as "my brand", "printed menu" or "night bar".
-export function looksFromPhoto(a: PhotoAnalysis): PhotoLook[] {
-  const warm = /^#(f|e|d|c)/i.test(a.primary) || a.saturation > 0.45;
-  const serif = a.busy || a.saturation > 0.5 ? "dmserif" : "playfair";
-  const style1: ThemeStyle = a.busy ? "poster" : "cards";
-  const style3: ThemeStyle = a.saturation > 0.5 ? "tickets" : "list";
+function hueOf(hex: string) {
+  const n = parseInt(hex.slice(1), 16);
+  return rgbToHsl((n >> 16) & 255, (n >> 8) & 255, n & 255).h;
+}
 
+// The main event: one complete design where palette, layout, font, texture,
+// corners and background all come from the photo's actual character.
+export function matchedTheme(a: PhotoAnalysis): Theme {
+  const warm = a.temperature >= 0.56;
+  const graphic = a.contrast > 0.42 && a.edge > 0.34;
+  const calm = a.edge < 0.3;
+  const neutral = a.neutralShare > 0.42;
+
+  let style: ThemeStyle;
+  if (a.busy && a.saturation > 0.42) style = "poster";
+  else if (neutral && calm) style = "editorial";
+  else if (graphic) style = "tickets";
+  else if (a.edge > 0.32) style = "list";
+  else style = "cards";
+
+  let font: string;
+  if (style === "editorial") font = warm ? "dmserif" : "playfair";
+  else if (style === "tickets") font = warm ? "poppins" : "space";
+  else if (style === "poster") font = warm ? "dmserif" : "space";
+  else if (style === "list") font = neutral ? "inter" : "lora";
+  else font = warm ? "poppins" : a.light ? "nunito" : "inter";
+
+  const pattern: Theme["pattern"] = graphic ? "grid" : a.edge > 0.36 ? "dots" : calm && a.saturation > 0.28 ? "waves" : "none";
+  const radius: Theme["radius"] = calm ? "soft" : graphic ? "sharp" : "rounded";
+  const bg = a.light ? hsl(hueOf(a.accent), 0.3, 0.965) : hsl(hueOf(a.primary), 0.26, 0.055);
+
+  return {
+    primary: a.primary,
+    accent: a.accent,
+    bg,
+    bgMode: a.light ? "solid" : a.contrast > 0.3 ? "gradient" : "solid",
+    pattern,
+    font,
+    radius,
+    style,
+    image: "",
+    wash: a.light ? 84 : 90,
+  };
+}
+
+/** Human description of what we saw in the photo. */
+export function describeAnalysis(a: PhotoAnalysis): string {
+  const mood = a.temperature >= 0.56 ? "warm" : a.temperature <= 0.44 ? "cool" : "balanced";
+  const light = a.light ? "bright" : "moody";
+  const detail = a.edge > 0.45 ? "richly detailed" : a.edge < 0.24 ? "clean and minimal" : "softly textured";
+  return `${mood}, ${light}, ${detail}`;
+}
+
+// Three complete designs from one photo. The first is the honest match; the
+// other two are useful directions the same photo can take.
+export function looksFromPhoto(a: PhotoAnalysis): PhotoLook[] {
+  const warm = a.temperature >= 0.56;
+  const matched = matchedTheme(a);
   return [
     {
-      label: "True to photo",
-      note: a.light ? "Light, airy palette lifted from your image." : "Dark, moody palette lifted from your image.",
-      theme: {
-        primary: a.primary,
-        accent: a.accent,
-        bg: a.light ? hsl(0, 0.1, 0.965) : hsl(0, 0.2, 0.055),
-        bgMode: a.light ? "solid" : "gradient",
-        pattern: a.busy ? "none" : "dots",
-        font: warm ? "poppins" : "inter",
-        radius: a.busy ? "sharp" : "rounded",
-        style: style1,
-        image: "",
-      },
+      label: "Matched to your photo",
+      note: `${describeAnalysis(a)} — colours, type, layout and texture all follow the image.`,
+      theme: matched,
     },
     {
-      label: "Menu paper",
-      note: "Cream stock, ink type, your photo's colour as the highlight.",
+      label: "Light edit",
+      note: "Your colours on cream stock — calmer, more printed-menu.",
       theme: {
-        primary: hsl(0, 0.55, 0.22),
+        primary: hsl(hueOf(a.primary), 0.45, 0.22),
         accent: a.primary,
-        bg: "#faf6ec",
+        bg: hsl(hueOf(a.accent), 0.4, 0.965),
         bgMode: "solid",
         pattern: "none",
-        font: serif,
+        font: warm ? "dmserif" : "playfair",
         radius: "soft",
-        style: "editorial",
+        style: a.busy ? "list" : "editorial",
         image: "",
+        wash: 86,
       },
     },
     {
-      label: "After dark",
-      note: "Deep tinted night, neon edge, playful ticket rows.",
+      label: "Night edit",
+      note: "Deep tinted dark, with your photo's brightest colour as the neon edge.",
       theme: {
         primary: a.accent,
         accent: a.primary,
-        bg: hsl(0, 0.3, 0.06),
+        bg: hsl(hueOf(a.primary), 0.32, 0.05),
         bgMode: "gradient",
         pattern: a.busy ? "grid" : "none",
         font: "space",
         radius: "sharp",
-        style: style3,
+        style: a.busy ? "tickets" : "poster",
         image: "",
+        wash: 92,
       },
     },
   ];

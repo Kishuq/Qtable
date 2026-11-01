@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_THEME, FONTS, PATTERNS, STYLES, THEME_PRESETS, themeFromCafe, type Theme, type ThemeStyle } from "@/lib/theme";
-import { analyzeImage, fileToCompactDataUrl, looksFromPhoto, type PhotoLook } from "@/lib/palette";
+import { analyzeImage, describeAnalysis, fileToCompactDataUrl, looksFromPhoto, type PhotoLook } from "@/lib/palette";
 import { SectionTitle, useToast } from "@/components/ux";
 import { ThemeStyles } from "@/components/theme";
 
@@ -71,6 +71,7 @@ export default function DesignPage() {
   const [photo, setPhoto] = useState<{ name: string; dataUrl: string } | null>(null);
   const [looks, setLooks] = useState<PhotoLook[]>([]);
   const [photoErr, setPhotoErr] = useState("");
+  const [detected, setDetected] = useState("");
   const [useBackdrop, setUseBackdrop] = useState(false);
   const [showAllPresets, setShowAllPresets] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -95,8 +96,14 @@ export default function DesignPage() {
     try {
       const dataUrl = await fileToCompactDataUrl(file);
       const analysis = await analyzeImage(dataUrl);
-      setLooks(looksFromPhoto(analysis));
+      const next = looksFromPhoto(analysis);
+      setLooks(next);
       setPhoto({ name: file.name, dataUrl });
+      setDetected(describeAnalysis(analysis));
+      // The whole point: the menu should immediately look like the photo.
+      setUseBackdrop(true);
+      setTheme({ ...next[0].theme, image: dataUrl });
+      toast("Design matched to your photo — every colour, font and layout followed ✨");
     } catch (e: unknown) {
       setPhotoErr(e instanceof Error ? e.message : "Couldn't read that image.");
     } finally { setAnalyzing(false); }
@@ -113,7 +120,7 @@ export default function DesignPage() {
   }
 
   function clearPhoto() {
-    setPhoto(null); setLooks([]); setUseBackdrop(false);
+    setPhoto(null); setLooks([]); setUseBackdrop(false); setDetected("");
     setTheme((t) => ({ ...t, image: "" }));
     if (fileRef.current) fileRef.current.value = "";
   }
@@ -126,7 +133,7 @@ export default function DesignPage() {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: cafe.name, tagline: cafe.tagline, description: cafe.description, upiId: cafe.upiId, gstPct: cafe.gstPct,
           themePrimary: theme.primary, themeAccent: theme.accent, themeBg: theme.bg, themeBgMode: theme.bgMode, themePattern: theme.pattern,
-          themeFont: theme.font, themeRadius: theme.radius, themeStyle: theme.style, themeImage: theme.image || "" }),
+          themeFont: theme.font, themeRadius: theme.radius, themeStyle: theme.style, themeImage: theme.image || "", themeWash: theme.wash }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Save failed");
@@ -138,7 +145,7 @@ export default function DesignPage() {
 
   return (
     <div>
-      <SectionTitle title="Design studio 🎨" sub="24 hand-built looks, five real menu layouts, or upload a photo and we pull the palette out of it. Live preview, one tap to publish."
+      <SectionTitle title="Design studio 🎨" sub="24 hand-built looks and five real menu layouts. Or upload a photo — the palette, layout, type, texture and corners are all built from it. Live preview, one tap to publish."
         right={<button onClick={save} disabled={saving} className="rounded-full bg-gradient-to-r from-orange-600 to-amber-600 px-6 py-2.5 text-sm font-black disabled:opacity-60">{saving ? "Publishing…" : "Publish ✨"}</button>} />
 
       {/* ---------- Match a photo ---------- */}
@@ -147,7 +154,7 @@ export default function DesignPage() {
           <div>
             <p className="text-sm font-black">✨ Match your menu to a photo</p>
             <p className="mt-0.5 max-w-md text-xs leading-relaxed text-stone-400">
-              Upload your logo, interior, packaging or a moodboard. We read its colours and build three complete menu designs — no design skills, no AI service, no storage service.
+              Upload your logo, interior, packaging or a moodboard. We read its warmth, contrast and detail, then build the whole menu around it — colours, layout style, typography, texture and corner shape. No design skills, no AI service, no storage service.
             </p>
           </div>
           <button onClick={() => fileRef.current?.click()} disabled={analyzing}
@@ -166,7 +173,9 @@ export default function DesignPage() {
             <img src={photo.dataUrl} alt="Your upload" className="size-16 rounded-xl object-cover" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-black">{photo.name}</p>
-              <p className="text-[11px] text-stone-400">Bundled into your design — no storage service needed.</p>
+              <p className="text-[11px] text-stone-400">
+                {detected ? <>Detected: <span className="font-bold text-orange-200">{detected}</span> — layout, type and texture followed it.</> : "Bundled into your design — no storage service needed."}
+              </p>
             </div>
             <label className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black ${useBackdrop ? "border-orange-400 bg-orange-500/20 text-orange-100" : "border-white/15 text-stone-300"}`}>
               <input type="checkbox" checked={useBackdrop} onChange={(e) => toggleBackdrop(e.target.checked)} className="accent-orange-500" />
@@ -278,9 +287,31 @@ export default function DesignPage() {
           </div>
 
           {theme.image && (
-            <button onClick={() => toggleBackdrop(false)} className="w-full rounded-2xl border border-white/10 py-2 text-xs font-black text-stone-300">
-              Remove photo backdrop
-            </button>
+            <>
+              <p className="pt-2 text-xs font-black tracking-wider text-stone-400">PHOTO VISIBILITY</p>
+              <label className="block rounded-2xl bg-white/[.04] p-3">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold">Backdrop strength</span>
+                  <span className="font-mono text-xs font-black text-orange-200">{100 - theme.wash}%</span>
+                </span>
+                <input
+                  type="range" min={2} max={45} step={1}
+                  value={Math.min(45, Math.max(2, 100 - theme.wash))}
+                  onChange={(e) => setTheme((t) => ({ ...t, wash: 100 - Number(e.target.value) }))}
+                  aria-label="Photo backdrop strength"
+                  className="mt-2 w-full accent-orange-500"
+                />
+                <span className="mt-1 block text-[11px] leading-snug text-stone-500">
+                  Low = the photo whispers behind the menu. High = you can see the room. Text stays readable either way.
+                </span>
+              </label>
+              <p className="text-[11px] leading-snug text-stone-500">
+                The photo also sets your colours, menu layout, font, texture and corner shape — change the palette above and it all keeps following it.
+              </p>
+              <button onClick={() => toggleBackdrop(false)} className="w-full rounded-2xl border border-white/10 py-2 text-xs font-black text-stone-300">
+                Remove photo backdrop
+              </button>
+            </>
           )}
         </div>
 

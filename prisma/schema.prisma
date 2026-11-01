@@ -45,6 +45,7 @@ model Cafe {
   themeRadius  String   @default("rounded") // rounded | soft | sharp
   themeStyle   String   @default("cards") // cards | editorial | list | poster | tickets
   themeImage   String   @default("") // optional uploaded brand photo used as menu backdrop
+  themeWash    Int      @default(90) // backdrop overlay strength 50–98
   isActive     Boolean  @default(true)
   ownerId      String
   gstPct       Float    @default(5)

@@ -14,6 +14,8 @@ export type Theme = {
   style: ThemeStyle;
   /** Optional uploaded brand photo used as the menu backdrop. */
   image?: string;
+  /** Backdrop overlay strength 50–98 (higher = photo more washed out). */
+  wash: number;
 };
 
 export const DEFAULT_THEME: Theme = {
@@ -26,6 +28,7 @@ export const DEFAULT_THEME: Theme = {
   radius: "rounded",
   style: "cards",
   image: "",
+  wash: 90,
 };
 
 export const FONTS: Record<string, { label: string; family: string; href: string }> = {
@@ -87,16 +90,24 @@ export const THEME_PRESETS: { name: string; vibe: string; theme: Theme }[] = [
 const STYLE_IDS: ThemeStyle[] = ["cards", "editorial", "list", "poster", "tickets"];
 const DATA_IMAGE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 
-export function themeFromCafe(cafe: Record<string, string | undefined> | null | undefined): Theme {
+export function themeFromCafe(cafe: Record<string, string | number | undefined> | null | undefined): Theme {
   if (!cafe) return DEFAULT_THEME;
   const hex = (v: string | undefined, fb: string) => (/^#[0-9a-fA-F]{6}$/.test(v || "") ? v! : fb);
-  const pick = (...keys: string[]) => { for (const k of keys) if (cafe[k]) return cafe[k]; return undefined; };
+  const pick = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = cafe[k];
+      if (v !== undefined && v !== null && v !== "") return String(v);
+    }
+    return undefined;
+  };
   const bgMode = pick("bgMode", "themeBgMode");
   const pattern = pick("pattern", "themePattern");
   const font = pick("font", "themeFont");
   const radius = pick("radius", "themeRadius");
   const style = pick("style", "themeStyle");
   const image = pick("image", "themeImage") || "";
+  const washRaw = Number(pick("wash", "themeWash"));
+  const wash = Number.isFinite(washRaw) && washRaw >= 50 ? Math.min(98, Math.round(washRaw)) : 90;
   return {
     primary: hex(pick("primary", "themePrimary"), DEFAULT_THEME.primary),
     accent: hex(pick("accent", "themeAccent"), DEFAULT_THEME.accent),
@@ -109,6 +120,7 @@ export function themeFromCafe(cafe: Record<string, string | undefined> | null | 
     // Backdrops are either a stored Blob URL (legacy) or a small data URL
     // embedded in the cafe row — no file-storage service required.
     image: /^https:\/\//.test(image) || (DATA_IMAGE.test(image) && image.length <= 400_000) ? image : "",
+    wash,
   };
 }
 

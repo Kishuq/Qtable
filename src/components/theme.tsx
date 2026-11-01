@@ -13,8 +13,13 @@ export function ThemeStyles({ theme, children }: { theme: Theme; children: React
       ? `linear-gradient(160deg, ${theme.bg} 0%, ${theme.primary}33 130%)`
       : theme.bg;
   const image = theme.image || "";
+  // Wash strength is owner-tunable (50–98). More wash = photo whispers behind
+  // the menu; less wash = it becomes part of the room.
+  const wash = Math.min(98, Math.max(50, Number(theme.wash) || 90));
+  const a1 = Math.round((wash / 100) * 255).toString(16).padStart(2, "0");
+  const a2 = Math.round((Math.min(98, wash + 5) / 100) * 255).toString(16).padStart(2, "0");
   const background = image
-    ? `linear-gradient(180deg, ${theme.bg}e6 0%, ${theme.bg}f2 55%, ${theme.bg}fa 100%), url("${image}")`
+    ? `linear-gradient(180deg, ${theme.bg}${a1} 0%, ${theme.bg}${a2} 55%, ${theme.bg}fa 100%), url("${image}")`
     : gradient;
 
   return (

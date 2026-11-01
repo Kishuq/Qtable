@@ -29,6 +29,7 @@ const Schema = z.object({
   themeFont: z.string().max(20).optional(),
   themeRadius: z.enum(["rounded", "soft", "sharp"]).optional(),
   themeStyle: z.enum(["cards", "editorial", "list", "poster", "tickets"]).optional(),
+  themeWash: z.number().int().min(50).max(98).optional(),
   // Empty string clears the backdrop. Accepts a Blob URL or a small,
   // self-contained data image (no third-party storage needed).
   themeImage: z.string().max(400_000).refine(
@@ -64,6 +65,7 @@ export async function PATCH(req: NextRequest) {
       ...(d.currency && ALLOWED_CURRENCIES.includes(d.currency) ? { currency: d.currency } : {}),
       ...(d.logoEmoji ? { logoEmoji: cleanStr(d.logoEmoji, 12) } : {}),
       ...theme,
+      ...(d.themeWash !== undefined ? { themeWash: d.themeWash } : {}),
     },
   });
   await db.auditLog.create({ data: { cafeId: s.cafeId, userId: s.uid, action: Object.keys(theme).length ? "THEME_SAVED" : "SETTINGS_SAVED" } });
