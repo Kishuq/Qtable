@@ -298,26 +298,28 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   const flat = sort !== "rel";
   // Layout families: photo-heavy styles keep the 2-up grid, text styles go
   // full width so names, dotted leaders and ticket rules have room.
+  // Desktop gets real menu columns instead of one stretched phone column.
   const gridClass =
     theme.style === "cards" || theme.style === "poster"
-      ? "grid grid-cols-2 gap-3"
+      ? "grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4"
       : theme.style === "list"
-        ? "space-y-2"
+        ? "space-y-2 lg:grid lg:grid-cols-2 lg:gap-2 lg:space-y-0"
         : theme.style === "tickets"
-          ? "space-y-1.5"
-          : "space-y-0";
+          ? "space-y-1.5 lg:grid lg:grid-cols-2 lg:gap-x-6 lg:gap-y-2 lg:space-y-0"
+          : "space-y-0 lg:grid lg:grid-cols-2 lg:gap-x-10";
 
   return (
     <ThemeStyles theme={theme}>
-    <div className="animate-fade-in mx-auto w-full max-w-xl flex-1 pb-32">
-      {/* Header — branded hero, sticky controls below */}
+    <div className="animate-fade-in mx-auto flex w-full max-w-xl flex-1 flex-col pb-32 lg:my-6 lg:max-w-6xl">
+      {/* Header — branded hero, photo behind it, sticky controls below */}
       <div className="relative overflow-hidden">
         <div className="t-grad pointer-events-none absolute -top-20 left-1/2 h-56 w-[130%] -translate-x-1/2 rounded-[100%] opacity-25 blur-2xl" />
-        <div className="relative flex items-center gap-3 px-4 pb-2 pt-5">
-          <span className="t-grad grid size-14 shrink-0 place-items-center rounded-3xl text-3xl shadow-xl ring-1 ring-white/20">{data.cafe.logoEmoji}</span>
+        <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--tbg) 72%, transparent) 0%, transparent 100%)" }} />
+        <div className="relative flex items-center gap-3 px-4 pb-2 pt-5 lg:px-10 lg:pb-3 lg:pt-8">
+          <span className="t-grad grid size-14 shrink-0 place-items-center rounded-3xl text-3xl shadow-xl ring-1 ring-white/20 lg:size-16 lg:text-4xl">{data.cafe.logoEmoji}</span>
           <div className="min-w-0 flex-1">
-            <p className="t-heading truncate text-xl font-black leading-tight tracking-tight">{data.cafe.name}</p>
-            <p className="t-accent-text truncate text-xs font-bold">{data.cafe.tagline}</p>
+            <p className="t-heading truncate text-xl font-black leading-tight tracking-tight lg:text-3xl">{data.cafe.name}</p>
+            <p className="t-accent-text truncate text-xs font-bold lg:text-sm">{data.cafe.tagline}</p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open now</span>
               {tableCode && <span className="t-grad rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow">Table {tableCode} • Dine-in</span>}
@@ -326,8 +328,14 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           </div>
         </div>
       </div>
-      <div className="sticky top-0 z-30 border-b border-white/10 backdrop-blur-xl" style={{ background: "color-mix(in srgb, var(--tbg) 88%, transparent)" }}>
-        <div className="px-4 pb-2.5 pt-2">
+
+      {/* Menu sheet — solid enough that names and prices stay readable over any
+          photo; on desktop the photo frames a proper menu card instead of
+          fighting the text. */}
+      <div className="relative flex flex-1 flex-col rounded-t-[1.75rem] border-t border-white/10 lg:mt-2 lg:rounded-[2rem] lg:border lg:border-white/10 lg:shadow-2xl"
+        style={{ background: "color-mix(in srgb, var(--tbg) 91%, transparent)" }}>
+      <div className="sticky top-0 z-30 rounded-t-[1.75rem] border-b border-white/10 backdrop-blur-xl lg:rounded-t-[2rem]" style={{ background: "color-mix(in srgb, var(--tbg) 88%, transparent)" }}>
+        <div className="px-4 pb-2.5 pt-2 lg:px-10">
         <div className="flex gap-2 pb-2.5">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Craving something? Search…" className="t-card min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition focus:border-orange-500/60 focus:bg-white/10" />
           <button onClick={() => setVegOnly(!vegOnly)} className={`shrink-0 rounded-full border px-3.5 text-xs font-black transition active:scale-95 ${vegOnly ? "border-green-500 bg-green-500/15 text-green-300 shadow-lg shadow-green-500/20" : "border-white/10 bg-white/5 opacity-70 hover:opacity-100"}`}>● VEG</button>
@@ -338,7 +346,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             <option value="hi">₹ High → Low</option>
           </select>
         </div>
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:px-0">
           {[
             { id: "ALL", name: `All • ${data.items.length}` },
             { id: "POPULAR", name: `⭐ Popular • ${data.items.filter((m) => m.popular).length}` },
@@ -349,11 +357,11 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           ))}
         </div>
         {ordering && tableCode && (
-          <div className="px-4 pb-3">
+          <div className="px-4 pb-3 lg:px-10">
             <button
               onClick={callWaiter}
               disabled={waiter !== "idle"}
-              className={`w-full rounded-2xl border py-2.5 text-xs font-black transition active:scale-[.99] disabled:opacity-70 ${
+              className={`w-full rounded-2xl border py-2.5 text-xs font-black transition active:scale-[.99] disabled:opacity-70 lg:mx-auto lg:block lg:w-auto lg:px-8 ${
                 waiter === "sent"
                   ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-200"
                   : "border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
@@ -371,7 +379,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         const live = usuals.find((u) => ["NEW", "ACCEPTED", "PREPARING", "READY"].includes(u.status));
         if (!live) return null;
         return (
-          <div className="px-4 pt-3">
+          <div className="px-4 pt-3 lg:px-10">
             <Link
               href={`/order/${live.id}`}
               className="t-grad anim-rise flex items-center justify-between rounded-2xl p-4 text-white shadow-xl transition hover:brightness-110 active:scale-[.99]"
@@ -388,7 +396,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Offers */}
       {ordering && data.coupons.length > 0 && (
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-4">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-4 lg:px-10">
           {data.coupons.map((c) => (
             <button key={c.code} onClick={() => { setForm({ ...form, coupon: c.code }); setCheckout(true); }}
               className="card-hover group flex shrink-0 items-center gap-2.5 rounded-2xl border border-dashed border-amber-500/60 bg-gradient-to-r from-amber-500/15 to-orange-500/10 px-4 py-2.5 text-xs font-black text-amber-200 shadow-lg shadow-amber-500/10">
@@ -402,7 +410,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Your usual — one-tap reorder for regulars */}
       {ordering && count === 0 && usuals.length > 0 && (
-        <div className="px-4 pt-4">
+        <div className="px-4 pt-4 lg:px-10">
           <div className="glass t-card card-hover anim-rise rounded-3xl border-orange-500/30 p-4">
             <p className="text-sm font-black">👋 Welcome back — your usual?</p>
             {usuals.slice(0, 1).map((u) => (
@@ -425,13 +433,13 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       {/* Popular rail */}
       {cat === "ALL" && !q && sort === "rel" && popular.length > 0 && (
         <div className="pt-5">
-          <div className="flex items-center justify-between px-4">
+          <div className="flex items-center justify-between px-4 lg:px-10">
             <p className="t-heading text-sm font-black">🔥 Most loved right now</p>
             <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{popular.length} picks</span>
           </div>
-          <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5">
+          <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5 lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:px-10 lg:pt-3">
             {popular.map((i, idx) => (
-              <div key={i.id} className="glass t-card card-hover animate-slide-up w-44 shrink-0 snap-start overflow-hidden" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
+              <div key={i.id} className="glass t-card card-hover animate-slide-up w-44 shrink-0 snap-start overflow-hidden lg:w-auto" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
                 <button className="group relative block h-28 w-full overflow-hidden" onClick={() => { setQuick(i); setQuickQty(1); }}>
                   <span className="block size-full transition duration-300 group-hover:scale-105"><ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" /></span>
                   <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
@@ -445,8 +453,8 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       )}
 
       {/* Items */}
-      <div ref={listRef} className="scroll-mt-44 space-y-6 px-4 pt-5">
-        <div className="flex items-center gap-2">
+      <div ref={listRef} className="scroll-mt-44 space-y-6 px-4 pt-5 lg:space-y-8 lg:px-10 lg:pt-7">
+        <div className="flex flex-wrap items-center gap-2">
           <p className="t-heading text-sm font-black">Explore the menu</p>
           <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">
             {items.length} dish{items.length === 1 ? "" : "es"}
@@ -483,7 +491,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       </div>
 
       {!ordering && (
-        <div className="px-4 pt-3">
+        <div className="px-4 pt-3 lg:px-10">
           <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs font-bold text-stone-300">
             📖 Menu-only plan — please order at the counter.
           </p>
@@ -644,8 +652,9 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         </div>
       )}
       <footer className="mx-auto mt-10 max-w-xl px-5 pb-8 text-center text-[11px] text-stone-500">
-        <span>Powered by {data.cafe.name}</span>
+        <span>Powered by Qtable</span>
       </footer>
+      </div>
     </div>
     </ThemeStyles>
   );
