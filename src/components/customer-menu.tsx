@@ -308,6 +308,12 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
           ? "space-y-1.5 lg:grid lg:grid-cols-2 lg:gap-x-6 lg:gap-y-2 lg:space-y-0"
           : "space-y-0 lg:grid lg:grid-cols-2 lg:gap-x-10";
 
+  // "Most loved" must fill its rows — no orphan cards leaving a hole.
+  const popCols =
+    popular.length === 5 || (popular.length > 4 && popular.length % 3 === 0)
+      ? "lg:grid-cols-3"
+      : "lg:grid-cols-4";
+
   return (
     <ThemeStyles theme={theme}>
     <div className="animate-fade-in mx-auto flex w-full max-w-xl flex-1 flex-col pb-32 lg:my-6 lg:max-w-6xl">
@@ -332,10 +338,14 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       {/* Menu sheet — solid enough that names and prices stay readable over any
           photo; on desktop the photo frames a proper menu card instead of
           fighting the text. */}
-      <div className="relative flex flex-1 flex-col rounded-t-[1.75rem] border-t border-white/10 lg:mt-2 lg:rounded-[2rem] lg:border lg:border-white/10 lg:shadow-2xl"
-        style={{ background: "color-mix(in srgb, var(--tbg) 91%, transparent)" }}>
-      <div className="sticky top-0 z-30 rounded-t-[1.75rem] border-b border-white/10 backdrop-blur-xl lg:rounded-t-[2rem]" style={{ background: "color-mix(in srgb, var(--tbg) 88%, transparent)" }}>
-        <div className="px-4 pb-2.5 pt-2 lg:px-10">
+      <div className="relative flex flex-1 flex-col rounded-t-[1.75rem] border-t border-white/10 lg:mb-6 lg:rounded-t-[2rem] lg:rounded-b-[2rem] lg:border lg:border-white/10 lg:shadow-2xl"
+        style={{ background: "color-mix(in srgb, var(--tbg) 90%, transparent)" }}>
+      <div className="sticky top-0 z-30 rounded-t-[1.75rem] border-b border-white/10 backdrop-blur-xl lg:rounded-t-[2rem]" style={{ background: "color-mix(in srgb, var(--tbg) 93%, transparent)" }}>
+        <div className="px-4 pb-2.5 pt-2 lg:px-10 lg:pt-3">
+        <div className="hidden items-center justify-between gap-3 pb-2.5 lg:flex">
+          <p className="t-heading min-w-0 truncate text-sm font-black">{data.cafe.logoEmoji} {data.cafe.name}</p>
+          <span className="shrink-0 text-[11px] font-bold text-stone-400">{tableCode ? `Table ${tableCode} • Dine-in` : "Dine-in menu"}</span>
+        </div>
         <div className="flex gap-2 pb-2.5">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Craving something? Search…" className="t-card min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition focus:border-orange-500/60 focus:bg-white/10" />
           <button onClick={() => setVegOnly(!vegOnly)} className={`shrink-0 rounded-full border px-3.5 text-xs font-black transition active:scale-95 ${vegOnly ? "border-green-500 bg-green-500/15 text-green-300 shadow-lg shadow-green-500/20" : "border-white/10 bg-white/5 opacity-70 hover:opacity-100"}`}>● VEG</button>
@@ -437,10 +447,10 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             <p className="t-heading text-sm font-black">🔥 Most loved right now</p>
             <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{popular.length} picks</span>
           </div>
-          <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5 lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:px-10 lg:pt-3">
+          <div className={`no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5 lg:grid ${popCols} lg:gap-4 lg:overflow-visible lg:px-10 lg:pt-3`}>
             {popular.map((i, idx) => (
               <div key={i.id} className="glass t-card card-hover animate-slide-up w-44 shrink-0 snap-start overflow-hidden lg:w-auto" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
-                <button className="group relative block h-28 w-full overflow-hidden" onClick={() => { setQuick(i); setQuickQty(1); }}>
+                <button className="group relative block h-28 w-full overflow-hidden lg:h-44" onClick={() => { setQuick(i); setQuickQty(1); }}>
                   <span className="block size-full transition duration-300 group-hover:scale-105"><ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" /></span>
                   <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
                 </button>

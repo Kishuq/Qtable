@@ -9,7 +9,12 @@ export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SAR", "CAD", "AUD
 export function money(paise: number, currency = "INR") {
   const v = (paise || 0) / 100;
   try {
-    return new Intl.NumberFormat(LOCALES[currency] || "en-US", { style: "currency", currency, maximumFractionDigits: currency === "JPY" ? 0 : 2 }).format(v);
+    // Whole rupees read as "₹149", not "₹149.00" — menu-style pricing.
+    return new Intl.NumberFormat(LOCALES[currency] || "en-US", {
+      style: "currency", currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: currency === "JPY" ? 0 : 2,
+    }).format(v);
   } catch {
     return `${currency} ${v.toFixed(2)}`;
   }
