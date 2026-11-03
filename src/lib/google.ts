@@ -9,8 +9,19 @@ export function googleConfigured(): boolean {
 }
 
 function baseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  return raw.replace(/\/$/, "");
+  // Prefer the canonical URL, but never fall back to localhost on Vercel:
+  // a missing NEXT_PUBLIC_APP_URL used to send Google a localhost redirect
+  // URI, which made production sign-in impossible.
+  const raw = (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/+$/, "");
+  if (raw) return raw;
+  const host = (process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || "").trim();
+  if (host) return `https://${host.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  return "http://localhost:3000";
+}
+
+// Shared by auth cookies so "Secure" is set on Vercel even without APP_URL.
+export function appBaseUrl(): string {
+  return baseUrl();
 }
 
 export function googleCallbackUrl(): string {

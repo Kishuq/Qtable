@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { db } from "./db";
+import { appBaseUrl } from "./google";
 
 const COOKIE = "qrcafe_session";
 // Remembers the last successful email so the login form is never blank.
@@ -67,7 +68,7 @@ export function verifyToken(token: string): Session | null {
 export async function setSessionCookie(session: Session) {
   const token = signSession(session);
   const jar = await cookies();
-  const secure = (process.env.NEXT_PUBLIC_APP_URL || "").startsWith("https://");
+  const secure = appBaseUrl().startsWith("https://");
   jar.set(COOKIE, token, {
     httpOnly: true,
     // ✅ Secure only when serving HTTPS — prevents cookie theft on HTTP.
