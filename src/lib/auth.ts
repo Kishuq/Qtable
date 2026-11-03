@@ -4,6 +4,11 @@ import { cookies } from "next/headers";
 import { db } from "./db";
 
 const COOKIE = "qrcafe_session";
+// Remembers the last successful email so the login form is never blank.
+const LAST_EMAIL = "qtable_last_email";
+// Short-lived proof that Google verified this person during first-run signup.
+// Lets /setup create the account without asking for a password at all.
+export const GOOGLE_SIGNUP_COOKIE = "qtable_google_signup";
 
 // Generate a proper 64-byte (512-bit) secret if none set in env.
 // In production you MUST set JWT_SECRET=openssl rand -base64 48 in your env.
@@ -62,14 +67,43 @@ export function verifyToken(token: string): Session | null {
 export async function setSessionCookie(session: Session) {
   const token = signSession(session);
   const jar = await cookies();
+  const secure = (process.env.NEXT_PUBLIC_APP_URL || "").startsWith("https://");
   jar.set(COOKIE, token, {
     httpOnly: true,
     // ✅ Secure only when serving HTTPS — prevents cookie theft on HTTP.
-    secure: (process.env.NEXT_PUBLIC_APP_URL || "").startsWith("https://"),
+    secure,
     sameSite: "strict" as const, // ✅ Strict prevents CSRF; lax only for dev convenience
     path: "/",
     maxAge: 60 * 60 * 24 * 30, // 30 days — matches the JWT, one login per month
   });
+  // Non-secret convenience only: pre-fills the email field next time.
+  jar.set(LAST_EMAIL, session.email, {
+    httpOnly: true,
+    secure,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+}
+
+// Signed, 10-minute proof of a Google-verified identity captured during
+// first-run signup. Cannot be forged without JWT_SECRET.
+export function signGoogleSignup(p: { email: string; name: string }) {
+  return jwt.sign({ purpose: "google-signup", email: p.email, name: p.name }, JWT_SECRET, { expiresIn: "10m" });
+}
+
+export function readGoogleSignup(token: string): { email: string; name: string } | null {
+  try {
+    const p = jwt.verify(token, JWT_SECRET) as { purpose?: string; email?: string; name?: string };
+    if (p?.purpose !== "google-signup" || !p.email) return null;
+    return { email: p.email.toLowerCase().trim(), name: p.name || "" };
+  } catch {
+    return null;
+  }
+}
+
+export function lastEmailCookieName() {
+  return LAST_EMAIL;
 }
 
 export async function clearSessionCookie() {

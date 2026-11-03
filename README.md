@@ -56,6 +56,22 @@ Per-outlet env: `BILLING_PLAN=menu|standard|pro` (unset = full access). See `src
 4. Unpaid → login/setup/ordering redirect to `/subscribe`; paid → everything opens.
    Failed renewals mail the owner automatically (Resend + `/api/billing/webhook`).
 
+## 🔑 Signup & login (one tap after the first time)
+
+The owner should authenticate **once**, never retype details:
+
+- **Google (recommended):** set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`, add the
+  redirect URI `https://<domain>/api/auth/google/callback` in Google Cloud, redeploy.
+  "Sign up with Google" at `/setup` verifies the identity and creates the account with
+  no email and no password — then logs the owner straight into the dashboard. Return
+  visits are one tap on "Continue with Google". The schema's `User.provider` marks such
+  accounts, so a password attempt shows the Google button instead of a dead end.
+- **Manual:** the last successful email is kept in an httpOnly `qtable_last_email`
+  cookie and pre-filled on `/login`. Setup signs the owner in immediately, and the
+  session lasts 30 days.
+- A valid session skips `/login` and the marketing `/` entirely (both redirect to
+  `/dashboard`), so an active owner never sees a form.
+
 ## 🧱 Stack
 
 Next.js 16 · TypeScript · Tailwind v4 · Prisma 6 + Postgres (Neon) · SSE + polling realtime ·

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { verifyPassword, setSessionCookie, generateResetToken, clearResetToken } from "@/lib/auth";
+import { googleConfigured } from "@/lib/google";
 import { limitRequest, clientKey, tooMany } from "@/lib/security";
 import { isEmail } from "@/lib/security";
 
@@ -36,9 +37,20 @@ export async function POST(req: NextRequest) {
   const pwOk = user ? await verifyPassword(parsed.data.password, user.passwordHash) : false;
 
   if (!pwOk) {
+    // Google-only owners have a random unusable password. Tell them to use the
+    // one-tap button instead of leaving them stuck guessing.
+    const googleOnly = user?.provider === "google" && googleConfigured();
     // ✅ Log failed login attempt (generic - no user existence leak)
     try { await db.auditLog.create({ data: { action: "LOGIN_FAIL" } }); } catch {}
-    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    return NextResponse.json(
+      {
+        error: googleOnly
+          ? "This outlet signs in with Google — tap “Continue with Google” below. No password needed."
+          : "Invalid email or password",
+        ...(googleOnly ? { useGoogle: true } : {}),
+      },
+      { status: 401 },
+    );
   }
 
   // ✅ Email verification check — don't leak whether email is verified vs exists

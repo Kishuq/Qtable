@@ -15,6 +15,7 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
+  provider     String   @default("password") // "password" | "google" — how the owner signs in
   verified     Boolean  @default(false) // email verified
   resetToken   String?  // password reset token
   resetExpires DateTime? // password reset token expiry

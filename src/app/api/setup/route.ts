@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import crypto from "crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { hashPassword, setSessionCookie } from "@/lib/auth";
+import { hashPassword, setSessionCookie, readGoogleSignup, GOOGLE_SIGNUP_COOKIE } from "@/lib/auth";
+import { googleConfigured } from "@/lib/google";
 import { limitRequest, tooMany, cleanStr, isEmail } from "@/lib/security";
 import { DEMO_CATEGORIES, DEMO_ITEMS } from "@/lib/demo-data";
 
 const Schema = z.object({
   cafeName: z.string().min(2).max(60),
   name: z.string().min(2).max(60),
-  email: z.string().email().max(120),
-  password: z.string().min(8).max(128),
+  // Optional when Google has already verified the identity.
+  email: z.string().max(120).optional().default(""),
+  password: z.string().max(128).optional().default(""),
   upiId: z.string().max(60).optional().default(""),
+  // Explicitly opt out of the Google identity captured moments ago.
+  useGoogle: z.boolean().optional().default(true),
 });
 
 // First-run setup: creates THE cafe + owner. Locked forever after first use.
@@ -36,12 +42,39 @@ export async function POST(req: NextRequest) {
     try { await db.auditLog.create({ data: { action: "SETUP_SCHEMA_FAIL" } }); } catch {}
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
-  const { cafeName, name, email, password, upiId } = parsed.data;
-  const cleanEmail = email.toLowerCase().trim();
-  if (!isEmail(cleanEmail)) return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+  const { cafeName, name, upiId } = parsed.data;
+  const jar = await cookies();
 
-  const user = await db.user.create({ data: { name: cleanStr(name, 60), email: cleanEmail, passwordHash: await hashPassword(password), role: "OWNER", verified: true } });
-  try { await db.auditLog.create({ data: { action: "SETUP_SUCCESS", meta: `email=${cleanEmail}` } }); } catch {}
+  // Google signup: identity already verified by Google minutes ago, so the
+  // owner never retypes an email or invents a password.
+  const google = parsed.data.useGoogle
+    ? readGoogleSignup(jar.get(GOOGLE_SIGNUP_COOKIE)?.value || "")
+    : null;
+
+  const rawEmail = google ? google.email : parsed.data.email;
+  const email = rawEmail.toLowerCase().trim();
+  if (!isEmail(email)) return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
+
+  let password = parsed.data.password;
+  if (!google) {
+    if (password.length < 8) return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+  } else if (!password) {
+    // Unused random password — this account signs in with Google only.
+    password = crypto.randomBytes(32).toString("base64url");
+  }
+
+  const ownerName = cleanStr(google?.name || name, 60);
+  const user = await db.user.create({
+    data: {
+      name: ownerName,
+      email,
+      passwordHash: await hashPassword(password),
+      provider: google ? "google" : "password",
+      role: "OWNER",
+      verified: true,
+    },
+  });
+  try { await db.auditLog.create({ data: { action: google ? "SETUP_SUCCESS_GOOGLE" : "SETUP_SUCCESS", meta: `email=${email}` } }); } catch {}
 
   const cafe = await db.cafe.create({
     data: { name: cleanStr(cafeName, 60), slug: "cafe", tagline: "Scan. Order. Enjoy.", upiId: cleanStr(upiId, 60), ownerId: user.id },
@@ -65,12 +98,23 @@ export async function POST(req: NextRequest) {
   await db.coupon.create({ data: { cafeId: cafe.id, code: "WELCOME10", pct: 10 } });
   await db.auditLog.create({ data: { cafeId: cafe.id, userId: user.id, action: "CAFE_SETUP" } });
 
+  // Signed in immediately — the owner lands in the dashboard, not back on a
+  // login form. Session lasts 30 days.
   await setSessionCookie({ uid: user.id, email: user.email, role: "OWNER", cafeId: cafe.id, name: user.name, verified: true });
+  jar.set(GOOGLE_SIGNUP_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
   return NextResponse.json({ ok: true });
 }
 
-// Lets the setup page know whether first-run is still available.
+// Lets the setup page know whether first-run is still available, and whether a
+// verified Google identity is waiting to be used.
 export async function GET() {
   const count = await db.user.count();
-  return NextResponse.json({ needsSetup: count === 0 });
+  if (count > 0) return NextResponse.json({ needsSetup: false });
+  const jar = await cookies();
+  const google = readGoogleSignup(jar.get(GOOGLE_SIGNUP_COOKIE)?.value || "");
+  return NextResponse.json({
+    needsSetup: true,
+    google: google ? { email: google.email, name: google.name } : null,
+    googleEnabled: googleConfigured(),
+  });
 }

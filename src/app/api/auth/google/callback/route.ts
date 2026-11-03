@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCode, googleProfile } from "@/lib/google";
-import { setSessionCookie } from "@/lib/auth";
+import { setSessionCookie, signGoogleSignup, GOOGLE_SIGNUP_COOKIE } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 function home(path: string) {
@@ -43,7 +43,16 @@ export async function GET(req: NextRequest) {
     // First-run signup: allowed only while no users exist (same lock as /setup).
     const existing = await db.user.count();
     if (existing > 0) return home("/login?error=Already+set+up.+Please+log+in.");
-    const res = home(`/setup?gmail=${encodeURIComponent(email)}&gname=${encodeURIComponent(name)}`);
+    // Hand the verified identity to /setup in a signed, httpOnly cookie —
+    // no email in the URL, no password to type, no retyping.
+    const res = home("/setup?google=1");
+    res.cookies.set(GOOGLE_SIGNUP_COOKIE, signGoogleSignup({ email, name }), {
+      httpOnly: true,
+      secure: (process.env.NEXT_PUBLIC_APP_URL || "").startsWith("https://"),
+      sameSite: "lax",
+      path: "/",
+      maxAge: 600,
+    });
     res.cookies.set("qtable_oauth", "", { httpOnly: true, path: "/", maxAge: 0 });
     return res;
   }
