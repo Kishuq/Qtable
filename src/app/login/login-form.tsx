@@ -73,23 +73,25 @@ export function LoginForm({ defaultEmail = "", googleEnabled = false }: { defaul
             {loading ? "Logging in…" : "Log in →"}
           </button>
         </form>
-        {googleEnabled && (
-          <>
-            <div className="my-4 flex items-center gap-3 text-[11px] font-bold text-stone-500">
-              <span className="h-px flex-1 bg-white/10" /> OR <span className="h-px flex-1 bg-white/10" />
-            </div>
-            <a
-              href={`/api/auth/google?mode=login&next=${encodeURIComponent(next)}`}
-              className={`flex w-full items-center justify-center gap-2.5 rounded-2xl border py-3.5 text-sm font-black transition active:scale-[.99] ${
-                useGoogle
-                  ? "border-orange-400/60 bg-white text-stone-900 ring-2 ring-orange-400/40 hover:brightness-95"
-                  : "border-white/15 bg-white text-stone-900 hover:brightness-95"
-              }`}
-            >
-              <span className="grid size-5 place-items-center rounded-full bg-white font-black text-stone-900 ring-1 ring-stone-300">G</span>
-              Continue with Google — no password
-            </a>
-          </>
+        <div className="my-4 flex items-center gap-3 text-[11px] font-bold text-stone-500">
+          <span className="h-px flex-1 bg-white/10" /> OR <span className="h-px flex-1 bg-white/10" />
+        </div>
+        <a
+          href={`/api/auth/google?mode=login&next=${encodeURIComponent(next)}`}
+          className={`flex w-full items-center justify-center gap-2.5 rounded-2xl border py-3.5 text-sm font-black transition active:scale-[.99] ${
+            useGoogle
+              ? "border-orange-400/60 bg-white text-stone-900 ring-2 ring-orange-400/40 hover:brightness-95"
+              : "border-white/15 bg-white text-stone-900 hover:brightness-95"
+          }`}
+        >
+          <span className="grid size-5 place-items-center rounded-full bg-white font-black text-stone-900 ring-1 ring-stone-300">G</span>
+          Continue with Google — no password
+        </a>
+        {!googleEnabled && (
+          <p className="mt-2 text-center text-[11px] leading-relaxed text-stone-500">
+            Google isn&apos;t switched on yet — add <code className="text-stone-400">GOOGLE_CLIENT_ID</code> and{" "}
+            <code className="text-stone-400">GOOGLE_CLIENT_SECRET</code> in Vercel. Email &amp; password works meanwhile.
+          </p>
         )}
         <p className="mt-4 text-center text-xs text-stone-500">🔒 Encrypted session • 30-day stay-signed-in</p>
         <p className="mt-3 border-t border-white/10 pt-4 text-center text-sm text-stone-400">New outlet? <Link href="/subscribe?next=/setup" className="text-orange-400 font-bold">See plans & get started</Link></p>

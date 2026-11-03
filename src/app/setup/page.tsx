@@ -15,7 +15,7 @@ function SetupInner() {
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [manual, setManual] = useState(sp.get("manual") === "1");
   const [form, setForm] = useState({ cafeName: "", name: "", email: "", password: "", upiId: "" });
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState(sp.get("error") || "");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -97,20 +97,22 @@ function SetupInner() {
           </div>
         ) : (
           <>
-            {googleEnabled && (
-              <>
-                <a
-                  href="/api/auth/google?mode=setup"
-                  className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white py-3 text-sm font-black text-stone-900 transition hover:brightness-95 active:scale-[.99]"
-                >
-                  <span className="grid size-5 place-items-center rounded-full bg-white font-black text-stone-900 ring-1 ring-stone-300">G</span>
-                  Sign up with Google
-                </a>
-                <div className="my-4 flex items-center gap-3 text-[11px] font-bold text-stone-500">
-                  <span className="h-px flex-1 bg-white/10" /> or fill manually <span className="h-px flex-1 bg-white/10" />
-                </div>
-              </>
+            <a
+              href="/api/auth/google?mode=setup"
+              className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white py-3 text-sm font-black text-stone-900 transition hover:brightness-95 active:scale-[.99]"
+            >
+              <span className="grid size-5 place-items-center rounded-full bg-white font-black text-stone-900 ring-1 ring-stone-300">G</span>
+              Sign up with Google
+            </a>
+            {!googleEnabled && (
+              <p className="mt-2 text-center text-[11px] leading-relaxed text-stone-500">
+                Not switched on yet — add <code className="text-stone-400">GOOGLE_CLIENT_ID</code> and{" "}
+                <code className="text-stone-400">GOOGLE_CLIENT_SECRET</code> in Vercel, then redeploy.
+              </p>
             )}
+            <div className="my-4 flex items-center gap-3 text-[11px] font-bold text-stone-500">
+              <span className="h-px flex-1 bg-white/10" /> or fill manually <span className="h-px flex-1 bg-white/10" />
+            </div>
           </>
         )}
 
