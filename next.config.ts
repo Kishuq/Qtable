@@ -29,7 +29,9 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https:",
-              "connect-src 'self' https://api.razorpay.com https://api.stripe.com",
+              // Sentry ingest must be explicitly allowed, otherwise the browser
+              // silently blocks every crash report before it leaves the page.
+              "connect-src 'self' https://api.razorpay.com https://api.stripe.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
               "frame-src 'self' https://api.razorpay.com https://js.stripe.com",
               "object-src 'none'",
               "base-uri 'self'",

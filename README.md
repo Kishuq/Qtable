@@ -63,7 +63,7 @@ server-side QR PNGs · built-in photo storage (Vercel Blob optional) · Resend m
 
 Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_APP_URL`,
 `BILLING_*`, `RAZORPAY_*` / `STRIPE_*`, `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`,
-`BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `SENTRY_DSN`, `PAYMENT_SECRET`.
+`BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`, `PAYMENT_SECRET`.
 
 ## 📁 Map
 
@@ -86,7 +86,22 @@ analytics responses cache ~8s. Rate limits are Upstash-backed when configured, m
 fallback otherwise. Token days + "today" stats follow Asia/Kolkata.
 
 Many outlets = many isolated deployments (one Vercel project each). Past ~50 busy outlets:
-bigger Neon tier, Upstash Redis limits on, Sentry DSN set, UptimeRobot on `/api/health`.
+bigger Neon tier, Upstash Redis limits on, Sentry DSNs set, UptimeRobot on `/api/health`.
+
+### Monitoring: what to set up once
+
+**UptimeRobot** — add an HTTP(s) monitor on `https://your-domain/api/health`, interval
+5 minutes, alert on anything other than HTTP 200. The endpoint runs `SELECT 1`, so it fails
+when the app *or* the database is down, and returns
+`{ ok, time, db, sentry, region }` so the response itself tells you which half broke.
+
+**Sentry** — create a Next.js project, then set **both** env vars and redeploy:
+`SENTRY_DSN` (server) and `NEXT_PUBLIC_SENTRY_DSN` (browser; must be public-prefixed or the
+client bundle never receives it). Client init lives in `instrumentation-client.ts`, server
+init in `sentry.server.config.ts`, and `instrumentation.ts` exports `onRequestError` so
+route-handler 500s are captured. The CSP in `next.config.ts` explicitly allows Sentry ingest
+— without that allowance the browser blocks every report. `GET /api/health` returns
+`sentry: true` once the DSN is live, which is the quickest way to confirm the wiring.
 
 ### Latency: keep functions next to the database
 

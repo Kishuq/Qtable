@@ -292,6 +292,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   if (err && !data) return <div className="mx-auto max-w-md flex-1 px-5 py-20 text-center"><p className="text-4xl">😕</p><p className="mt-3 font-bold">{err}</p><Link href="/" className="mt-4 inline-block font-bold text-orange-400">← Home</Link></div>;
   if (!data) return <div className="mx-auto w-full max-w-xl flex-1 space-y-3 px-4 pt-6"><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
   const theme: Theme = themeFromCafe(data.cafe.theme);
+  const cover = theme.image || "";
 
   const upiUrl = data.cafe.upiId ? upiLink(data.cafe.upiId, data.cafe.name, total / 100, `Table ${effectiveTable}`) : "";
   const catName = (id: string | null) => data.categories.find((c) => c.id === id)?.name || "Chef's picks";
@@ -301,7 +302,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   // Desktop gets real menu columns instead of one stretched phone column.
   const gridClass =
     theme.style === "cards" || theme.style === "poster"
-      ? "grid grid-cols-2 gap-3 sm:gap-3.5 lg:gap-4 xl:grid-cols-3"
+      ? "grid grid-cols-2 gap-3.5 sm:gap-4 lg:gap-4 xl:grid-cols-3"
       : theme.style === "list"
         ? "space-y-2 lg:grid lg:grid-cols-2 lg:gap-2 lg:space-y-0"
         : theme.style === "tickets"
@@ -316,36 +317,56 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
   return (
     <ThemeStyles theme={theme}>
-    <div className="animate-fade-in mx-auto flex w-full max-w-xl flex-1 flex-col pb-32 lg:my-6 lg:grid lg:max-w-7xl lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:pb-0">
-      {/* Header — branded hero. On phones the photo sits behind it; on desktop
-          it becomes a sticky photo panel beside the menu. */}
-      <div className="relative overflow-hidden lg:sticky lg:top-6 lg:flex lg:min-h-[32rem] lg:flex-col lg:justify-center lg:rounded-[2rem] lg:border lg:border-white/10 lg:shadow-2xl">
+    <div className="animate-fade-in mx-auto flex w-full max-w-xl flex-1 flex-col pb-28 lg:my-6 lg:grid lg:max-w-7xl lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:pb-0">
+      {/* Brand hero. Phones show the photo as a banner at the top; desktop turns
+          it into a sticky photo panel beside the menu. */}
+      <div
+        className="relative overflow-hidden lg:sticky lg:top-6 lg:flex lg:min-h-[34rem] lg:flex-col lg:justify-center lg:rounded-[2rem] lg:border lg:border-white/10 lg:shadow-2xl"
+        style={cover ? {
+          backgroundImage: `linear-gradient(180deg, color-mix(in srgb, ${theme.bg} 38%, transparent) 0%, color-mix(in srgb, ${theme.bg} 68%, transparent) 58%, color-mix(in srgb, ${theme.bg} 96%, transparent) 100%), url("${cover}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        } : undefined}
+      >
         <div className="t-grad pointer-events-none absolute -top-20 left-1/2 h-56 w-[130%] -translate-x-1/2 rounded-[100%] opacity-25 blur-2xl" />
-        <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--tbg) 72%, transparent) 0%, transparent 100%)" }} />
-        <div className="pointer-events-none absolute inset-0 hidden lg:block" style={{ background: "color-mix(in srgb, var(--tbg) 50%, transparent)" }} />
-        <div className="relative flex items-center gap-3 px-4 pb-2 pt-5 lg:flex-col lg:items-start lg:gap-4 lg:p-8">
+        <div className="relative flex items-center gap-3 px-5 pb-5 pt-6 lg:flex-col lg:items-start lg:gap-5 lg:p-8 lg:pb-4">
           <span className="t-grad grid size-14 shrink-0 place-items-center rounded-3xl text-3xl shadow-xl ring-1 ring-white/20 lg:size-20 lg:text-5xl">{data.cafe.logoEmoji}</span>
-          <div className="min-w-0 flex-1">
-            <p className="t-heading truncate text-xl font-black leading-tight tracking-tight lg:whitespace-normal lg:text-4xl">{data.cafe.name}</p>
+          <div className="min-w-0 flex-1 lg:flex-none">
+            <p className="t-heading truncate text-xl font-black leading-tight tracking-tight drop-shadow lg:whitespace-normal lg:text-4xl">{data.cafe.name}</p>
             <p className="t-accent-text truncate text-xs font-bold lg:whitespace-normal lg:text-base">{data.cafe.tagline}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 lg:mt-3">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 lg:mt-3">
               <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open now</span>
               {tableCode && <span className="t-grad rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow">Table {tableCode} • Dine-in</span>}
               <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-300">{data.items.length} dishes</span>
             </div>
-            <p className="mt-6 hidden max-w-[15rem] text-sm leading-relaxed text-stone-300 lg:block">Scan. Order. Enjoy. — your table, your pace, no waiting to catch an eye.</p>
+            <p className="mt-5 hidden max-w-[16rem] text-sm leading-relaxed text-stone-200 lg:block">Scan. Order. Enjoy. — your table, your pace, no waiting to catch an eye.</p>
           </div>
         </div>
+        {ordering && tableCode && (
+          <div className="relative hidden px-8 pb-8 lg:block">
+            <button
+              onClick={callWaiter}
+              disabled={waiter !== "idle"}
+              className={`w-full rounded-2xl border px-5 py-3 text-xs font-black transition active:scale-[.99] disabled:opacity-70 ${
+                waiter === "sent"
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-200"
+                  : "border-amber-500/40 bg-black/25 text-amber-200 hover:bg-amber-500/15"
+              }`}
+            >
+              {waiter === "sending" ? "Calling… 🛎️" : waiter === "sent" ? "✓ Waiter notified — on the way!" : "🛎️ Need help? Call waiter"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Menu sheet — solid enough that names and prices stay readable over any
           photo; on desktop the photo frames a proper menu card instead of
           fighting the text. */}
       <div className="relative flex flex-1 flex-col rounded-t-[1.75rem] border-t border-white/10 lg:mb-6 lg:rounded-t-[2rem] lg:rounded-b-[2rem] lg:border lg:border-white/10 lg:shadow-2xl"
-        style={{ background: "color-mix(in srgb, var(--tbg) 90%, transparent)" }}>
-      <div className="sticky top-0 z-30 rounded-t-[1.75rem] border-b border-white/10 backdrop-blur-xl lg:rounded-t-[2rem]" style={{ background: "color-mix(in srgb, var(--tbg) 93%, transparent)" }}>
-        <div className="px-4 pb-2.5 pt-2 lg:px-8 lg:pt-3">
-        <div className="flex gap-2 pb-2.5">
+        style={{ background: "color-mix(in srgb, var(--tbg) 92%, transparent)" }}>
+      <div className="sticky top-0 z-30 rounded-t-[1.75rem] border-b border-white/10 backdrop-blur-xl lg:rounded-t-[2rem]" style={{ background: "color-mix(in srgb, var(--tbg) 94%, transparent)" }}>
+        <div className="px-5 pb-2.5 pt-2.5 lg:px-8 lg:pt-3">
+        <div className="flex gap-2.5 pb-2.5">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Craving something? Search…" className="t-card min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none transition focus:border-orange-500/60 focus:bg-white/10" />
           <button onClick={() => setVegOnly(!vegOnly)} className={`shrink-0 rounded-full border px-3.5 text-xs font-black transition active:scale-95 ${vegOnly ? "border-green-500 bg-green-500/15 text-green-300 shadow-lg shadow-green-500/20" : "border-white/10 bg-white/5 opacity-70 hover:opacity-100"}`}>● VEG</button>
           <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="t-card shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-2.5 text-xs font-bold outline-none" title="Sort dishes">
@@ -355,7 +376,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
             <option value="hi">₹ High → Low</option>
           </select>
         </div>
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:px-0">
+        <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 lg:mx-0 lg:flex-wrap lg:px-0">
           {[
             { id: "ALL", name: `All • ${data.items.length}` },
             { id: "POPULAR", name: `⭐ Popular • ${data.items.filter((m) => m.popular).length}` },
@@ -365,21 +386,6 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
               className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black transition active:scale-95 ${cat === c.id ? "t-grad scale-105 text-white shadow-lg" : "border border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"}`}>{c.name}</button>
           ))}
         </div>
-        {ordering && tableCode && (
-          <div className="px-4 pb-3 lg:px-8">
-            <button
-              onClick={callWaiter}
-              disabled={waiter !== "idle"}
-              className={`w-full rounded-2xl border py-2.5 text-xs font-black transition active:scale-[.99] disabled:opacity-70 lg:mx-auto lg:block lg:w-auto lg:px-8 ${
-                waiter === "sent"
-                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-200"
-                  : "border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
-              }`}
-            >
-              {waiter === "sending" ? "Calling… 🛎️" : waiter === "sent" ? "✓ Waiter notified — on the way!" : "🛎️ Need help? Call Waiter"}
-            </button>
-          </div>
-        )}
         </div>
       </div>
 
@@ -388,7 +394,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
         const live = usuals.find((u) => ["NEW", "ACCEPTED", "PREPARING", "READY"].includes(u.status));
         if (!live) return null;
         return (
-          <div className="px-4 pt-3 lg:px-8">
+          <div className="px-5 pt-3 lg:px-8">
             <Link
               href={`/order/${live.id}`}
               className="t-grad anim-rise flex items-center justify-between rounded-2xl p-4 text-white shadow-xl transition hover:brightness-110 active:scale-[.99]"
@@ -405,7 +411,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Offers */}
       {ordering && data.coupons.length > 0 && (
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-4 lg:px-8">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-5 pt-4 lg:px-8">
           {data.coupons.map((c) => (
             <button key={c.code} onClick={() => { setForm({ ...form, coupon: c.code }); setCheckout(true); }}
               className="card-hover group flex shrink-0 items-center gap-2.5 rounded-2xl border border-dashed border-amber-500/60 bg-gradient-to-r from-amber-500/15 to-orange-500/10 px-4 py-2.5 text-xs font-black text-amber-200 shadow-lg shadow-amber-500/10">
@@ -419,7 +425,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
       {/* Your usual — one-tap reorder for regulars */}
       {ordering && count === 0 && usuals.length > 0 && (
-        <div className="px-4 pt-4 lg:px-8">
+        <div className="px-5 pt-4 lg:px-8">
           <div className="glass t-card card-hover anim-rise rounded-3xl border-orange-500/30 p-4">
             <p className="text-sm font-black">👋 Welcome back — your usual?</p>
             {usuals.slice(0, 1).map((u) => (
@@ -442,19 +448,19 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       {/* Popular rail */}
       {cat === "ALL" && !q && sort === "rel" && popular.length > 0 && (
         <div className="pt-5">
-          <div className="flex items-center justify-between px-4 lg:px-8">
+          <div className="flex items-center justify-between px-5 lg:px-8">
             <p className="t-heading text-sm font-black">🔥 Most loved right now</p>
             <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">{popular.length} picks</span>
           </div>
-          <div className={`no-scrollbar flex snap-x gap-3 overflow-x-auto px-4 pt-2.5 xl:grid ${popCols} xl:gap-4 xl:overflow-visible xl:px-8 xl:pt-3`}>
+          <div className={`no-scrollbar flex snap-x gap-3 overflow-x-auto px-5 pt-3 xl:grid ${popCols} xl:gap-4 xl:overflow-visible xl:px-8 xl:pt-3`}>
             {popular.map((i, idx) => (
-              <div key={i.id} className="glass t-card card-hover animate-slide-up w-44 shrink-0 snap-start overflow-hidden xl:w-auto" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
-                <button className="group relative block h-28 w-full overflow-hidden xl:h-44" onClick={() => { setQuick(i); setQuickQty(1); }}>
+              <div key={i.id} className="glass t-card card-hover animate-slide-up w-48 shrink-0 snap-start overflow-hidden xl:w-auto" style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}>
+                <button className="group relative block h-32 w-full overflow-hidden xl:h-44" onClick={() => { setQuick(i); setQuickQty(1); }}>
                   <span className="block size-full transition duration-300 group-hover:scale-105"><ItemPhoto url={i.imageUrl} emoji={i.imageEmoji} size="size-full" rounded="rounded-none" /></span>
                   <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
                 </button>
-                <div className="p-3"><p className="truncate text-xs font-black">{i.name}</p>
-                  {ordering && <button onClick={() => add(i.id, i.name)} className="t-grad mt-2 w-full rounded-xl py-2 text-[11px] font-black text-white shadow-lg transition hover:brightness-110 active:scale-95">ADD +</button>}</div>
+                <div className="p-3.5"><p className="truncate text-[13px] font-black">{i.name}</p>
+                  {ordering && <button onClick={() => add(i.id, i.name)} className="t-grad mt-2.5 w-full rounded-xl py-2.5 text-xs font-black text-white shadow-lg transition hover:brightness-110 active:scale-95">ADD +</button>}</div>
               </div>
             ))}
           </div>
@@ -462,7 +468,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       )}
 
       {/* Items */}
-      <div ref={listRef} className="scroll-mt-44 space-y-6 px-4 pt-5 lg:space-y-8 lg:px-8 lg:pt-7">
+      <div ref={listRef} className="scroll-mt-44 space-y-7 px-5 pt-6 lg:space-y-9 lg:px-8 lg:pt-7">
         <div className="flex flex-wrap items-center gap-2">
           <p className="t-heading text-sm font-black">Explore the menu</p>
           <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-400">
@@ -500,11 +506,28 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
       </div>
 
       {!ordering && (
-        <div className="px-4 pt-3 lg:px-8">
+        <div className="px-5 pt-3 lg:px-8">
           <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs font-bold text-stone-300">
             📖 Menu-only plan — please order at the counter.
           </p>
         </div>
+      )}
+
+      {/* Mobile waiter call — a floating pill keeps the sticky header short. */}
+      {ordering && tableCode && count === 0 && !checkout && !quick && (
+        <button
+          onClick={callWaiter}
+          disabled={waiter !== "idle"}
+          aria-label={waiter === "sent" ? "Waiter notified" : "Call waiter"}
+          className={`fixed bottom-5 left-4 z-40 flex items-center gap-2 rounded-full border px-4 py-3 text-xs font-black shadow-xl backdrop-blur-md transition active:scale-95 disabled:opacity-90 lg:hidden ${
+            waiter === "sent"
+              ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-100"
+              : "border-amber-500/40 bg-stone-900/85 text-amber-200"
+          }`}
+        >
+          <span className="text-base leading-none">{waiter === "sent" ? "✓" : "🛎️"}</span>
+          <span>{waiter === "sending" ? "Calling…" : waiter === "sent" ? "On the way" : "Call waiter"}</span>
+        </button>
       )}
 
       {/* Cart bar */}
@@ -672,15 +695,15 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 function CategoryHead({ name, count, style }: { name: string; count: number; style: ThemeStyle }) {
   if (style === "editorial") {
     return (
-      <div className="mb-3 mt-1 text-center">
-        <p className="t-heading text-[11px] font-black uppercase tracking-[0.35em] opacity-60">{name}</p>
+      <div className="mb-4 mt-2 text-center">
+        <p className="t-heading text-xs font-black uppercase tracking-[0.35em] opacity-70">{name}</p>
         <div className="mx-auto mt-2 h-px w-14 bg-current opacity-20" />
       </div>
     );
   }
   if (style === "tickets") {
     return (
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2">
         <span className="t-grad grid size-6 place-items-center rounded-full text-[10px] font-black text-white">{count}</span>
         <p className="t-heading text-xs font-black uppercase tracking-[0.22em]">{name}</p>
         <span className="flex-1 border-t border-dashed border-current opacity-25" />
@@ -689,14 +712,14 @@ function CategoryHead({ name, count, style }: { name: string; count: number; sty
   }
   if (style === "poster") {
     return (
-      <div className="mb-2 flex items-end justify-between">
+      <div className="mb-3 flex items-end justify-between">
         <p className="t-heading text-lg font-black uppercase tracking-tight">{name}</p>
         <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black">{count}</span>
       </div>
     );
   }
   return (
-    <div className="mb-2.5 flex items-center gap-2">
+    <div className="mb-3 flex items-center gap-2">
       <p className="t-heading text-sm font-black uppercase tracking-wider">{name}</p>
       <span className="t-grad rounded-full px-2 py-0.5 text-[10px] font-black text-white">{count}</span>
       <span className="h-px flex-1 bg-white/10" />
@@ -711,12 +734,12 @@ function DishCard({ item, currency, style, qty, lastAdded, index = 0, ordering =
   const ownerTone = lastAdded ? "animate-pop" : "";
   const controls = !ordering ? null : qty > 0 ? (
     <div className={`t-grad flex items-center gap-2 rounded-full px-1 py-0.5 text-white shadow-lg ${ownerTone}`}>
-      <button onClick={onSub} aria-label="Remove one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">−</button>
-      <span className="min-w-4 text-center text-[13px] font-black">{qty}</span>
-      <button onClick={onAdd} aria-label="Add one" className="grid size-7 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">+</button>
+      <button onClick={onSub} aria-label="Remove one" className="grid size-8 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">−</button>
+      <span className="min-w-4 text-center text-sm font-black">{qty}</span>
+      <button onClick={onAdd} aria-label="Add one" className="grid size-8 place-items-center rounded-full bg-black/25 text-base font-black leading-none transition active:scale-90">+</button>
     </div>
   ) : (
-    <button onClick={onAdd} className="t-grad rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow transition hover:brightness-110 active:scale-95">ADD +</button>
+    <button onClick={onAdd} className="t-grad rounded-full px-4 py-2 text-xs font-black text-white shadow transition hover:brightness-110 active:scale-95">ADD +</button>
   );
   const vegDot = <span className={`grid size-3.5 shrink-0 place-items-center rounded border text-[8px] ${item.veg ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}`} title={item.veg ? "Veg" : "Non-veg"}>●</span>;
   const price = inr(item.price, currency);
@@ -725,14 +748,14 @@ function DishCard({ item, currency, style, qty, lastAdded, index = 0, ordering =
   // Menu paper — no photos, dotted price leaders, printed-menu feel.
   if (style === "editorial") {
     return (
-      <div className="animate-slide-up border-b border-current/15 py-3" style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}>
+      <div className="animate-slide-up border-b border-current/15 py-3.5" style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}>
         <div className="flex items-baseline gap-2">
-          <button onClick={onQuick} className="t-heading text-left text-[15px] font-black leading-snug transition hover:opacity-70">{item.name}</button>
+          <button onClick={onQuick} className="t-heading text-left text-base font-black leading-snug transition hover:opacity-70">{item.name}</button>
           <span className="mb-1 min-w-3 flex-1 border-b border-dotted border-current opacity-30" />
-          <span className="tnum text-sm font-black">{price}</span>
+          <span className="tnum text-[15px] font-black">{price}</span>
         </div>
-        {desc && <p className="t-muted mt-0.5 line-clamp-1 text-[11px]">{desc}</p>}
-        <div className="mt-1.5 flex items-center gap-2">
+        {desc && <p className="t-muted mt-1 line-clamp-2 text-xs leading-relaxed">{desc}</p>}
+        <div className="mt-2 flex items-center gap-2">
           {vegDot}
           {item.popular && <span className="text-[10px] font-black uppercase tracking-wider opacity-60">★ Popular</span>}
           <span className="flex-1" />
@@ -745,35 +768,35 @@ function DishCard({ item, currency, style, qty, lastAdded, index = 0, ordering =
   // Cafe board — dense thumbnail rows, easy scanning for long menus.
   if (style === "list") {
     return (
-      <div className="glass t-card card-hover animate-slide-up flex items-center gap-3 p-2.5" style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}>
-        <button onClick={onQuick} className="relative size-16 shrink-0 overflow-hidden rounded-2xl" title="Quick view">
+      <div className="glass t-card card-hover animate-slide-up flex items-center gap-3 p-3" style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}>
+        <button onClick={onQuick} className="relative size-[4.5rem] shrink-0 overflow-hidden rounded-2xl" title="Quick view">
           <ItemPhoto url={item.imageUrl} emoji={item.imageEmoji} size="size-full" rounded="rounded-none" />
           {item.popular && <span className="absolute inset-x-0 bottom-0 bg-black/55 py-0.5 text-center text-[9px] font-black text-amber-300">★ POPULAR</span>}
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             {vegDot}
-            <button onClick={onQuick} className="truncate text-left text-sm font-black">{item.name}</button>
+            <button onClick={onQuick} className="truncate text-left text-[15px] font-black">{item.name}</button>
           </div>
-          <p className="t-muted line-clamp-1 text-[11px]">{desc}</p>
-          <p className="tnum mt-0.5 text-sm font-black">{price}</p>
+          <p className="t-muted mt-0.5 line-clamp-1 text-xs">{desc}</p>
+          <p className="tnum mt-1 text-[15px] font-black">{price}</p>
         </div>
         <div className="shrink-0">{controls}</div>
       </div>
     );
   }
 
-  // Ticket stubs — dashed receipt rows, street-food energy.
+  // Ticket stubs — receipt rows with a soft tint so they read as objects.
   if (style === "tickets") {
     return (
-      <div className="animate-slide-up border border-dashed border-current/25 px-3 py-2.5" style={{ borderRadius: "calc(var(--tr) * .45)", animationDelay: `${Math.min(index, 10) * 30}ms` }}>
+      <div className="animate-slide-up border border-dashed border-current/25 bg-white/[.035] px-3.5 py-3" style={{ borderRadius: "calc(var(--tr) * .5)", animationDelay: `${Math.min(index, 10) * 30}ms` }}>
         <div className="flex items-baseline gap-2">
-          <button onClick={onQuick} className="truncate text-left text-sm font-black uppercase tracking-wide">{item.name}</button>
+          <button onClick={onQuick} className="truncate text-left text-[15px] font-black uppercase tracking-wide">{item.name}</button>
           <span className="mb-1 min-w-3 flex-1 border-b border-dotted border-current opacity-25" />
-          <span className="tnum text-sm font-black">{price}</span>
+          <span className="tnum text-[15px] font-black">{price}</span>
         </div>
-        {desc && <p className="t-muted mt-0.5 line-clamp-1 text-[11px]">{desc}</p>}
-        <div className="mt-1.5 flex items-center gap-2">
+        {desc && <p className="t-muted mt-1 line-clamp-1 text-xs">{desc}</p>}
+        <div className="mt-2 flex items-center gap-2">
           {vegDot}
           {item.popular && <span className="text-[10px] font-black uppercase tracking-wider opacity-60">★ Popular</span>}
           <span className="flex-1" />
@@ -795,8 +818,8 @@ function DishCard({ item, currency, style, qty, lastAdded, index = 0, ordering =
           {item.popular && <span className="t-grad absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow-lg">★ POPULAR</span>}
           <span className={`absolute right-2 top-2 grid size-5 place-items-center rounded-md border bg-black/55 text-[10px] backdrop-blur ${item.veg ? "border-green-400/80 text-green-300" : "border-red-400/80 text-red-300"}`} title={item.veg ? "Veg" : "Non-veg"}>●</span>
           <span className="absolute inset-x-0 bottom-0 block p-3 text-white">
-            <span className="block text-sm font-black leading-tight drop-shadow">{item.name}</span>
-            <span className="tnum mt-0.5 block text-sm font-black opacity-95">{price}</span>
+            <span className="block text-[15px] font-black leading-tight drop-shadow">{item.name}</span>
+            <span className="tnum mt-0.5 block text-[15px] font-black opacity-95">{price}</span>
           </span>
         </button>
         <div className="absolute bottom-2.5 right-2.5">{controls}</div>
@@ -814,11 +837,11 @@ function DishCard({ item, currency, style, qty, lastAdded, index = 0, ordering =
         {item.popular && <span className="t-grad absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow-lg">★ Popular</span>}
         <span className={`absolute right-2 top-2 grid size-5 place-items-center rounded-md border bg-black/55 text-[10px] backdrop-blur ${item.veg ? "border-green-400/80 text-green-300" : "border-red-400/80 text-red-300"}`} title={item.veg ? "Veg" : "Non-veg"}>●</span>
       </button>
-      <div className="flex flex-1 flex-col p-3">
-        <button onClick={onQuick} className="t-heading truncate text-left text-sm font-black leading-snug hover:underline">{item.name}</button>
-        <p className="t-muted mt-0.5 line-clamp-1 text-[11px] leading-relaxed">{item.description}</p>
+      <div className="flex flex-1 flex-col p-3.5">
+        <button onClick={onQuick} className="t-heading truncate text-left text-[15px] font-black leading-snug hover:underline">{item.name}</button>
+        <p className="t-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">{item.description}</p>
         <div className="mt-auto flex items-center justify-between pt-2.5">
-          <p className="tnum text-sm font-black tracking-tight">{price}</p>
+          <p className="tnum text-[15px] font-black tracking-tight">{price}</p>
           {controls}
         </div>
       </div>
