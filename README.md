@@ -1,31 +1,34 @@
 # Qtable — QR ordering OS for food businesses
 
-One outlet, one deployment. Customers scan the table QR → `/t/T1` opens **your** menu with
-**your** theme. Orders land live on the counter with sound. Owners manage everything from `/dashboard`.
+One deployment, many outlets. Anyone can sign up, look around in **preview mode**, then
+subscribe to go live. Customers scan a table QR → `/t/{outlet}/{table}` opens that outlet's
+menu with its own theme. Orders land live on the counter with sound. Owners manage everything
+from `/dashboard`.
 
 ## 🚀 Quickstart (local dev)
 
 ```bash
 npm install
 npx prisma db push
-npx tsx prisma/seed.ts   # demo outlet + menu + tables (dev only)
 npm run dev              # http://localhost:3000
 ```
 
-**Real setup (fresh outlet):** skip the seed, open `/setup` — 60-second wizard creates
-your outlet + owner login + starter menu, tables and first coupon. Locked forever after first use.
+Open `/setup` — the signup form creates an outlet + owner login + starter menu, 12 tables and
+a first coupon. **No lock:** every new signup creates a new outlet in preview mode
+(`subStatus = pending`). The dashboard is fully viewable, but every write is refused until the
+outlet subscribes. Existing installs default to `active`, so they keep working.
 
 | What | Where |
 |---|---|
-| Marketing landing | `/` (owners auto-redirect to dashboard) |
-| Customer menu for a table | `/t/T1` |
-| Generic browse menu | `/menu` |
+| Marketing landing | `/` (owners auto-redirect to dashboard; no menu links) |
+| Customer menu (canonical QR) | `/t/{outlet-slug}/{table-code}` |
+| Legacy QR links | `/t/{table-code}` → redirects to the oldest outlet |
 | Order tracking | `/order/[id]` |
-| First-run setup | `/setup` (locks after use) |
+| Signup (email or Google) | `/setup` |
 | Owner login (+ Google) | `/login` |
 | Subscribe / checkout | `/subscribe?plan=&billing=` |
 | Forgot / reset password | `/forgot-password`, `/reset-password` |
-| Dashboard | `/dashboard` — overview, orders, history, menu, coupons, design, tables & QR, payments, staff, settings, guide |
+| Dashboard | `/dashboard` — overview, orders, insights, inventory, history, menu, coupons, design, tables & QR, payments, staff, settings, guide |
 
 ## 🎨 Design studio + themes
 
@@ -33,7 +36,8 @@ Dashboard → **Design**: 24 curated themes, **5 real menu layouts** (photo card
 cafe board, poster grid, ticket stubs), unlimited colours, 8 fonts, solid/gradient
 backgrounds, dots/grid/waves patterns, 3 corner styles — plus **photo matching**: upload a
 logo, interior or packaging shot and the studio pulls its palette into three ready designs.
-Optionally use that photo as the menu backdrop. Publishes instantly — zero redeploy.
+Optionally use that photo as the menu backdrop. Publishing is a write, so it unlocks with the
+subscription.
 
 ## 📚 Plans (enforced in code, not just marketing)
 
@@ -43,8 +47,18 @@ Optionally use that photo as the menu backdrop. Publishes instantly — zero red
 | Standard | ₹699/mo | + ordering, Cash/UPI/cards, tracking, waiter calls, history |
 | Pro | ₹1,299/mo | + inventory & low-stock alerts, insights, coupons, staff logins |
 
-Per-outlet env: `BILLING_PLAN=menu|standard|pro` (unset = full access). See `src/lib/plans.ts`
-(single source of truth) and `src/lib/billing.ts` for the gate logic.
+Yearly billing is ~20% off, paid upfront. Prices live in `src/lib/plans.ts`; the gates live in
+`src/lib/billing.ts` and are enforced server-side, never only in the UI.
+
+- Subscription state lives on each `Cafe` row: `planTier`, `subStatus`, `subBilling`,
+  `subPaidUntil`, `subRef`, `subStartedAt`.
+- **Preview mode** (`subStatus = pending`) — dashboard pages render, mutating APIs return
+  `402 { subscriptionRequired: true }`, and a persistent banner offers "Choose a plan".
+- **Login is never blocked.** Unpaid owners sign in normally; the paywall applies to writes.
+- **Pro modules** (`/dashboard/inventory`, `/dashboard/analytics`, coupons, staff) return
+  `403` for Basic/Standard and are wrapped by `PlanGate` in the UI.
+- **Customer ordering** is refused with `402` while unpaid, and on Basic (menu-only) plans.
+  The public menu stays readable so the design can be previewed.
 
 ## 📦 Inventory & Insights (Pro)
 
@@ -64,26 +78,32 @@ and the page footers, so the OAuth consent screen and gateway onboarding always 
 URL to point at. Set `NEXT_PUBLIC_SUPPORT_EMAIL` to the inbox you actually monitor —
 the default `support@qtable.in` only makes sense once that domain is yours.
 
-## 💰 Your subscription revenue (Razorpay UPI Autopay)
+## 💰 Self-serve subscriptions (Qtable's revenue)
 
-1. Your Razorpay account → Live (your KYC) → **Subscriptions → Plans** → create
-   Basic ₹499 / Standard ₹699 / Pro ₹1,299 monthly.
-2. Per outlet: **Create Subscription** → send the owner the link → they approve UPI Autopay once.
-3. That outlet's Vercel env: `BILLING_PROVIDER=razorpay`, `BILLING_SUBSCRIPTION_ID=sub_…`,
-   `BILLING_RAZORPAY_KEY_ID/SECRET` (your platform keys), `BILLING_PLAN=…` → redeploy.
-4. Unpaid → login/setup/ordering redirect to `/subscribe`; paid → everything opens.
-   Failed renewals mail the owner automatically (Resend + `/api/billing/webhook`).
+1. In **your** Razorpay account, set `BILLING_RAZORPAY_KEY_ID` /
+   `BILLING_RAZORPAY_KEY_SECRET` in Vercel (Production).
+2. Point a Razorpay webhook at `https://<domain>/api/billing/webhook` with the events
+   `payment.captured`, `order.paid`, `subscription.charged`, `subscription.halted`, and put
+   its signing secret in `BILLING_RAZORPAY_WEBHOOK_SECRET`.
+3. `POST /api/billing/checkout` creates a Razorpay Order with `notes.cafeId`, plan and
+   billing attached. The browser checks out, then `POST /api/billing/activate` verifies the
+   HMAC signature, refetches the order, and confirms the amount + tenant before unlocking.
+4. The webhook is the safety net if the browser closes mid-flow: it activates from
+   `notes.cafeId`, sends the branded receipt (Resend), and logs every step to `AuditLog`.
+5. Receipts/plan links are best-effort: a mail failure never undoes a paid activation.
+
+Without platform keys, `/subscribe` shows a clear "checkout isn't connected" note and can
+fall back to per-plan hosted payment links (`NEXT_PUBLIC_BILLING_*_URL`).
 
 ## 🔑 Signup & login (one tap after the first time)
-
-The owner should authenticate **once**, never retype details:
 
 - **Google (recommended):** set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`, add the
   redirect URI `https://<domain>/api/auth/google/callback` in Google Cloud, redeploy.
   "Sign up with Google" at `/setup` verifies the identity and creates the account with
-  no email and no password — then logs the owner straight into the dashboard. Return
-  visits are one tap on "Continue with Google". The schema's `User.provider` marks such
-  accounts, so a password attempt shows the Google button instead of a dead end.
+  no email and no password — then lands in the preview dashboard. Return visits are one
+  tap on "Continue with Google". The schema's `User.provider` marks such accounts, so a
+  password attempt shows the Google button instead of a dead end. Signing in with Google
+  for an email that already exists is treated as login, not a duplicate signup.
 - **Manual:** the last successful email is kept in an httpOnly `qtable_last_email`
   cookie and pre-filled on `/login`. Setup signs the owner in immediately, and the
   session lasts 30 days.
@@ -100,33 +120,36 @@ Next.js 16 · TypeScript · Tailwind v4 · Prisma 6 + Postgres (Neon) · SSE + p
 server-side QR PNGs · built-in photo storage (Vercel Blob optional) · Resend mail · Upstash Redis limits (optional) · Sentry (optional).
 
 Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_APP_URL`,
-`BILLING_*`, `RAZORPAY_*` / `STRIPE_*`, `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`,
+`BILLING_RAZORPAY_*` + `BILLING_RAZORPAY_WEBHOOK_SECRET`, `RAZORPAY_*` / `STRIPE_*` (fallback
+gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`, `BILLING_EMAIL_FROM`,
 `BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`, `PAYMENT_SECRET`.
 
 ## 📁 Map
 
-- `src/app/t/[code]/` — QR menu + checkout · `src/app/order/[id]/` — live tracking + ETA
-- `src/app/subscribe/` — plan checkout gate · `src/app/privacy|terms/` — legal pages
+- `src/app/t/[slug]/[code]/` — canonical QR menu + checkout · `src/app/t/[slug]/` — legacy redirect
+- `src/app/order/[id]/` — live tracking + ETA
+- `src/app/subscribe/` — plan picker + Razorpay checkout · `src/app/privacy|terms/` — legal pages
 - `src/app/dashboard/` — overview, orders, insights, inventory, history, menu, coupons,
   design, tables, payments, staff, settings, guide
-- `src/app/api/` — `setup` (first-run, locked), `auth/*` (+ Google OAuth, password reset),
+- `src/app/api/` — `setup` (open signup), `auth/*` (+ Google OAuth, password reset),
   `public/*` (menu, order, waiter, feedback, pay), `orders`, `menu`, `inventory`,
   `tables`, `coupons`, `payments`, `staff`, `cafe`, `analytics(+/detail)`, `billing/*`,
   `email/test`, `stream/orders`, `qr`
-- `src/lib/` — `auth`, `billing` (+plans), `plans`, `security` (limits), `paykeys` (AES),
-  `email` (Resend), `url` (public origin), `theme`, `day` (IST), `google`, `db`, `cafe`,
-  `format`, `qr`
+- `src/lib/` — `auth`, `billing` (+plans), `plans`, `cafe` (slug resolution), `security`
+  (limits), `paykeys` (AES), `email` (Resend), `url` (public origin), `theme`, `day` (IST),
+  `google`, `db`, `format`, `qr`
 
 ## 🏋️ Scaling notes (honest)
 
-One deployment serves **one outlet**. A lunch rush (all 12 tables ordering in the same
-minute) fits comfortably — order creation is atomic (no lost/double tokens), Postgres has
-real MVCC + pooling, dashboard polls on few-second cadence with hidden-tab pausing, and
-analytics responses cache ~8s. Rate limits are Upstash-backed when configured, memory
-fallback otherwise. Token days + "today" stats follow Asia/Kolkata.
+One deployment serves **many outlets**, each isolated by `cafeId` on every query. A lunch
+rush on one outlet fits comfortably — order creation is atomic (no lost/double tokens),
+Postgres has real MVCC + pooling, dashboard polls on a few-second cadence with hidden-tab
+pausing, and analytics/menu responses cache briefly. Rate limits are Upstash-backed when
+configured, memory fallback otherwise. Token days + "today" stats follow Asia/Kolkata.
 
-Many outlets = many isolated deployments (one Vercel project each). Past ~50 busy outlets:
-bigger Neon tier, Upstash Redis limits on, Sentry DSNs set, UptimeRobot on `/api/health`.
+Past a few dozen busy outlets: bigger Neon tier, Upstash Redis limits on, Sentry DSNs set,
+UptimeRobot on `/api/health`. Public menu reads are cached at the edge (`s-maxage=15`), so
+scans cost one DB read per outlet per cache window.
 
 ### Monitoring: what to set up once
 
@@ -156,7 +179,8 @@ not one per scan, and order tracking polls only the order (no 50 KB backdrop per
 1. Deploy, open the dashboard **via the public domain** (never localhost/preview —
    QRs encode the address bar), go to **Tables & QR**.
 2. Add tables (T1…T12), **Print table cards** → tent card per page (name, table code,
-   QR, Scan→Order→Pay, Powered by Qtable footer).
+   QR, Scan→Order→Pay, Powered by Qtable footer). Links look like
+   `/t/{your-outlet}/{table-code}`.
 3. 200gsm card or photo paper; **laminate**; QR ≥ 3 cm; test-scan every table with
    Android + iPhone before laminating.
 4. Train counter (2 min): **Orders** open, sound ON (tap once), tap **✓ Received**

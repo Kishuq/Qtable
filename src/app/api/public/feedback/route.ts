@@ -8,6 +8,7 @@ import { limitRequest, tooMany, cleanStr } from "@/lib/security";
 // ownership is verified against the DB below (the real protection).
 const Schema = z.object({
   orderId: z.string().max(64).optional().default(""),
+  slug: z.string().max(60).optional().default(""),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(300).optional().default(""),
 });
@@ -18,13 +19,24 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);
   if (!p.success) return NextResponse.json({ error: "Invalid feedback" }, { status: 400 });
+
+  // An order id pins the outlet exactly; otherwise fall back to the slug the
+  // customer came from, and finally to the default outlet.
   let cafe;
-  try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Outlet not found" }, { status: 404 }); }
-  // ✅ If orderId is provided, verify it belongs to this cafe
-  if (p.data.orderId) {
-    const order = await db.order.findFirst({ where: { id: p.data.orderId, cafeId: cafe.id } });
-    if (!order) return NextResponse.json({ error: "Order not found or does not belong to this cafe" }, { status: 400 });
+  try {
+    if (p.data.orderId) {
+      const order = await db.order.findUnique({ where: { id: cleanStr(p.data.orderId, 64) }, select: { cafeId: true } });
+      if (!order) return NextResponse.json({ error: "Order not found" }, { status: 400 });
+      const { getCafeById } = await import("@/lib/cafe");
+      cafe = await getCafeById(order.cafeId);
+    } else {
+      cafe = await requireCafe(p.data.slug);
+    }
+  } catch {
+    return NextResponse.json({ error: "Outlet not found" }, { status: 404 });
   }
+  if (!cafe) return NextResponse.json({ error: "Outlet not found" }, { status: 404 });
+
   await db.feedback.create({ data: { cafeId: cafe.id, orderId: cleanStr(p.data.orderId, 64), rating: p.data.rating, comment: cleanStr(p.data.comment, 300) } });
   return NextResponse.json({ ok: true });
 }

@@ -3,11 +3,13 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
+import { orderingBlockedReason, getPlanFor, planAllowsPro } from "@/lib/billing";
 import { limitRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 
 const Item = z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20), note: z.string().max(120).optional().default("") });
 const Schema = z.object({
   tableCode: z.string().min(1).max(12),
+  slug: z.string().max(60).optional().default(""),
   customerName: z.string().max(60).optional().default("Guest"),
   customerPhone: z.string().max(15).optional().default(""),
   type: z.enum(["DINEIN", "TAKEAWAY"]).optional().default("DINEIN"),
@@ -35,21 +37,13 @@ export async function POST(req: NextRequest) {
   const upiRef = cleanStr(d.upiRef, 30).replace(/[^a-zA-Z0-9]/g, "");
 
   let cafe;
-  try { cafe = await requireCafe(); } catch { return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 }); }
+  try { cafe = await requireCafe(d.slug); } catch { return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 }); }
   if (!cafe.isActive) return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
 
-  // ✅ Strict subscription gate — no ordering while unpaid or on menu-only plan.
-  try {
-    const { getBilling, isBillingBlocked, getPlan, planAllowsOrdering } = await import("@/lib/billing");
-    if (isBillingBlocked(await getBilling())) {
-      return NextResponse.json({ error: "This outlet's subscription is paused — please contact the counter." }, { status: 402 });
-    }
-    if (!planAllowsOrdering(getPlan())) {
-      return NextResponse.json({ error: "Online ordering isn't enabled at this outlet — please order at the counter." }, { status: 402 });
-    }
-  } catch {
-    // billing check itself failed → fail open, continue to ordering
-  }
+  // Paywall: unpaid (preview) outlets cannot take orders, and Basic (menu-only)
+  // outlets cannot take orders either. Enforced here, not just in the UI.
+  const blocked = await orderingBlockedReason(cafe.id);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 402 });
 
   const table = await db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: d.tableCode, active: true } });
   if (!table && d.type === "DINEIN") return NextResponse.json({ error: "Invalid table. Please re-scan the QR." }, { status: 400 });
@@ -137,8 +131,7 @@ export async function POST(req: NextRequest) {
   // with gte so a same-millisecond rush can never drive counts negative.
   // Best-effort — a stock failure must never break a paid order.
   try {
-    const { getPlan, planAllowsPro } = await import("@/lib/billing");
-    if (planAllowsPro(getPlan())) {
+    if (planAllowsPro(await getPlanFor(cafe.id))) {
       for (const line of lines) {
         const m = priceOf.get(line.menuItemId);
         if (m && m.stock !== null && m.stock !== undefined) {

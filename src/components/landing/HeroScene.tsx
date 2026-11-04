@@ -1,5 +1,5 @@
 // Cinematic 12s ecosystem loop — pure CSS, no JS.
-// QR glows → phone orders Signature Cappuccino → order travels → kitchen
+// QR glows → phone orders Signature Cappuccino → order travels → counter
 // receives NEW ORDER #104 → PREPARING → customer status updates.
 export function HeroScene() {
   return (
@@ -36,14 +36,14 @@ export function HeroScene() {
           <p className="text-center text-[10px] font-bold text-stone-500">Customized</p>
         </div>
 
-        {/* 3 — Kitchen */}
+        {/* 3 — Counter */}
         <div className="hero-node hero-d3 rounded-3xl border border-white/10 bg-white/[.04] p-4 backdrop-blur">
           <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-2">
             <p className="text-[10px] font-black text-amber-200">NEW ORDER #104</p>
             <p className="mt-0.5 text-[9px] font-bold text-amber-200/70">2× Cappuccino • T12</p>
             <p className="mt-1.5 inline-block rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black text-black">PREPARING</p>
           </div>
-          <p className="mt-2.5 text-center text-[11px] font-black uppercase tracking-widest text-stone-300">Kitchen</p>
+          <p className="mt-2.5 text-center text-[11px] font-black uppercase tracking-widest text-stone-300">Counter</p>
           <p className="text-center text-[10px] font-bold text-stone-500">Live queue</p>
         </div>
 
@@ -59,8 +59,8 @@ export function HeroScene() {
       <div className="relative mt-4 h-6 text-center text-xs font-bold text-stone-400">
         <p className="hero-cap hero-cap-1 absolute inset-0">Customer scans the table QR…</p>
         <p className="hero-cap hero-cap-2 absolute inset-0">Signature Cappuccino + extra shot → cart…</p>
-        <p className="hero-cap hero-cap-3 absolute inset-0">Order flies TABLE → Qtable → KITCHEN…</p>
-        <p className="hero-cap hero-cap-4 absolute inset-0">Kitchen fires it up — customer gets live status.</p>
+        <p className="hero-cap hero-cap-3 absolute inset-0">Order flies TABLE → Qtable → COUNTER…</p>
+        <p className="hero-cap hero-cap-4 absolute inset-0">Counter fires it up — customer gets live status.</p>
       </div>
 
       {/* Progress */}

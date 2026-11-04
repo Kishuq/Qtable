@@ -22,6 +22,9 @@ const Schema = z.object({ id: z.string().min(1).max(64), status: z.enum(["OPEN",
 export async function PATCH(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { subscriptionGate } = await import("@/lib/billing");
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   let body: unknown;
   try {
     body = await req.json();

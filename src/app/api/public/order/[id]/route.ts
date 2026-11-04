@@ -1,24 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireCafe } from "@/lib/cafe";
 import { limitRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 import { z } from "zod";
 
 // Theme is only needed once, when the tracker opens. Polls (every few seconds)
 // ask for the order alone, so a 50 KB backdrop isn't re-sent on every tick.
 const CAFE_FIELDS = {
-  name: true, upiId: true, currency: true,
+  name: true, slug: true, upiId: true, currency: true,
   themePrimary: true, themeAccent: true, themeBg: true, themeBgMode: true,
   themePattern: true, themeFont: true, themeRadius: true, themeStyle: true, themeWash: true,
 } as const;
 
+// An order id is globally unique, so the outlet comes from the order itself —
+// no slug needed and legacy tracking links keep working after multi-tenant.
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const cafe = await requireCafe();
-  if (!cafe) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
   const { id } = await ctx.params;
   const full = req.nextUrl.searchParams.get("full") === "1";
   const order = await db.order.findUnique({
-    where: { id, cafeId: cafe.id },
+    where: { id },
     include: { items: true, cafe: { select: full ? { ...CAFE_FIELDS, themeImage: true } : CAFE_FIELDS } },
   });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   try {
     queueAhead = await db.order.count({
       where: {
-        cafeId: cafe.id,
+        cafeId: order.cafeId,
         status: { in: ["NEW", "ACCEPTED", "PREPARING"] },
         createdAt: { lt: order.createdAt },
       },
@@ -50,7 +49,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       id: order.id, tokenNo: order.tokenNo, status: order.status, total: order.total, subtotal: order.subtotal,
       discount: order.discount, tax: order.tax, tableCode: order.tableCode, paymentMode: order.paymentMode,
       paymentStatus: order.paymentStatus, customerName: order.customerName, createdAt: order.createdAt,
-      cafeName: order.cafe.name, upiId: order.cafe.upiId, currency: order.cafe.currency,
+      cafeName: order.cafe.name, cafeSlug: order.cafe.slug, upiId: order.cafe.upiId, currency: order.cafe.currency,
       queueAhead, etaMinutes,
       ...(full ? { theme } : {}),
       items: order.items,
@@ -62,17 +61,15 @@ const PaySchema = z.object({ upiRef: z.string().max(64).optional().default("") }
 
 // Customer confirms "I paid via UPI" — owner verifies on dashboard before marking PAID.
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const cafe = await requireCafe();
-  if (!cafe) return NextResponse.json({ error: "Outlet not available yet" }, { status: 404 });
   if (!(await limitRequest(req, "pay-claim", 20, 60_000))) return tooMany();
   const { id } = await ctx.params;
   let body: unknown = {};
   try { body = await req.json(); } catch { body = {}; }
   const parsed = PaySchema.safeParse(body);
   const upiRef = parsed.success ? cleanStr(parsed.data.upiRef, 64) : "";
-  const order = await db.order.findUnique({ where: { id, cafeId: cafe.id } });
+  const order = await db.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  await db.payment.create({ data: { cafeId: cafe.id, orderId: order.id, mode: "UPI", status: "PENDING", amount: order.total, providerRef: cleanPhone(upiRef) || upiRef } });
-  await db.auditLog.create({ data: { cafeId: cafe.id, action: "UPI_CLAIMED", meta: `${order.id} ref=${upiRef}` } });
+  await db.payment.create({ data: { cafeId: order.cafeId, orderId: order.id, mode: "UPI", status: "PENDING", amount: order.total, providerRef: cleanPhone(upiRef) || upiRef } });
+  await db.auditLog.create({ data: { cafeId: order.cafeId, action: "UPI_CLAIMED", meta: `${order.id} ref=${upiRef}` } });
   return NextResponse.json({ ok: true });
 }

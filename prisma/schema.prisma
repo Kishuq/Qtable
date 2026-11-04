@@ -50,6 +50,16 @@ model Cafe {
   isActive     Boolean  @default(true)
   ownerId      String
   gstPct       Float    @default(5)
+  // ---- Qtable subscription (per outlet) ----
+  // New signups start "pending" (preview mode). Razorpay checkout/webhook flips
+  // this to "active". Existing rows default to active so earlier deployments
+  // and self-hosted installs keep working.
+  planTier     String    @default("standard") // menu | standard | pro
+  subStatus    String    @default("active") // pending | active | past_due | canceled
+  subBilling   String    @default("monthly") // monthly | yearly
+  subPaidUntil DateTime?
+  subRef       String    @default("")
+  subStartedAt DateTime?
   // ---- Self-serve Razorpay (per-outlet gateway, AES-encrypted at rest) ----
   razorpayKeyId        String  @default("")
   razorpayKeySecretEnc String  @default("")

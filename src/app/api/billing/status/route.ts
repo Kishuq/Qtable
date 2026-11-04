@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
-import { getBilling, getPlan } from "@/lib/billing";
+import { getSession } from "@/lib/auth";
+import { getSubscription, isSubscriptionActive } from "@/lib/billing";
+import { db } from "@/lib/db";
 
-// ✅ Get current billing status for a cafe
-// Returns the shape dashboard layout expects: { billing: {...}, portalUrl, plan }
+// Subscription state for the signed-in outlet. Drives the preview banner,
+// the Pro module gates and the subscribe page. Nothing here is secret:
+// plan tier, status and the paid-until date are the outlet's own data.
 export async function GET() {
-  const billing = await getBilling();
+  const s = await getSession();
+  if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const sub = await getSubscription(s.cafeId);
+  const cafe = await db.cafe.findUnique({
+    where: { id: s.cafeId },
+    select: { name: true, slug: true },
+  });
+  const active = isSubscriptionActive(sub);
 
   return NextResponse.json({
-    billing: {
-      mode: billing.mode,
-      status: billing.status,
-      renewsAt: billing.renewsAt,
-    },
-    portalUrl: null,
-    plan: getPlan(),
+    plan: sub?.plan ?? "standard",
+    status: sub?.status ?? "pending",
+    billing: sub?.billing ?? "monthly",
+    paidUntil: sub?.paidUntil ?? null,
+    active,
+    preview: !active,
+    cafe: cafe ? { name: cafe.name, slug: cafe.slug } : null,
+    // Razorpay checkout is available only when platform keys are configured.
+    checkout: Boolean(process.env.BILLING_RAZORPAY_KEY_ID && process.env.BILLING_RAZORPAY_KEY_SECRET),
   });
 }

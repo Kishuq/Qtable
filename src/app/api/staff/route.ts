@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isProCafe, subscriptionGate } from "@/lib/billing";
 import { cleanStr, isEmail, limitRequest, tooMany } from "@/lib/security";
 
 // Owner creates STAFF / KITCHEN logins so the team shares the load (not the password).
@@ -27,6 +28,9 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
+  if (!(await isProCafe(s.cafeId))) return NextResponse.json({ error: "Staff logins are a Pro feature", pro: false }, { status: 403 });
   if (!(await limitRequest(req, "staff", 20, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -47,6 +51,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
+  if (!(await isProCafe(s.cafeId))) return NextResponse.json({ error: "Staff logins are a Pro feature", pro: false }, { status: 403 });
   const id = req.nextUrl.searchParams.get("id") || "";
   if (id === s.uid) return NextResponse.json({ error: "You can't remove yourself" }, { status: 400 });
   await db.user.deleteMany({ where: { id, cafeId: s.cafeId, role: { in: ["STAFF", "KITCHEN"] } } });

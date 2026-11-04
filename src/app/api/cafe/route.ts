@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { subscriptionGate } from "@/lib/billing";
 import { cleanStr } from "@/lib/security";
 
 export async function GET() {
@@ -41,6 +42,8 @@ const Schema = z.object({
 export async function PATCH(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);

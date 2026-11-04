@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { subscriptionGate } from "@/lib/billing";
 import { cleanStr } from "@/lib/security";
 
 export async function GET(req: NextRequest) {
@@ -21,6 +22,8 @@ const Schema = z.object({ code: z.string().min(1).max(12), name: z.string().max(
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);
@@ -37,6 +40,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   const id = req.nextUrl.searchParams.get("id") || "";
   await db.cafeTable.deleteMany({ where: { id, cafeId: s.cafeId } });
   return NextResponse.json({ ok: true });

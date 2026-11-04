@@ -9,6 +9,9 @@ const Schema = z.object({ status: z.enum(["NEW", "ACCEPTED", "PREPARING", "READY
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { subscriptionGate } = await import("@/lib/billing");
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   const { id } = await ctx.params;
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -33,8 +36,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // Cancel restocks tracked inventory (Pro only) — no phantom shortages.
   if (isCancel && ["NEW", "ACCEPTED", "PREPARING"].includes(order.status)) {
     try {
-      const { getPlan, planAllowsPro } = await import("@/lib/billing");
-      if (planAllowsPro(getPlan())) {
+      const { isProCafe } = await import("@/lib/billing");
+      if (await isProCafe(s.cafeId)) {
         const olines = await db.orderItem.findMany({ where: { orderId: id } });
         const mids = [...new Set(olines.map((l) => l.menuItemId).filter(Boolean))];
         if (mids.length > 0) {

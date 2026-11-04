@@ -10,7 +10,7 @@ const STEPS = ["NEW", "ACCEPTED", "PREPARING", "READY", "SERVED", "COMPLETED"];
 
 type Order = {
   id: string; tokenNo: number; status: string; total: number; subtotal: number; discount: number; tax: number;
-  tableCode: string; paymentMode: string; paymentStatus: string; customerName: string; cafeName: string; upiId: string; currency: string;
+  tableCode: string; paymentMode: string; paymentStatus: string; customerName: string; cafeName: string; cafeSlug: string; upiId: string; currency: string;
   queueAhead: number; etaMinutes: number;
   theme: { primary: string; accent: string; bg: string; bgMode: string; pattern: string; font: string; radius: string };
   items: { name: string; qty: number; price: number }[];
@@ -140,7 +140,7 @@ export default function TrackPage({ params }: { params: Promise<{ id: string }> 
           </>
         )}
       </div>
-      <Link href={`/t/${encodeURIComponent(o.tableCode)}`} className="t-muted mt-4 block text-center text-sm">← Back to menu (Table {o.tableCode})</Link>
+      <Link href={o.cafeSlug ? `/t/${encodeURIComponent(o.cafeSlug)}/${encodeURIComponent(o.tableCode)}` : "/"} className="t-muted mt-4 block text-center text-sm">← Back to menu (Table {o.tableCode})</Link>
     </div>
     </ThemeStyles>
   );

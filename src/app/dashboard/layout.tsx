@@ -44,7 +44,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [cafe, setCafe] = useState<{ name: string; slug: string } | null>(null);
   const [cafeId, setCafeId] = useState<string | null>(null);
-  const [billing, setBilling] = useState<{ billing: { mode: string; status: string }; portalUrl: string | null } | null>(null);
+  // Subscription state drives the preview banner. Unpaid outlets can browse
+  // every page; the server refuses writes until they subscribe.
+  const [sub, setSub] = useState<{ plan: string; status: string; active: boolean; preview: boolean; paidUntil: string | null } | null>(null);
   const toast = useToast();
   const { open, connected, soundOn, toggleSound, testAlarm, audioLocked } = useLiveOrders(cafeId, (o) => {
     toast(`New order #${o.tokenNo} • Table ${o.tableCode} • ${inr(o.total)}`, "info");
@@ -60,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setCafeId(j.user.cafeId);
     }).catch(() => router.push("/login"));
     fetch("/api/billing/status").then((r) => r.json()).then((j) => {
-      if (!j.error) setBilling(j);
+      if (!j.error) setSub(j);
     }).catch(() => {});
     // Re-runs on every dashboard navigation: an expired mid-shift session
     // bounces to login instead of showing misleading empty screens.
@@ -73,6 +75,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="rounded-2xl bg-orange-600/10 p-4">
           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-stone-500">Outlet</p>
           <p className="font-display text-lg font-bold leading-tight">{cafe?.name || "…"}</p>
+          {sub?.preview && (
+            <p className="mt-1 inline-flex rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-200">
+              Preview · unpaid
+            </p>
+          )}
           <p className="mt-1 flex items-center gap-1 text-[11px] font-bold">
             <span className={`size-2 rounded-full ${connected ? "bg-emerald-400" : "bg-amber-400"}`} />
             {connected ? "LIVE" : "POLLING"} • {open} open
@@ -107,10 +114,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main */}
       <div className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-0">
-        {billing?.billing?.mode === "enforced" && ["past_due", "unpaid", "canceled"].includes(billing?.billing?.status ?? "") && (
+        {sub?.preview && (
+          <div className="no-print mb-4 flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 to-orange-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-black text-amber-100">👀 Preview mode — everything is visible, nothing is saved yet</p>
+              <p className="mt-0.5 text-xs text-amber-200/80">
+                Browse any page and try the design studio. Choose a plan to publish your menu, print QRs and start taking orders.
+              </p>
+            </div>
+            <Link href="/subscribe" className="shrink-0 rounded-2xl bg-amber-500 px-5 py-2.5 text-center text-sm font-black text-stone-950 transition hover:brightness-110 active:scale-[.98]">
+              Choose a plan →
+            </Link>
+          </div>
+        )}
+        {sub && !sub.preview && sub.status === "past_due" && (
           <div className="no-print mb-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm">
-            <p className="font-black text-red-200">⚠️ Subscription {(billing?.billing?.status ?? "").replace("_", " ")} — customer ordering keeps working, but update payment to stay supported.</p>
-            {billing.portalUrl ? <a href={billing.portalUrl} className="mt-1 inline-block font-bold text-red-300 underline">Update payment method →</a> : <p className="mt-1 text-red-300/70">Contact Qtable support to reactivate.</p>}
+            <p className="font-black text-red-200">⚠️ Renewal failed — update payment to keep your outlet live.</p>
+            <Link href="/subscribe" className="mt-1 inline-block font-bold text-red-300 underline">Update payment →</Link>
           </div>
         )}
         {soundOn && audioLocked && (
@@ -120,7 +140,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
         {/* Mobile topbar */}
         <div className="no-print mb-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[.03] p-3 md:hidden">
-          <p className="font-black">☕ {cafe?.name || "Dashboard"}</p>
+          <p className="font-black">☕ {cafe?.name || "Dashboard"}{sub?.preview ? <span className="ml-2 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-black text-amber-200">PREVIEW</span> : null}</p>
           <div className="flex items-center gap-2">
             <button onClick={toggleSound} className={`grid size-8 place-items-center rounded-full ${soundOn ? "bg-emerald-500/20 text-emerald-300" : "bg-white/5 text-stone-400"}`}>
               {soundOn ? <Bell className="size-4" /> : <BellOff className="size-4" />}

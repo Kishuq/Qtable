@@ -8,8 +8,9 @@ type GoogleIdentity = { email: string; name: string } | null;
 function SetupInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const paidFirst = sp.get("paid") === "1";
   const prefillEmail = sp.get("email") || sp.get("gmail") || "";
+  const chosenPlan = sp.get("plan") || "standard";
+  const planName = chosenPlan === "menu" ? "Basic" : chosenPlan === "pro" ? "Pro" : "Standard";
   const [checking, setChecking] = useState(true);
   const [google, setGoogle] = useState<GoogleIdentity>(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
@@ -24,10 +25,6 @@ function SetupInner() {
     if (gname) setForm((p) => ({ ...p, name: p.name || gname }));
     fetch("/api/setup").then(async (r) => {
       const j = await r.json();
-      if (!j.needsSetup) {
-        router.replace("/login");
-        return;
-      }
       if (j.google) {
         setGoogle(j.google);
         setForm((p) => ({ ...p, email: j.google.email, name: p.name || j.google.name || "" }));
@@ -48,19 +45,17 @@ function SetupInner() {
       const r = await fetch("/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, useGoogle: usingGoogle }),
+        body: JSON.stringify({ ...form, useGoogle: usingGoogle, plan: chosenPlan }),
       });
       const j = await r.json();
       if (!r.ok) {
-        // 402 = subscription gate — forward to /subscribe, then back here.
-        if (r.status === 402 && j.redirect) {
-          router.push(`${j.redirect}?next=/setup`);
-          router.refresh();
+        if (r.status === 409 && j.redirect) {
+          router.push(j.redirect);
           return;
         }
         throw new Error(j.error || "Setup failed");
       }
-      router.push("/dashboard");
+      router.push("/dashboard?welcome=1");
       router.refresh();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Setup failed");
@@ -73,11 +68,18 @@ function SetupInner() {
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-14">
       <div className="glass rounded-3xl p-8">
         <p className="text-4xl">☕</p>
-        <h1 className="mt-2 text-2xl font-black">Set up your outlet</h1>
+        <h1 className="mt-2 text-2xl font-black">Open your outlet</h1>
         <p className="mt-1 text-sm text-stone-400">
           {usingGoogle
-            ? "One step left — name your outlet and you're live."
-            : "One-time, 60 seconds. Menu, tables & QRs are created for you."}
+            ? "One step left — name your outlet and step inside."
+            : "60 seconds. Menu, tables & QRs are created for you."}
+        </p>
+        <p className="mt-3 rounded-2xl border border-white/10 bg-white/[.03] p-3 text-xs leading-relaxed text-stone-400">
+          Your dashboard opens in <b className="text-stone-200">preview mode</b> — look around, try the design studio,
+          see every module. Nothing is published and no orders are taken until you subscribe.
+          <br />
+          Selected plan: <b className="text-stone-200">{planName}</b> — you can change it before paying. Nothing is
+          charged today.
         </p>
 
         {usingGoogle && google ? (
@@ -116,11 +118,6 @@ function SetupInner() {
           </>
         )}
 
-        {paidFirst && (
-          <p className="mt-3 rounded-2xl bg-emerald-500/10 p-3 text-sm font-bold text-emerald-200">
-            ✓ Payment received — finish setup and your outlet goes live.
-          </p>
-        )}
         <form onSubmit={submit} className="mt-5 space-y-3">
           <input value={form.cafeName} onChange={set("cafeName")} required placeholder="Outlet name (e.g. Brew Haven)" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />
           <input value={form.name} onChange={set("name")} required placeholder="Your name (owner)" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />

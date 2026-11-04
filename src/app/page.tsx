@@ -9,7 +9,7 @@ import { Pricing } from "@/components/landing/Pricing";
 
 // Qtable marketing landing — product story, not the outlet menu.
 // Owner with a valid session goes straight to their outlet dashboard.
-// Ordering always happens via table QR (/t/[code]).
+// Ordering always happens via table QR (/t/{outlet}/{table}).
 
 export default async function Landing() {
   const s = await getSession();
@@ -35,12 +35,12 @@ export default async function Landing() {
             at a whole <span className="text-orange-500">new speed.</span>
           </h1>
           <p className="anim-rise mx-auto mt-5 max-w-2xl text-base leading-relaxed text-stone-400 md:text-lg" style={{ animationDelay: ".2s" }}>
-            Turn every table into a smarter ordering experience. Qtable connects your menu, customers, kitchen,
-            tables and operations in one seamless platform.
+            Turn every table into a smarter ordering experience. Qtable connects your menu, customers,
+            counter, tables and operations in one seamless platform.
           </p>
           <div className="anim-rise mt-8 flex flex-col items-center justify-center gap-2.5 sm:flex-row" style={{ animationDelay: ".3s" }}>
             <Link
-              href="/subscribe?next=/setup"
+              href="/setup"
               className="w-full rounded-2xl bg-orange-600 px-8 py-4 text-sm font-black text-white shadow-2xl shadow-orange-900/40 transition hover:bg-orange-500 active:scale-[.98] sm:w-auto"
             >
               Start Your Outlet →
@@ -71,7 +71,7 @@ export default async function Landing() {
             {[
               ["⚡", "Fast", "Orders in seconds, not minutes."],
               ["✦", "Simple", "Staff learn it in one shift."],
-              ["🔗", "Connected", "Menu to kitchen, live."],
+              ["🔗", "Connected", "Menu to counter, live."],
               ["🔒", "Secure", "Protected APIs & audit logs."],
             ].map(([e, t, d], i) => (
               <Reveal key={t} delay={i * 80}>
@@ -94,7 +94,7 @@ export default async function Landing() {
               Busy shifts, running calm.
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-relaxed text-stone-400">
-              Every table ordering itself, the kitchen in flow, the counter always in the know.
+              Every table ordering itself, the queue in flow, the counter always in the know.
             </p>
           </Reveal>
           <Reveal delay={120}>
@@ -104,7 +104,7 @@ export default async function Landing() {
                 {[
                   ["Paper menu", "→ Digital Menu"],
                   ["Waiting customer", "→ Instant Ordering"],
-                  ["Kitchen confusion", "→ Live Kitchen Queue"],
+                  ["Order confusion", "→ Live Order Queue"],
                   ["Manual tracking", "→ Smart Dashboard"],
                 ].map(([a, b]) => (
                   <p key={a} className="rounded-xl bg-black/30 p-3 text-stone-300">
@@ -132,7 +132,7 @@ export default async function Landing() {
               ["01", "Scan", "Customer scans the table QR."],
               ["02", "Explore", "Beautiful menu opens instantly."],
               ["03", "Order", "Customize & place the order."],
-              ["04", "Prepare", "Kitchen gets it in seconds."],
+              ["04", "Prepare", "Counter gets it in seconds."],
               ["05", "Serve", "Live tracking till ready."],
             ].map(([n, t, d], i) => (
               <Reveal key={n} delay={i * 80}>
@@ -334,7 +334,7 @@ export default async function Landing() {
             {[
               ["📱", "Customer", "Order #104 placed"],
               ["🖥️", "Dashboard", "New order lands"],
-              ["👨‍🍳", "Kitchen", "Status → Preparing"],
+              ["🧾", "Counter", "Status → Preparing"],
               ["🔔", "Customer", "Ready — come grab it"],
             ].map(([e, t, d], i) => (
               <Reveal key={t + i} delay={i * 100} className="flex">
@@ -402,7 +402,7 @@ export default async function Landing() {
               Print once, run forever.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
-              {["Menu", "Ordering", "Table", "Analytics", "Customer", "Kitchen"].map((t) => (
+              {["Menu", "Ordering", "Table", "Analytics", "Customer", "Payments"].map((t) => (
                 <span key={t} className="rounded-full bg-white/5 px-4 py-2 text-xs font-black text-stone-200 ring-1 ring-white/10">
                   {t}
                 </span>
@@ -556,7 +556,7 @@ export default async function Landing() {
             <ul className="mt-5 space-y-2.5 text-sm text-stone-300">
               {[
                 "Secure authentication with hashed passwords",
-                "Role-based access for owner, staff & kitchen",
+                "Role-based access for owner, staff & counter",
                 "Per-outlet data isolation on every query",
                 "Encrypted HTTPS connections throughout",
                 "Server-side price validation on every order",
@@ -605,11 +605,11 @@ export default async function Landing() {
                 Give your customers a faster way to order — and your team a smarter way to run the day.
               </p>
               <div className="relative mt-8 flex flex-col justify-center gap-2.5 sm:flex-row">
-                <Link href="/subscribe?next=/setup" className="rounded-2xl bg-stone-950 px-8 py-4 text-sm font-black text-white transition hover:scale-[1.02] active:scale-95">
+                <Link href="/setup" className="rounded-2xl bg-stone-950 px-8 py-4 text-sm font-black text-white transition hover:scale-[1.02] active:scale-95">
                   Start with Qtable →
                 </Link>
-                <Link href="/login" className="rounded-2xl border border-white/40 px-8 py-4 text-sm font-black text-white transition hover:bg-white/10 active:scale-95">
-                  Book a Demo
+                <Link href="#pricing" className="rounded-2xl border border-white/40 px-8 py-4 text-sm font-black text-white transition hover:bg-white/10 active:scale-95">
+                  See the plans
                 </Link>
               </div>
             </div>
@@ -628,7 +628,7 @@ export default async function Landing() {
           </div>
           {[
             ["Product", [["How it works", "#how"], ["Features", "#features"], ["Pricing", "#pricing"], ["Owner login", "/login"]]],
-            ["Get started", [["Start with Qtable", "/subscribe?next=/setup"], ["See the plans", "/subscribe"], ["Owner sign-up", "/setup"], ["Reset password", "/forgot-password"]]],
+            ["Get started", [["Start with Qtable", "/setup"], ["See the plans", "/subscribe"], ["Owner sign-up", "/setup"], ["Reset password", "/forgot-password"]]],
             ["Company", [["Privacy", "/privacy"], ["Terms", "/terms"], ["System status", "/api/health"], ["Contact", `mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@qtable.in"}`]]],
           ].map(([h, links]) => (
             <div key={h as string}>

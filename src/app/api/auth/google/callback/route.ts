@@ -56,10 +56,20 @@ export async function GET(req: NextRequest) {
     return fail("Google login failed — please try again.");
   }
 
+  const user = await db.user.findUnique({ where: { email } });
+
   if (mode === "setup") {
-    // First-run signup: allowed only while no users exist (same lock as /setup).
-    const existing = await db.user.count();
-    if (existing > 0) return home("/login?error=Already+set+up.+Please+log+in.");
+    // Signup is open to everyone. An email that already has an account is a
+    // login, not a second signup — send them straight into their dashboard.
+    if (user?.verified) {
+      try {
+        await db.auditLog.create({ data: { cafeId: user.cafeId, userId: user.id, action: "LOGIN_GOOGLE" } });
+      } catch {}
+      await setSessionCookie({ uid: user.id, email: user.email, role: user.role, cafeId: user.cafeId, name: user.name, verified: user.verified });
+      const res = home(user.cafeId ? "/dashboard" : "/setup?google=1");
+      res.cookies.set("qtable_oauth", "", { httpOnly: true, path: "/", maxAge: 0 });
+      return res;
+    }
     // Hand the verified identity to /setup in a signed, httpOnly cookie —
     // no email in the URL, no password to type, no retyping.
     const res = home("/setup?google=1");
@@ -74,25 +84,14 @@ export async function GET(req: NextRequest) {
     return res;
   }
 
-  const user = await db.user.findUnique({ where: { email } });
   if (!user || !user.verified) {
-    const res = fail("No Qtable account for that Google email — finish setup first.");
+    const res = fail("No Qtable account for that Google email — sign up first.");
     res.cookies.set("qtable_oauth", "", { httpOnly: true, path: "/", maxAge: 0 });
     return res;
   }
 
-  // Same strict subscription gate as password login.
-  try {
-    const { getBilling, isBillingBlocked } = await import("@/lib/billing");
-    if (isBillingBlocked(await getBilling())) {
-      const res = home(`/subscribe?next=${encodeURIComponent(next)}`);
-      res.cookies.set("qtable_oauth", "", { httpOnly: true, path: "/", maxAge: 0 });
-      return res;
-    }
-  } catch {
-    // billing check itself failed → fail open
-  }
-
+  // No login paywall: unpaid outlets sign in and land in preview mode.
+  // The paywall is enforced on writes, not on access.
   try {
     await db.auditLog.create({ data: { cafeId: user.cafeId, userId: user.id, action: "LOGIN_GOOGLE" } });
   } catch {}

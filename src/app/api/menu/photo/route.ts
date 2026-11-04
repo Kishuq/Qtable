@@ -27,6 +27,9 @@ function looksLikeImage(buf: Buffer): boolean {
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { subscriptionGate } = await import("@/lib/billing");
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   if (!(await limitRequest(req, "photo", 20, 60_000))) return tooMany();
 
   let file: File | null = null;

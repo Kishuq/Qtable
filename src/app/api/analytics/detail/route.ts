@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getPlan, planAllowsPro } from "@/lib/billing";
+import { isProCafe } from "@/lib/billing";
 import { istMidnightUTC, tokenDayIST } from "@/lib/day";
 
 // Insights is a Pro module. A short cache keeps a dashboard left open on a
@@ -14,7 +14,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export async function GET(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!planAllowsPro(getPlan())) {
+  if (!(await isProCafe(s.cafeId))) {
     return NextResponse.json({ error: "Insights is a Pro feature", pro: false }, { status: 403 });
   }
 

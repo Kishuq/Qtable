@@ -18,8 +18,9 @@ type Data = {
 
 type Sort = "rel" | "lo" | "hi" | "pop";
 
-// Pure customer menu. tableCode comes from the QR (/t/T1); null = opened directly (/).
-export function MenuApp({ tableCode }: { tableCode: string | null }) {
+// Pure customer menu. tableCode + slug come from the QR (/t/{slug}/{table});
+// null tableCode = opened directly (browse only).
+export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: string }) {
   const toast = useToast();
   const [data, setData] = useState<Data | null>(null);
   const [err, setErr] = useState("");
@@ -43,13 +44,17 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
   // plan arrives with the menu payload, so a scan makes one request, not two.
   const [ordering, setOrdering] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
-  const cartKey = `qrserve_cart_${tableCode || "main"}`;
+  const cafeSlug = slug || "";
+  // Cart and history are scoped per outlet — two cafés in one browser must not
+  // mix lines or recent orders.
+  const cartKey = `qrserve_cart_${cafeSlug || "main"}_${tableCode || "main"}`;
+  const recentKey = `qrserve_recent_${cafeSlug || "main"}`;
 
   useEffect(() => {
-    fetch("/api/public/cafe").then(async (r) => {
+    fetch(`/api/public/cafe${cafeSlug ? `?slug=${encodeURIComponent(cafeSlug)}` : ""}`).then(async (r) => {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Cafe not found");
-      if (j?.plan === "menu") setOrdering(false);
+      if (j?.ordering === false || j?.plan === "menu") setOrdering(false);
       setData(j);
     }).catch((e) => setErr(e.message));
     try {
@@ -70,7 +75,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
     let alive = true;
     (async () => {
       try {
-        const raw = JSON.parse(localStorage.getItem("qrserve_recent") || "[]") as { id: string }[];
+        const raw = JSON.parse(localStorage.getItem(recentKey) || "[]") as { id: string }[];
         const ids = [...new Set(raw.map((r) => r.id).filter(Boolean))].slice(0, 2);
         const out: { id: string; tokenNo: number; status: string; lines: { menuItemId: string; name: string; qty: number }[] }[] = [];
         for (const oid of ids) {
@@ -161,7 +166,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
     try {
       const r = await fetch("/api/public/waiter", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableCode }),
+        body: JSON.stringify({ tableCode, slug: cafeSlug }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Could not reach the counter");
@@ -176,9 +181,9 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
 
   function saveRecent(id: string, token: number) {
     try {
-      const raw = JSON.parse(localStorage.getItem("qrserve_recent") || "[]");
+      const raw = JSON.parse(localStorage.getItem(recentKey) || "[]");
       const next = [{ id, token }, ...raw.filter((r: { id: string }) => r.id !== id)].slice(0, 10);
-      localStorage.setItem("qrserve_recent", JSON.stringify(next));
+      localStorage.setItem(recentKey, JSON.stringify(next));
     } catch { /* private mode */ }
   }
 
@@ -187,7 +192,7 @@ export function MenuApp({ tableCode }: { tableCode: string | null }) {
     if (!tableCode) throw new Error("Please scan the table QR to order.");
     const r = await fetch("/api/public/order", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tableCode, customerName: form.name || "Guest", customerPhone: form.phone, type: "DINEIN", paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
+      body: JSON.stringify({ tableCode, slug: cafeSlug, customerName: form.name || "Guest", customerPhone: form.phone, type: "DINEIN", paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "Order failed");

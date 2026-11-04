@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { encryptSecret, verifyRazorpayKeys } from "@/lib/paykeys";
+import { subscriptionGate } from "@/lib/billing";
 import { cleanStr, limitRequest, tooMany } from "@/lib/security";
 
 // Owner self-serve gateway: paste Razorpay keys → we verify live against
@@ -30,6 +31,8 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   if (!(await limitRequest(req, "paycfg", 10, 60_000))) return tooMany();
   let body: unknown;
   try {
@@ -59,6 +62,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   await db.cafe.update({ where: { id: s.cafeId }, data: { razorpayKeyId: "", razorpayKeySecretEnc: "", razorpayLive: false } });
   try {
     await db.auditLog.create({ data: { cafeId: s.cafeId, userId: s.uid, action: "GATEWAY_DISCONNECTED" } });

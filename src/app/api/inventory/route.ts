@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getPlan, planAllowsPro } from "@/lib/billing";
+import { isProCafe, subscriptionGate } from "@/lib/billing";
 import { cleanStr } from "@/lib/security";
 
 // Inventory is a Pro module. Reading is cheap; writes are the interesting part.
 async function guard() {
   const s = await getSession();
   if (!s?.cafeId) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  if (!planAllowsPro(getPlan())) {
+  if (!(await isProCafe(s.cafeId))) {
     return { error: NextResponse.json({ error: "Inventory is a Pro feature", pro: false }, { status: 403 }) };
   }
   return { cafeId: s.cafeId };
@@ -63,6 +63,8 @@ const Patch = z.object({
 export async function PATCH(req: NextRequest) {
   const g = await guard();
   if ("error" in g) return g.error;
+  const gate = await subscriptionGate(g.cafeId);
+  if (gate) return gate;
 
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

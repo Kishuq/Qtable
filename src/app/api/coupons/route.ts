@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isProCafe, subscriptionGate } from "@/lib/billing";
 import { cleanStr } from "@/lib/security";
 
 // Owner manages discount coupons: list, create/update, delete.
@@ -21,6 +22,9 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
+  if (!(await isProCafe(s.cafeId))) return NextResponse.json({ error: "Coupons are a Pro feature", pro: false }, { status: 403 });
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);
@@ -39,6 +43,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId || s.role !== "OWNER") return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
+  if (!(await isProCafe(s.cafeId))) return NextResponse.json({ error: "Coupons are a Pro feature", pro: false }, { status: 403 });
   const id = req.nextUrl.searchParams.get("id") || "";
   await db.coupon.deleteMany({ where: { id, cafeId: s.cafeId } });
   return NextResponse.json({ ok: true });

@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
+import { orderingBlockedReason } from "@/lib/billing";
 import { limitRequest, tooMany, cleanStr } from "@/lib/security";
 
-const Schema = z.object({ tableCode: z.string().min(1).max(12) });
+const Schema = z.object({
+  tableCode: z.string().min(1).max(12),
+  slug: z.string().max(60).optional().default(""),
+});
 
 // Customer taps "Call Waiter" — creates a service request for the counter.
 // Cooldown: one open request per table per 3 minutes (prevents spam-tapping).
@@ -21,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   let cafe;
   try {
-    cafe = await requireCafe();
+    cafe = await requireCafe(p.data.slug);
   } catch {
     return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
   }
@@ -31,17 +35,8 @@ export async function POST(req: NextRequest) {
   const table = await db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: tableCode, active: true } });
   if (!table) return NextResponse.json({ error: "Invalid table. Please re-scan the QR." }, { status: 400 });
 
-  try {
-    const { getBilling, isBillingBlocked, getPlan, planAllowsOrdering } = await import("@/lib/billing");
-    if (isBillingBlocked(await getBilling())) {
-      return NextResponse.json({ error: "This outlet's subscription is paused — please contact the counter." }, { status: 402 });
-    }
-    if (!planAllowsOrdering(getPlan())) {
-      return NextResponse.json({ error: "Waiter calls aren't enabled at this outlet — please contact the counter." }, { status: 402 });
-    }
-  } catch {
-    // billing check itself failed → fail open
-  }
+  const blocked = await orderingBlockedReason(cafe.id);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 402 });
 
   const recent = await db.serviceCall.findFirst({
     where: { cafeId: cafe.id, tableCode, status: "OPEN", createdAt: { gte: new Date(Date.now() - 3 * 60 * 1000) } },

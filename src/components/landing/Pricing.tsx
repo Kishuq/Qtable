@@ -40,7 +40,9 @@ export function Pricing() {
           const p = PLANS[id];
           const q = planQuote(id, billing);
           const hot = id === "standard";
-          const href = `/subscribe?plan=${id}&billing=${billing}&next=/setup`;
+          // Signup first, pay after looking around — no paywall before the
+          // account exists. The chosen plan is carried into the setup form.
+          const href = `/setup?plan=${id}`;
           return (
             <Reveal key={id} delay={i * 90} className="h-full">
               <div
@@ -86,7 +88,7 @@ export function Pricing() {
                       : "border border-white/15 bg-white/5 text-white hover:bg-white/10"
                   }`}
                 >
-                  Choose plan →
+                  Start with {p.name} →
                 </Link>
               </div>
             </Reveal>
@@ -95,7 +97,7 @@ export function Pricing() {
       </div>
       <Reveal delay={140}>
         <p className="mt-5 text-center text-xs text-stone-500">
-          Cancel anytime • UPI, cards & netbanking • Ordering never stops mid-service
+          Cancel anytime • UPI, cards & netbanking • Your menu and data stay yours
         </p>
       </Reveal>
 

@@ -55,6 +55,9 @@ const Upsert = z.object({
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { subscriptionGate } = await import("@/lib/billing");
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Upsert.safeParse(body);
@@ -72,8 +75,8 @@ export async function POST(req: NextRequest) {
     : null;
   if (d.id && !prev) return NextResponse.json({ error: "Item not found" }, { status: 404 });
   // Stock fields are Pro-only — stripped on lower plans so crafted requests can't enable them.
-  const { getPlan, planAllowsPro } = await import("@/lib/billing");
-  const pro = planAllowsPro(getPlan());
+  const { isProCafe } = await import("@/lib/billing");
+  const pro = await isProCafe(s.cafeId);
   const stockData = pro
     ? { stock: d.stock === undefined ? undefined : d.stock, lowAt: d.lowAt === undefined ? undefined : d.lowAt }
     : {};
@@ -89,6 +92,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { subscriptionGate } = await import("@/lib/billing");
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   const id = req.nextUrl.searchParams.get("id") || "";
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
   const item = await db.menuItem.findFirst({ where: { id, cafeId: s.cafeId }, select: { imageUrl: true } });

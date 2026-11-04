@@ -1,140 +1,25 @@
-import Stripe from "stripe";
+import { NextResponse } from "next/server";
+import { db } from "./db";
+import type { PlanId } from "./plans";
 
-// Billing state per cafe deployment
-export type BillingState = {
-  mode: "none" | "enforced"; // "none" = app works fully open, "enforced" = subscription required
-  status: "open" | "active" | "trialing" | "past_due" | "unpaid" | "canceled" | "unknown";
-  renewsAt?: number; // Unix timestamp (ms) when subscription renews
+// Per-outlet subscription state. The database is the source of truth;
+// Razorpay checkout/webhooks (or a manual DB flip) activate an outlet.
+// New signups start "pending" → the dashboard opens in preview mode and
+// every write is refused until the outlet is active.
+export type Plan = PlanId;
+export type SubStatus = "pending" | "active" | "past_due" | "canceled";
+
+export type Subscription = {
+  plan: Plan;
+  status: SubStatus;
+  billing: "monthly" | "yearly";
+  paidUntil: Date | null;
+  ref: string;
 };
 
-// Which gateway holds YOUR platform subscription for this outlet:
-// "stripe" (default) or "razorpay". Razorpay fits Indian outlets (UPI Autopay).
-function billingProvider(): "stripe" | "razorpay" | "none" {
-  const subId = process.env.BILLING_SUBSCRIPTION_ID || "";
-  if (!subId) return "none";
-  const p = (process.env.BILLING_PROVIDER || "").toLowerCase();
-  if (p === "razorpay") return "razorpay";
-  if (p === "stripe") return "stripe";
-  // Auto-detect: prefer whichever platform keys are present.
-  if (process.env.BILLING_RAZORPAY_KEY_ID || (!process.env.STRIPE_SECRET_KEY && process.env.RAZORPAY_KEY_ID)) return "razorpay";
-  if (process.env.STRIPE_SECRET_KEY) return "stripe";
-  return "none";
-}
-
-// ✅ Returns billing state for THIS outlet's platform subscription.
-// - No subscription configured → mode "none" (app works fully open for launch)
-// - Configured → subscription MUST be active to allow ordering
-export async function getBilling(): Promise<BillingState> {
-  const provider = billingProvider();
-  if (provider === "razorpay") return getRazorpayBilling();
-  if (provider === "none") return { mode: "none", status: "open" };
-
-  const subId = process.env.BILLING_SUBSCRIPTION_ID || "";
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
-
-  // ✅ STRICT: Stripe IS configured → subscription must be active
-  try {
-    const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: "2026-08-26.dahlia",
-    });
-    const sub = await stripe.subscriptions.retrieve(subId);
-
-    const status = sub.status as BillingState["status"];
-    // ✅ Fix: current_period_end is a number|string|undefined, handle all cases
-    const periodEnd = (sub as any).current_period_end;
-    const renewsAt = periodEnd ? Math.floor(Number(periodEnd) * 1000) : undefined;
-
-    // ✅ Active or on trial → allow ordering
-    if (status === "active" || status === "trialing") {
-      return {
-        mode: "enforced",
-        status: status,
-        renewsAt
-      };
-    }
-
-    // ✅ STRICT: Any other status (past_due, canceled, unpaid, etc.) → enforced but problematic
-    return {
-      mode: "enforced",
-      status,
-      renewsAt,
-      // status will be "past_due", "canceled", "unpaid" etc.
-    };
-
-  } catch (error) {
-    // Stripe error → enforced but unknown
-    console.error("Billing check error", error);
-    return { mode: "enforced", status: "unknown" };
-  }
-}
-
-// Razorpay platform subscription check (UPI Autopay e-mandates).
-// Uses YOUR platform keys (not the outlet's gateway keys):
-// BILLING_RAZORPAY_KEY_ID + BILLING_RAZORPAY_KEY_SECRET.
-async function getRazorpayBilling(): Promise<BillingState> {
-  const subId = process.env.BILLING_SUBSCRIPTION_ID || "";
-  const keyId = process.env.BILLING_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || "";
-  const keySecret = process.env.BILLING_RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || "";
-  if (!subId || !keyId || !keySecret) return { mode: "none", status: "open" };
-
-  try {
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-    const r = await fetch(`https://api.razorpay.com/v1/subscriptions/${subId}`, {
-      headers: { Authorization: `Basic ${auth}` },
-    });
-    if (!r.ok) throw new Error(`razorpay ${r.status}`);
-    const sub = (await r.json()) as {
-      status?: string;
-      current_end?: number | null;
-      charge_at?: number | null;
-    };
-    // Razorpay: active | authenticated | pending | halted | cancelled | completed | expired
-    const raw = (sub.status || "").toLowerCase();
-    const status: BillingState["status"] =
-      raw === "active" || raw === "authenticated"
-        ? "active"
-        : raw === "pending"
-          ? "trialing"
-          : raw === "halted"
-            ? "past_due"
-            : raw === "cancelled" || raw === "completed" || raw === "expired"
-              ? "canceled"
-              : "unknown";
-    const endTs = sub.current_end || sub.charge_at;
-    return { mode: "enforced", status, renewsAt: endTs ? endTs * 1000 : undefined };
-  } catch (error) {
-    console.error("Billing check error", error);
-    return { mode: "enforced", status: "unknown" };
-  }
-}
-
-// ✅ Get Stripe customer portal URL (for billing page)
-// Note: Returns null if not configured - the payment-required page handles this
-export function getPortalUrl(): string | null {
-  if (!process.env.STRIPE_SECRET_KEY || !process.env.BILLING_SUBSCRIPTION_ID) return null;
-  // In a full implementation, this would create a Stripe portal session
-  // For now, return null and let the UI show a manual update message
-  return null;
-}
-
-// ✅ Strict gate: true only when billing is configured AND definitely unpaid.
-// Unknown (Stripe unreachable) fails OPEN so a Stripe outage never locks
-// a paying cafe out mid-service.
-export function isBillingBlocked(b: BillingState): boolean {
-  return b.mode === "enforced" && (b.status === "past_due" || b.status === "unpaid" || b.status === "canceled");
-}
-
-// ---- Subscription plans (per-outlet, via BILLING_PLAN env) ----
-// menu     ₹499 — digital menu display only (no ordering, payments, waiter)
-// standard ₹699 — menu + ordering + payments + tracking + waiter (most popular)
-// pro      ₹1299 — everything: inventory, insights, coupons, staff, design
-// Unset → "pro" (full access, backward compatible for self-hosted).
-export type Plan = "menu" | "standard" | "pro";
-
-export function getPlan(): Plan {
-  const p = (process.env.BILLING_PLAN || "").toLowerCase().trim();
-  if (p === "menu" || p === "standard" || p === "pro") return p;
-  return "pro";
+export function normalizePlan(v: string | null | undefined): Plan {
+  const p = (v || "").toLowerCase().trim();
+  return p === "menu" || p === "standard" || p === "pro" ? p : "standard";
 }
 
 // Customer ordering stack (cart, checkout, payments, waiter, coupons).
@@ -142,7 +27,113 @@ export function planAllowsOrdering(plan: Plan): boolean {
   return plan === "standard" || plan === "pro";
 }
 
-// Pro-only dashboard modules (kitchen, coupons, staff).
+// Pro-only dashboard modules (inventory, insights, coupons, staff).
 export function planAllowsPro(plan: Plan): boolean {
   return plan === "pro";
+}
+
+export async function getSubscription(cafeId: string): Promise<Subscription | null> {
+  const c = await db.cafe.findUnique({
+    where: { id: cafeId },
+    select: { planTier: true, subStatus: true, subBilling: true, subPaidUntil: true, subRef: true },
+  });
+  if (!c) return null;
+  return {
+    plan: normalizePlan(c.planTier),
+    status: (["pending", "active", "past_due", "canceled"].includes(c.subStatus) ? c.subStatus : "pending") as SubStatus,
+    billing: c.subBilling === "yearly" ? "yearly" : "monthly",
+    paidUntil: c.subPaidUntil,
+    ref: c.subRef,
+  };
+}
+
+// "active" must also not be past its paid-until date. A null date means a
+// manually-activated / legacy outlet, which stays active indefinitely.
+export function isSubscriptionActive(sub: Subscription | null): boolean {
+  if (!sub || sub.status !== "active") return false;
+  return !sub.paidUntil || sub.paidUntil.getTime() > Date.now();
+}
+
+export async function getPlanFor(cafeId: string): Promise<Plan> {
+  const sub = await getSubscription(cafeId);
+  return sub?.plan ?? "standard";
+}
+
+export async function isProCafe(cafeId: string): Promise<boolean> {
+  return planAllowsPro(await getPlanFor(cafeId));
+}
+
+// Customer-facing reason why this outlet cannot take an order right now.
+// null = ordering is allowed. Used by the public order/waiter/pay routes so
+// preview mode blocks writes even if someone crafts a request by hand.
+export async function orderingBlockedReason(cafeId: string): Promise<string | null> {
+  const sub = await getSubscription(cafeId);
+  if (!isSubscriptionActive(sub)) {
+    return "This outlet isn't accepting online orders yet — please order at the counter.";
+  }
+  if (!planAllowsOrdering(sub!.plan)) {
+    return "Online ordering isn't enabled at this outlet — please order at the counter.";
+  }
+  return null;
+}
+
+// Server-side paywall. Returns a ready-to-return 402, or null when allowed.
+// Every mutating route calls this so preview mode can't be bypassed by a
+// crafted request — the UI lock is just the polite layer.
+export async function subscriptionGate(cafeId: string): Promise<NextResponse | null> {
+  const sub = await getSubscription(cafeId);
+  if (isSubscriptionActive(sub)) return null;
+  return NextResponse.json(
+    {
+      error: "This outlet is in preview mode. Subscribe to unlock changes.",
+      subscriptionRequired: true,
+      status: sub?.status ?? "pending",
+    },
+    { status: 402 },
+  );
+}
+
+function addMonths(d: Date, months: number): Date {
+  const next = new Date(d);
+  const day = next.getDate();
+  next.setMonth(next.getMonth() + months);
+  // Jan 31 + 1 month should land in March, not overflow into March 3.
+  if (next.getDate() < day) next.setDate(0);
+  return next;
+}
+
+// Extends an existing paid period instead of truncating it (renewals, upgrades).
+export async function activateSubscription(o: {
+  cafeId: string;
+  plan: Plan;
+  billing: "monthly" | "yearly";
+  ref: string;
+}): Promise<{ paidUntil: Date }> {
+  const cafe = await db.cafe.findUnique({
+    where: { id: o.cafeId },
+    select: { subPaidUntil: true, subStartedAt: true },
+  });
+  const now = new Date();
+  const from = cafe?.subPaidUntil && cafe.subPaidUntil.getTime() > now.getTime() ? cafe.subPaidUntil : now;
+  const paidUntil = addMonths(from, o.billing === "yearly" ? 12 : 1);
+  await db.cafe.update({
+    where: { id: o.cafeId },
+    data: {
+      planTier: o.plan,
+      subStatus: "active",
+      subBilling: o.billing,
+      subPaidUntil: paidUntil,
+      subRef: o.ref,
+      subStartedAt: cafe?.subStartedAt ?? now,
+    },
+  });
+  return { paidUntil };
+}
+
+export async function markPastDue(cafeId: string): Promise<void> {
+  await db.cafe.update({ where: { id: cafeId }, data: { subStatus: "past_due" } }).catch(() => {});
+}
+
+export function planLabel(plan: Plan): string {
+  return plan === "menu" ? "Basic" : plan === "pro" ? "Pro" : "Standard";
 }

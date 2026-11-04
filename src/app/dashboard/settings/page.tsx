@@ -15,6 +15,7 @@ export default function SettingsPage() {
   const [mail, setMail] = useState<{ configured: boolean; to: string } | null>(null);
   const [mailBusy, setMailBusy] = useState(false);
   const [mailMsg, setMailMsg] = useState("");
+  const [slug, setSlug] = useState("");
 
   async function loadMail() {
     try {
@@ -77,7 +78,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetch("/api/cafe").then((r) => r.json()).then((j) => {
-      if (j.cafe) setF({ name: j.cafe.name, tagline: j.cafe.tagline, description: j.cafe.description, upiId: j.cafe.upiId, gstPct: j.cafe.gstPct, currency: j.cafe.currency || "INR" });
+      if (j.cafe) {
+        setF({ name: j.cafe.name, tagline: j.cafe.tagline, description: j.cafe.description, upiId: j.cafe.upiId, gstPct: j.cafe.gstPct, currency: j.cafe.currency || "INR" });
+        setSlug(j.cafe.slug || "");
+      }
     }).catch(() => {});
   }, []);
 
@@ -186,7 +190,9 @@ export default function SettingsPage() {
 
       <div className="glass mt-4 rounded-3xl p-6 text-sm">
         <p className="font-black">🔗 Your customer link</p>
-        <p className="mt-1 break-all text-orange-300">Home: / — tables at /t/T1 … /t/T12 (print these QRs!)</p>
+        <p className="mt-1 break-all text-orange-300">
+          Menu: {slug ? `/t/${slug}/T1` : "/t/{outlet}/T1"} … {slug ? `/t/${slug}/T12` : "/t/{outlet}/T12"} (print these QRs!)
+        </p>
         <p className="mt-3 font-black">💳 Payments — zero friction, zero cheating</p>
         <p className="mt-1 text-stone-400"><b>UPI (no setup):</b> customer pays your QR and taps “I’ve Paid” — order fires instantly, you tap <b>✓ Received</b> when the credit lands (you’re watching live orders anyway). <b>Fully automatic:</b> add <b>RAZORPAY_KEY_ID + SECRET</b> → inline UPI/cards with server-verified signature, PAID with zero taps. Or <b>STRIPE_SECRET_KEY</b> → hosted checkout + webhook (/api/pay/stripe/webhook). The ONLINE button appears only when a gateway is connected.</p>
         <p className="mt-3 font-black">🛡️ Security checklist</p>

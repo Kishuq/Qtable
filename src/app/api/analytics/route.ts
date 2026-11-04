@@ -17,8 +17,8 @@ export async function GET() {
   // "Today" follows the cafe clock (IST), not server UTC.
   const { istMidnightUTC } = await import("@/lib/day");
   const since = istMidnightUTC();
-  const { getPlan, planAllowsPro } = await import("@/lib/billing");
-  const pro = planAllowsPro(getPlan());
+  const { isProCafe } = await import("@/lib/billing");
+  const pro = await isProCafe(cafeId);
   const [todayOrders, openOrders, payments, topItems, feedbacks, lowItems] = await Promise.all([
     db.order.findMany({ where: { cafeId, createdAt: { gte: since }, status: { not: "CANCELLED" } } }),
     db.order.count({ where: { cafeId, status: { in: ["NEW", "ACCEPTED", "PREPARING", "READY"] } } }),

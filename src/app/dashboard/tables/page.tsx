@@ -11,6 +11,7 @@ export default function TablesPage() {
   const toast = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [appUrl, setAppUrl] = useState("");
+  const [slug, setSlug] = useState("");
   const [cafeName, setCafeName] = useState("Your Outlet");
   const [tagline, setTagline] = useState("Scan. Order. Enjoy.");
   const [logo, setLogo] = useState("☕");
@@ -25,7 +26,7 @@ export default function TablesPage() {
   async function load() {
     const r = await fetch("/api/tables");
     const j = await r.json();
-    if (!j.error) { setTables(j.tables); setAppUrl(j.appUrl); }
+    if (!j.error) { setTables(j.tables); setAppUrl(j.appUrl); setSlug(j.slug || ""); }
     const c = await fetch("/api/cafe").then((x) => x.json()).catch(() => null);
     if (c?.cafe) {
       setCafeName(c.cafe.name); setLogo(c.cafe.logoEmoji || "☕");
@@ -40,7 +41,7 @@ export default function TablesPage() {
     try { localStorage.setItem("qrserve_card_style", s); } catch { /* noop */ }
   }
 
-  const urlFor = (c: string) => `${appUrl}/t/${encodeURIComponent(c)}`;
+  const urlFor = (c: string) => `${appUrl}/t/${encodeURIComponent(slug || "cafe")}/${encodeURIComponent(c)}`;
   const font = FONTS[theme.font] || FONTS.inter;
   const brandBg = theme.bgMode === "gradient"
     ? `linear-gradient(165deg, ${theme.primary} 0%, ${theme.bg} 130%)`
@@ -175,7 +176,7 @@ export default function TablesPage() {
               <button onClick={() => download(t)} disabled={busy === t.id} className="rounded-xl bg-orange-600 px-4 py-1.5 text-xs font-black disabled:opacity-50">
                 {busy === t.id ? "Rendering…" : "⬇ PNG"}
               </button>
-              <a href={`/t/${t.code}`} target="_blank" className="rounded-xl bg-white/10 px-4 py-1.5 text-xs font-bold">Open ↗</a>
+              <a href={`/t/${encodeURIComponent(slug || "cafe")}/${encodeURIComponent(t.code)}`} target="_blank" className="rounded-xl bg-white/10 px-4 py-1.5 text-xs font-bold">Open ↗</a>
               <button onClick={async () => { if (!confirm(`Delete ${t.code}?`) || busy) return; setBusy(t.id); try { await fetch(`/api/tables?id=${t.id}`, { method: "DELETE" }); toast(`${t.code} deleted`, "info"); } finally { setBusy(null); load(); } }} disabled={busy === t.id} className="rounded-xl border border-red-500/30 px-4 py-1.5 text-xs text-red-300 transition hover:bg-red-500/10 active:scale-95 disabled:opacity-60">{busy === t.id ? "… ⏳" : "Delete"}</button>
             </div>
             <p className="qr-url no-print mt-1 break-all text-center text-[11px] text-stone-500">{urlFor(t.code)}</p>
