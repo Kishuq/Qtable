@@ -9,6 +9,9 @@ export function LoginForm({ defaultEmail = "", googleEnabled = false }: { defaul
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
   const [err, setErr] = useState(sp.get("error") || "");
+  const [notice, setNotice] = useState(
+    sp.get("reset") === "1" ? "Password updated — sign in with your new password." : "",
+  );
   const [useGoogle, setUseGoogle] = useState(false);
   const [loading, setLoading] = useState(false);
   const next = sp.get("next") || "/dashboard";
@@ -64,6 +67,7 @@ export function LoginForm({ defaultEmail = "", googleEnabled = false }: { defaul
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required minLength={8} placeholder="••••••••" autoComplete="current-password"
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500" />
           </label>
+          {notice && !err && <p className="rounded-2xl bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
           {err && (
             <p className={`rounded-2xl p-3 text-sm ${useGoogle ? "bg-amber-500/10 text-amber-200" : "bg-red-500/10 text-red-300"}`}>
               {err}

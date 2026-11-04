@@ -12,6 +12,9 @@ function ResetInner() {
   const [pw2, setPw2] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  // Opened from the emailed link → email + token are already filled, so we
+  // only ask for the new password. Manual mode stays for recovery from DB.
+  const fromLink = Boolean(sp.get("token"));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +32,7 @@ function ResetInner() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Reset failed");
-      router.push("/login");
+      router.push("/login?reset=1");
       router.refresh();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Reset failed");
@@ -43,24 +46,31 @@ function ResetInner() {
       <div className="glass rounded-3xl p-8">
         <p className="text-3xl">🔑</p>
         <h1 className="mt-2 text-2xl font-black">Set a new password</h1>
-        <p className="mt-1 text-sm text-stone-400">Paste the reset token for your email (valid 24h).</p>
+        <p className="mt-1 text-sm text-stone-400">
+          {fromLink
+            ? `Choose a new password for ${email || "your account"}. The link expires in 24 hours.`
+            : "Paste the reset token from your email, or open the reset link directly."}
+        </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
             required
+            readOnly={fromLink}
             placeholder="owner@business.com"
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500"
+            className={`w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500 ${fromLink ? "text-stone-400" : ""}`}
           />
-          <input
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            required
-            minLength={32}
-            placeholder="Reset token"
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500"
-          />
+          {!fromLink && (
+            <input
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              required
+              minLength={32}
+              placeholder="Reset token (64 characters)"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-orange-500"
+            />
+          )}
           <input
             value={pw1}
             onChange={(e) => setPw1(e.target.value)}

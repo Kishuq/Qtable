@@ -78,11 +78,3 @@ export async function POST(req: NextRequest) {
   await setSessionCookie({ uid: user.id, email: user.email, role: user.role, cafeId: user.cafeId, name: user.name, verified: user.verified });
   return NextResponse.json({ ok: true, role: user.role, cafeId: user.cafeId, verified: user.verified });
 }
-
-// ✅ Password reset initiation — sent to frontend only after user confirms email exists
-export async function POST_RESET(req: NextRequest) {
-  // This would be a separate endpoint or method; for now we expose it as part of auth but guarded
-  // In a full implementation, this would be at /api/auth/reset/initiate
-  // and would require re-authentication or a captcha to prevent abuse.
-  return NextResponse.json({ error: "Not implemented yet — implement captcha-protected POST" }, { status: 501 });
-}

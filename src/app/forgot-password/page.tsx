@@ -34,17 +34,13 @@ export default function ForgotPasswordPage() {
         <p className="text-3xl">🔑</p>
         <h1 className="mt-2 text-2xl font-black">Reset password</h1>
         <p className="mt-1 text-sm text-stone-400">
-          Enter your login email. If an account exists, a 24-hour reset token is created — the owner can read it
-          from the database (<code>users.resetToken</code>) until email delivery is configured.
+          Enter your login email and we&apos;ll send a secure reset link. It works once and expires in 24 hours.
         </p>
         {done ? (
           <div className="mt-6 space-y-3">
             <p className="rounded-2xl bg-emerald-500/10 p-3 text-sm text-emerald-200">
-              If that email exists, a reset token was created (valid 24h).
+              If that email has an account, a reset link is on its way. Check your inbox (and spam) in the next minute.
             </p>
-            <Link href="/reset-password" className="block w-full rounded-2xl bg-orange-600 py-3 text-center font-bold hover:bg-orange-500">
-              Continue to reset →
-            </Link>
             <Link href="/login" className="block text-center text-sm font-bold text-orange-400">← Back to login</Link>
           </div>
         ) : (

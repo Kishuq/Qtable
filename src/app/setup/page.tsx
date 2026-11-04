@@ -136,6 +136,11 @@ function SetupInner() {
             {loading ? "Opening your outlet… 🎉" : "Open my outlet →"}
           </button>
         </form>
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-stone-500">
+          By opening an outlet you agree to our{" "}
+          <Link href="/terms" className="underline underline-offset-2 hover:text-stone-300">Terms</Link> and{" "}
+          <Link href="/privacy" className="underline underline-offset-2 hover:text-stone-300">Privacy Policy</Link>.
+        </p>
         <p className="mt-4 text-center text-sm text-stone-400">Already set up? <Link href="/login" className="font-bold text-orange-400">Log in</Link></p>
       </div>
     </div>

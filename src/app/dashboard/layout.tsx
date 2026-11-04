@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, ReceiptText, UtensilsCrossed, QrCode, Settings, LogOut, BadgePercent, Users, Wallet, Palette, History, Bell, BellOff, BookOpen } from "lucide-react";
+import { LayoutDashboard, ReceiptText, UtensilsCrossed, QrCode, Settings, LogOut, BadgePercent, Users, Wallet, Palette, History, Bell, BellOff, BookOpen, Boxes, BarChart3 } from "lucide-react";
 import { useLiveOrders } from "@/hooks/useLiveOrders";
 import { useToast } from "@/components/ux";
 import { Tour } from "@/components/Tour";
@@ -14,12 +14,14 @@ const NAV_GROUPS = [
     items: [
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/orders", label: "Orders", icon: ReceiptText },
+      { href: "/dashboard/analytics", label: "Insights", icon: BarChart3 },
     ],
   },
   {
     title: "Manage",
     items: [
       { href: "/dashboard/menu", label: "Menu", icon: UtensilsCrossed },
+      { href: "/dashboard/inventory", label: "Inventory", icon: Boxes },
       { href: "/dashboard/coupons", label: "Discounts", icon: BadgePercent },
       { href: "/dashboard/tables", label: "Tables & QR", icon: QrCode },
       { href: "/dashboard/payments", label: "Payments", icon: Wallet },

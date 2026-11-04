@@ -127,7 +127,7 @@ export function isBillingBlocked(b: BillingState): boolean {
 // ---- Subscription plans (per-outlet, via BILLING_PLAN env) ----
 // menu     ₹499 — digital menu display only (no ordering, payments, waiter)
 // standard ₹699 — menu + ordering + payments + tracking + waiter (most popular)
-// pro      ₹1299 — everything: kitchen, coupons, staff, analytics, design
+// pro      ₹1299 — everything: inventory, insights, coupons, staff, design
 // Unset → "pro" (full access, backward compatible for self-hosted).
 export type Plan = "menu" | "standard" | "pro";
 

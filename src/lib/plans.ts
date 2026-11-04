@@ -29,7 +29,7 @@ export const PLANS: Record<
     monthly: 1299,
     mrp: 1699,
     yearlyTotal: 12990,
-    features: ["Everything in Standard", "Coupons & offers engine", "Staff logins + roles", "Priority support"],
+    features: ["Everything in Standard", "Inventory + low-stock alerts", "Coupons & offers engine", "Staff logins + revenue insights"],
   },
 };
 
@@ -61,4 +61,6 @@ export const COMPARE: { label: string; menu: boolean; standard: boolean; pro: bo
   { label: "Order history & ledger", menu: false, standard: true, pro: true },
   { label: "Coupons & offers", menu: false, standard: false, pro: true },
   { label: "Staff logins", menu: false, standard: false, pro: true },
+  { label: "Inventory + low-stock alerts", menu: false, standard: false, pro: true },
+  { label: "Insights: revenue, peak hours, payment mix", menu: false, standard: false, pro: true },
 ];

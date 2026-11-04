@@ -12,6 +12,30 @@ export default function SettingsPage() {
   const [liveMode, setLiveMode] = useState(false);
   const [gwBusy, setGwBusy] = useState(false);
   const [gwMsg, setGwMsg] = useState("");
+  const [mail, setMail] = useState<{ configured: boolean; to: string } | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailMsg, setMailMsg] = useState("");
+
+  async function loadMail() {
+    try {
+      const r = await fetch("/api/email/test");
+      const j = await r.json();
+      if (!j.error) setMail({ configured: Boolean(j.configured), to: j.to || "" });
+    } catch { /* offline */ }
+  }
+
+  async function sendTestEmail() {
+    setMailMsg("");
+    setMailBusy(true);
+    try {
+      const r = await fetch("/api/email/test", { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Couldn't send the test email");
+      setMailMsg(`✅ Test sent to ${j.to || mail?.to || "your inbox"} — check the inbox and the spam folder.`);
+    } catch (e: unknown) {
+      setMailMsg(`❌ ${e instanceof Error ? e.message : "Couldn't send the test email"}`);
+    } finally { setMailBusy(false); }
+  }
 
   async function loadGateway() {
     try {
@@ -21,7 +45,7 @@ export default function SettingsPage() {
     } catch { /* offline */ }
   }
 
-  useEffect(() => { loadGateway(); }, []);
+  useEffect(() => { loadGateway(); loadMail(); }, []);
 
   async function connectGateway() {
     setGwMsg("");
@@ -130,6 +154,34 @@ export default function SettingsPage() {
             <p className="text-[11px] text-stone-500">Get keys: Razorpay Dashboard → Settings → API Keys. Start in test mode, flip to live after KYC.</p>
           </div>
         )}
+      </div>
+
+      <div className="glass mt-4 rounded-3xl p-6">
+        <p className="font-black">📧 Email delivery</p>
+        <p className="mt-1 text-sm text-stone-400">
+          Password-reset links and subscription receipts are sent from here. A test email proves delivery before it
+          matters.
+        </p>
+        <div className="mt-3 rounded-2xl border border-white/10 bg-white/[.03] p-4 text-sm">
+          {mail === null ? (
+            <p className="text-stone-400">Checking…</p>
+          ) : mail.configured ? (
+            <p className="font-bold text-emerald-300">● Connected — sending as Qtable Billing</p>
+          ) : (
+            <p className="font-bold text-amber-300">
+              ○ Not configured — add <code className="text-amber-200">RESEND_API_KEY</code> in Vercel and redeploy.
+            </p>
+          )}
+          {mail?.to && <p className="mt-1 text-xs text-stone-500">Test recipient: {mail.to}</p>}
+        </div>
+        <button
+          onClick={sendTestEmail}
+          disabled={mailBusy || !mail?.configured}
+          className="mt-3 w-full rounded-2xl bg-white/10 py-3 text-sm font-black transition hover:bg-white/20 active:scale-[.99] disabled:opacity-50"
+        >
+          {mailBusy ? "Sending… ⏳" : "Send test email →"}
+        </button>
+        {mailMsg && <p className="mt-2 text-sm">{mailMsg}</p>}
       </div>
 
       <div className="glass mt-4 rounded-3xl p-6 text-sm">

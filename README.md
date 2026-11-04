@@ -41,10 +41,28 @@ Optionally use that photo as the menu backdrop. Publishes instantly — zero red
 |---|---|---|
 | Basic | ₹499/mo | Digital menu display only (no ordering/payments) |
 | Standard | ₹699/mo | + ordering, Cash/UPI/cards, tracking, waiter calls, history |
-| Pro | ₹1,299/mo | + coupons, staff logins |
+| Pro | ₹1,299/mo | + inventory & low-stock alerts, insights, coupons, staff logins |
 
 Per-outlet env: `BILLING_PLAN=menu|standard|pro` (unset = full access). See `src/lib/plans.ts`
 (single source of truth) and `src/lib/billing.ts` for the gate logic.
+
+## 📦 Inventory & Insights (Pro)
+
+Both are enforced server-side, not just hidden in the nav:
+
+- **`/dashboard/inventory`** — per-item stock, one-tap −/+/+10, "warn at" threshold,
+  mark sold out, start/stop tracking. `GET/PATCH /api/inventory` returns `403` on
+  Basic/Standard. Low-stock items also surface as a banner on the overview.
+- **`/dashboard/analytics`** — revenue by day (7 or 30), busiest hours in IST,
+  payment mix, best sellers, recent feedback. `GET /api/analytics/detail?days=7|30`
+  is Pro-only and cached for 15s per outlet.
+
+## 📄 Legal & support pages
+
+`/privacy` and `/terms` are real pages linked from the landing footer, the setup form
+and the page footers, so the OAuth consent screen and gateway onboarding always have a
+URL to point at. Set `NEXT_PUBLIC_SUPPORT_EMAIL` to the inbox you actually monitor —
+the default `support@qtable.in` only makes sense once that domain is yours.
 
 ## 💰 Your subscription revenue (Razorpay UPI Autopay)
 
@@ -69,6 +87,10 @@ The owner should authenticate **once**, never retype details:
 - **Manual:** the last successful email is kept in an httpOnly `qtable_last_email`
   cookie and pre-filled on `/login`. Setup signs the owner in immediately, and the
   session lasts 30 days.
+- **Password reset:** `/forgot-password` creates a single-use 24h token and emails a
+  link to `/reset-password?email=…&token=…` (Resend). Settings → **Email delivery** has
+  a "Send test email" button so delivery can be proven before it matters. Without
+  `RESEND_API_KEY` the token is still written to the DB for manual recovery.
 - A valid session skips `/login` and the marketing `/` entirely (both redirect to
   `/dashboard`), so an active owner never sees a form.
 
@@ -84,14 +106,16 @@ Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_AP
 ## 📁 Map
 
 - `src/app/t/[code]/` — QR menu + checkout · `src/app/order/[id]/` — live tracking + ETA
-- `src/app/menu/` — generic browse menu · `src/app/subscribe/` — plan checkout gate
-- `src/app/dashboard/` — overview, orders, history, menu, coupons, design,
-  tables, payments, staff, settings, guide
+- `src/app/subscribe/` — plan checkout gate · `src/app/privacy|terms/` — legal pages
+- `src/app/dashboard/` — overview, orders, insights, inventory, history, menu, coupons,
+  design, tables, payments, staff, settings, guide
 - `src/app/api/` — `setup` (first-run, locked), `auth/*` (+ Google OAuth, password reset),
-  `public/*` (menu, order, waiter, feedback, pay), `orders`, `menu`, `tables`, `coupons`,
-  `payments`, `staff`, `cafe`, `analytics`, `billing/*`, `stream/orders`, `qr`
+  `public/*` (menu, order, waiter, feedback, pay), `orders`, `menu`, `inventory`,
+  `tables`, `coupons`, `payments`, `staff`, `cafe`, `analytics(+/detail)`, `billing/*`,
+  `email/test`, `stream/orders`, `qr`
 - `src/lib/` — `auth`, `billing` (+plans), `plans`, `security` (limits), `paykeys` (AES),
-  `email` (Resend), `theme`, `day` (IST), `google`, `db`, `cafe`, `format`, `qr`
+  `email` (Resend), `url` (public origin), `theme`, `day` (IST), `google`, `db`, `cafe`,
+  `format`, `qr`
 
 ## 🏋️ Scaling notes (honest)
 

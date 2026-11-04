@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
-// Locks pro-only dashboard modules (kitchen, coupons, staff) behind the Pro plan.
-// Menu/standard plans see an upgrade card instead of the module.
+// Locks pro-only dashboard modules (inventory, insights, coupons, staff)
+// behind the Pro plan. Menu/standard plans see an upgrade card instead.
 export function PlanGate({ children }: { children: ReactNode }) {
   const [plan, setPlan] = useState<string | null>(null);
 

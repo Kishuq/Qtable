@@ -3,13 +3,15 @@ import { z } from "zod";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { limitRequest, tooMany, isEmail } from "@/lib/security";
+import { sendEmail, resetPasswordHtml, emailConfigured } from "@/lib/email";
+import { absoluteUrl } from "@/lib/url";
 
 const Schema = z.object({ email: z.string().email().max(120) });
 
 // Public forgot-password: always returns ok (no account enumeration).
-// NOTE: no email provider is configured yet, so the reset token must be
-// retrieved by the owner from the database (Neon → users → resetToken)
-// or a future mail integration. Token expires in 24h.
+// Creates a single-use, 24h token and emails the link. If email delivery
+// isn't configured yet, the token still lands in the database so the owner
+// can recover manually — but the response never reveals which case happened.
 export async function POST(req: NextRequest) {
   if (!(await limitRequest(req, "pw-request", 5, 60_000))) return tooMany();
   let body: unknown;
@@ -30,11 +32,27 @@ export async function POST(req: NextRequest) {
       const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await db.user.update({ where: { email }, data: { resetToken: token, resetExpires: expires } });
       await db.auditLog.create({ data: { action: "PW_RESET_REQUEST", meta: `email=${email}` } });
+
+      const url = absoluteUrl(
+        `/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`,
+      );
+      // Await so the send can't be dropped when the lambda freezes after
+      // responding. No key configured → returns false immediately.
+      const sent = await sendEmail({
+        to: email,
+        subject: "Reset your Qtable password",
+        html: resetPasswordHtml({ name: user.name, url }),
+      });
+      if (sent) {
+        await db.auditLog.create({ data: { action: "PW_RESET_EMAIL_SENT", meta: `email=${email}` } }).catch(() => {});
+      } else if (!emailConfigured()) {
+        console.warn("PW_RESET_NO_EMAIL_PROVIDER — token stored for manual recovery", email);
+      }
     } else {
       await db.auditLog.create({ data: { action: "PW_RESET_REQUEST_MISS" } });
     }
   } catch {
-    // best-effort logging only
+    // best-effort logging only — never leak errors to the caller
   }
   return NextResponse.json({ ok: true });
 }

@@ -33,6 +33,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 export const useToast = () => useContext(ToastCtx);
 
 // ---------- Skeletons ----------
+export function Spinner({ className = "" }: { className?: string }) {
+  return <span role="status" aria-label="Loading" className={`inline-block size-5 animate-spin rounded-full border-2 border-white/20 border-t-orange-500 ${className}`} />;
+}
+
 export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-shimmer rounded-2xl bg-gradient-to-r from-white/5 via-white/10 to-white/5 ${className}`} />;
 }

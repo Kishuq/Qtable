@@ -628,8 +628,8 @@ export default async function Landing() {
           </div>
           {[
             ["Product", [["How it works", "#how"], ["Features", "#features"], ["Pricing", "#pricing"], ["Owner login", "/login"]]],
-            ["Outlet", [["View menu", "/t/T1"], ["Track order", "/t/T1"], ["Give feedback", "/t/T1"], ["Get started", "/setup"]]],
-            ["Support", [["Book a demo", "/login"], ["Setup guide", "/setup"], ["Status", "/api/health"], ["Privacy", "#top"]]],
+            ["Get started", [["Start with Qtable", "/subscribe?next=/setup"], ["See the plans", "/subscribe"], ["Owner sign-up", "/setup"], ["Reset password", "/forgot-password"]]],
+            ["Company", [["Privacy", "/privacy"], ["Terms", "/terms"], ["System status", "/api/health"], ["Contact", `mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@qtable.in"}`]]],
           ].map(([h, links]) => (
             <div key={h as string}>
               <p className="text-xs font-black uppercase tracking-widest text-stone-400">{h}</p>

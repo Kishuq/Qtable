@@ -128,9 +128,9 @@ export default function Overview() {
         </Link>
       )}
       {stats?.lowStock && stats.lowStock.length > 0 && (
-        <Link href="/dashboard/menu" className="mb-4 block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-bold text-amber-200">
+        <Link href="/dashboard/inventory" className="mb-4 block rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-bold text-amber-200">
           ⚠️ Running low: {stats.lowStock.slice(0, 3).map((l) => `${l.name} (${l.stock})`).join(", ")}
-          {stats.lowStock.length > 3 ? ` +${stats.lowStock.length - 3} more` : ""} — restock in Menu before the rush.
+          {stats.lowStock.length > 3 ? ` +${stats.lowStock.length - 3} more` : ""} — restock in Inventory before the rush.
         </Link>
       )}
       {!guideOff && guide && (!guide.menu || !guide.tables || !guide.team || upiMissing) && (
@@ -194,7 +194,10 @@ export default function Overview() {
           </div>
         </div>
         <div className="glass rounded-3xl p-5">
-          <p className="font-black">Top sellers</p>
+          <div className="flex items-center justify-between">
+            <p className="font-black">Top sellers</p>
+            <Link href="/dashboard/analytics" className="text-xs font-bold text-orange-400">Insights →</Link>
+          </div>
           <div className="mt-3 space-y-2">
             {(stats?.topItems || []).map((t) => (
               <div key={t.name} className="flex justify-between rounded-2xl bg-white/[.04] p-3 text-sm"><span>{t.name}</span><b>{t._sum.qty} sold</b></div>
