@@ -13,16 +13,32 @@ function home(path: string) {
 // the Google email must already belong to a verified user.
 export async function GET(req: NextRequest) {
   const fail = (why: string) => home(`/login?error=${encodeURIComponent(why)}`);
+  // Google sends ?error=... when the person cancels the consent screen or the
+  // app blocks the account (e.g. it's still in Testing and the Gmail isn't a
+  // test user). Say that plainly instead of calling it "expired".
+  const googleError = req.nextUrl.searchParams.get("error") || "";
+  if (googleError) {
+    const why =
+      googleError === "access_denied"
+        ? "Google blocked this sign-in. If the app is still in Testing, add your Gmail under Google Auth Platform → Audience → Test users, then try again."
+        : "Google couldn't complete the sign-in. Please try again in a moment.";
+    const res = fail(why);
+    res.cookies.set("qtable_oauth", "", { httpOnly: true, path: "/", maxAge: 0 });
+    return res;
+  }
   let saved: { state?: string; mode?: string; next?: string } = {};
   try {
     saved = JSON.parse(req.cookies.get("qtable_oauth")?.value || "{}");
   } catch {
-    return fail("Login expired — please try again.");
+    return fail("Sign-in timed out. Tap Continue with Google again — keep it in this same tab.");
   }
   const state = req.nextUrl.searchParams.get("state") || "";
   const code = req.nextUrl.searchParams.get("code") || "";
   if (!state || !saved.state || state !== saved.state || !code) {
-    return fail("Login expired — please try again.");
+    // Causes: the link was refreshed, two sign-in attempts ran in different
+    // tabs (the later one overwrote the first), or a different browser
+    // finished the flow. Restarting in one tab always fixes it.
+    return fail("Sign-in timed out or was started in another tab. Tap Continue with Google again.");
   }
   const mode = saved.mode === "setup" ? "setup" : "login";
   const next = saved.next && saved.next.startsWith("/") ? saved.next : "/dashboard";

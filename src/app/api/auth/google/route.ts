@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
       secure: appBaseUrl().startsWith("https://"),
       sameSite: "lax",
       path: "/",
-      maxAge: 600,
+      // 15 minutes: enough for account picker + 2FA, short enough to limit CSRF.
+      maxAge: 900,
     });
     return res;
   } catch (e) {
