@@ -101,21 +101,29 @@ export async function POST(req: NextRequest) {
 
     await tx.user.update({ where: { id: user.id }, data: { cafeId: cafe.id } });
 
-    const catMap: Record<string, string> = {};
-    for (let i = 0; i < DEMO_CATEGORIES.length; i++) {
-      const c = await tx.category.create({ data: { cafeId: cafe.id, name: DEMO_CATEGORIES[i], sort: i } });
-      catMap[c.name] = c.id;
-    }
-    for (let i = 0; i < DEMO_ITEMS.length; i++) {
-      const it = DEMO_ITEMS[i];
-      await tx.menuItem.create({
-        data: { cafeId: cafe.id, categoryId: catMap[it.cat], name: it.name, description: it.description, price: it.price, imageEmoji: it.imageEmoji, imageUrl: it.img, veg: it.veg, popular: it.popular, sort: i },
-      });
-    }
-    for (let t = 1; t <= 12; t++) {
-      await tx.cafeTable.create({ data: { cafeId: cafe.id, code: `T${t}`, name: `Table ${t}` } });
-    }
+    // Demo data in three batch INSERTs instead of 27 round trips. Signup is a
+    // traffic spike of its own — a slow cold-start transaction (5s+) holds a
+    // connection and makes every new outlet feel broken. IDs are generated
+    // here so items can point at their category without a second read.
+    const catRows = DEMO_CATEGORIES.map((name, i) => ({ id: crypto.randomUUID(), cafeId: cafe.id, name, sort: i }));
+    await tx.category.createMany({ data: catRows });
+    const catMap = new Map(catRows.map((c) => [c.name, c.id]));
+
+    await tx.menuItem.createMany({
+      data: DEMO_ITEMS.map((it, i) => ({
+        cafeId: cafe.id, categoryId: catMap.get(it.cat) ?? null, name: it.name, description: it.description,
+        price: it.price, imageEmoji: it.imageEmoji, imageUrl: it.img, veg: it.veg, popular: it.popular, sort: i,
+      })),
+    });
+
+    await tx.cafeTable.createMany({
+      data: Array.from({ length: 12 }, (_, i) => ({
+        cafeId: cafe.id, code: `T${i + 1}`, name: `Table ${i + 1}`, qrToken: crypto.randomUUID(),
+      })),
+    });
+
     await tx.coupon.create({ data: { cafeId: cafe.id, code: "WELCOME10", pct: 10 } });
+    await tx.billingEvent.create({ data: { cafeId: cafe.id, kind: "signup", plan, billing: "monthly" } });
     await tx.auditLog.create({ data: { cafeId: cafe.id, userId: user.id, action: google ? "SIGNUP_GOOGLE" : "SIGNUP_EMAIL", meta: `slug=${slug} plan=${plan}` } });
 
     return { user, cafe };

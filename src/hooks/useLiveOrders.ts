@@ -128,10 +128,13 @@ export function useLiveOrders(
 
   const check = useCallback(async () => {
     if (!cafeId) return;
+    // One request carries both NEW orders and open waiter calls, so a counter
+    // with three tabs open makes one poll instead of six.
     try {
-      const r = await fetch("/api/orders?status=NEW");
+      const r = await fetch("/api/orders?status=NEW&live=1");
       if (!r.ok) return;
       const j = await r.json();
+
       const fresh: NewOrderInfo[] = j.orders || [];
       setOpen(fresh.length);
       if (!seenRef.current) {
@@ -148,39 +151,45 @@ export function useLiveOrders(
         }
         saveSeen(seenRef.current);
       }
-    } catch { /* offline — SSE/poll will retry */ }
-    // Waiter calls ride the same poll — counter hears them even on the
-    // overview tab, not just orders.
-    try {
-      const r = await fetch("/api/waiter");
-      if (!r.ok) return;
-      const j = await r.json();
-      const fresh: WaiterInfo[] = (j.calls || []).filter((c: { status: string }) => c.status === "OPEN");
+
+      if (!Array.isArray(j.waiterCalls)) return;
+      const calls: WaiterInfo[] = j.waiterCalls.filter((c: { status: string }) => c.status === "OPEN");
       if (!seenWaiterRef.current) {
-        seenWaiterRef.current = new Set(fresh.map((w) => w.id));
+        seenWaiterRef.current = new Set(calls.map((w) => w.id));
         return;
       }
-      for (const w of fresh) {
+      for (const w of calls) {
         if (!seenWaiterRef.current.has(w.id)) {
           seenWaiterRef.current.add(w.id);
           alertWaiter(w);
         }
       }
-    } catch { /* offline — next poll retries */ }
+    } catch { /* offline — SSE/poll will retry */ }
   }, [cafeId, alert, alertWaiter]);
 
   useEffect(() => {
     if (!cafeId) return;
     let es: EventSource | null = null;
+    let poll: ReturnType<typeof setInterval> | null = null;
+    let pollMs = 0;
+    // SSE already pings us the moment something changes. While it's healthy a
+    // slow 30s safety poll is enough; if the stream drops (serverless 60s cap,
+    // sleeping laptop) we fall back to 10s polling until it reconnects.
+    const arm = (ms: number) => {
+      if (pollMs === ms && poll) return;
+      pollMs = ms;
+      if (poll) clearInterval(poll);
+      poll = setInterval(() => { if (!document.hidden) void check(); }, ms);
+    };
     try {
       es = new EventSource(`/api/stream/orders?cafeId=${cafeId}`);
-      es.onopen = () => setConnected(true);
-      es.onmessage = () => { setConnected(true); void check(); };
-      es.onerror = () => setConnected(false);
+      es.onopen = () => { setConnected(true); arm(30_000); };
+      es.onmessage = () => { setConnected(true); arm(30_000); void check(); };
+      es.onerror = () => { setConnected(false); arm(10_000); };
     } catch { /* polling fallback below */ }
     void check();
-    const poll = setInterval(() => { if (!document.hidden) void check(); }, 5000);
-    return () => { es?.close(); clearInterval(poll); };
+    arm(10_000);
+    return () => { es?.close(); if (poll) clearInterval(poll); };
   }, [cafeId, check]);
 
   const toggleSound = useCallback(() => {

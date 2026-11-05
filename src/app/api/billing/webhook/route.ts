@@ -64,7 +64,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: "amount-mismatch" });
     }
 
-    await activateSubscription({ cafeId, plan, billing, ref: String(pay?.id || order?.id || "") });
+    await activateSubscription({
+      cafeId, plan, billing,
+      ref: String(pay?.id || order?.id || ""),
+      amount: amountPaise || expectedPaise,
+    });
     try { await db.auditLog.create({ data: { cafeId, action: "BILL_WEBHOOK_ACTIVATED", meta: `${plan} ${billing} ${pay?.id || order?.id}` } }); } catch {}
 
     const owner = cafe.ownerId

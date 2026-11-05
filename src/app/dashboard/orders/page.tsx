@@ -26,24 +26,18 @@ export default function OrdersPage() {
   const [pending, setPending] = useState<{ id: string; action: string } | null>(null);
   const [busyCall, setBusyCall] = useState<string | null>(null);
 
+  // One request per tick returns orders + waiter calls together. A busy
+  // counter used to hit two endpoints on two separate timers.
   const load = useCallback(async () => {
-    const r = await fetch(`/api/orders?status=${filter}&q=${encodeURIComponent(q)}`);
+    const r = await fetch(`/api/orders?status=${filter}&q=${encodeURIComponent(q)}&live=1`);
     const j = await r.json();
     if (j.orders) setOrders(j.orders);
+    if (j.waiterCalls) setCalls(j.waiterCalls);
   }, [filter, q]);
 
-  const loadCalls = useCallback(async () => {
-    try {
-      const r = await fetch("/api/waiter");
-      const j = await r.json();
-      if (j.calls) setCalls(j.calls);
-    } catch { /* offline — next poll retries */ }
-  }, []);
-
   // Skip ticks while the tab is hidden — counter tablets sit open for hours;
-  // no point burning DB + battery rendering nothing.
-  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 3500); return () => clearInterval(t); }, [load]);
-  useEffect(() => { loadCalls(); const t = setInterval(() => { if (!document.hidden) loadCalls(); }, 4000); return () => clearInterval(t); }, [loadCalls]);
+  // no point burning DB + battery rendering nothing. 6s still feels live.
+  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 6000); return () => clearInterval(t); }, [load]);
 
   async function setCallStatus(id: string, status: string) {
     const prev = calls;
@@ -59,7 +53,7 @@ export default function OrdersPage() {
       toast(e instanceof Error ? e.message : "Network hiccup — check connection", "err");
     } finally {
       setBusyCall(null);
-      loadCalls();
+      load();
     }
   }
 

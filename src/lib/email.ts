@@ -78,6 +78,22 @@ export function paymentFailedHtml(o: { name: string; amount: string }): string {
   `);
 }
 
+// Friendly heads-up a few days before the paid period ends. Renewal is manual
+// today, so this mail (and the dashboard banner) is what prevents a silent
+// outage when the gate closes.
+export function renewalReminderHtml(o: { name: string; plan: string; amount: string; date: string; url: string }): string {
+  return shell(`
+    <h2 style="margin:0 0 4px;font-size:22px">Your Qtable plan renews on ${o.date}</h2>
+    <p style="color:#a8a29e;font-size:14px">Hi ${o.name}, this is a reminder that <b style="color:#fff">Qtable ${o.plan}</b> (${o.amount}) is due on ${o.date}.</p>
+    <p style="margin:24px 0">
+      <a href="${o.url}" style="display:inline-block;background:#ea580c;color:#fff;text-decoration:none;font-weight:800;font-size:15px;padding:14px 22px;border-radius:14px">
+        Renew now →
+      </a>
+    </p>
+    <p style="font-size:13px;color:#a8a29e">Renewing early simply extends your current period — you never lose paid days. If you do nothing, the outlet switches to preview mode on ${o.date} (your menu and data stay safe).</p>
+  `);
+}
+
 // Password reset — the only mail a signed-out owner ever needs.
 // Link carries the single-use token; it expires in 24h.
 export function resetPasswordHtml(o: { name: string; url: string }): string {

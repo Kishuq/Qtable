@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isEmail, rateLimit, clientKey, tooMany, cleanStr } from "@/lib/security";
+import { cleanStr } from "@/lib/security";
 
 async function guard() {
   const s = await getSession();
@@ -31,17 +31,31 @@ export async function GET(req: NextRequest) {
   const lte = to ? ( /^\d{4}-\d{2}-\d{2}$/.test(to) ? new Date(`${to}T23:59:59`) : undefined ) : undefined;
 
   const createdAt = gte || lte ? { ...(gte && !isNaN(+gte) ? { gte } : {}), ...(lte && !isNaN(+lte) ? { lte } : {}) } : undefined;
-  const orders = await db.order.findMany({
-    where: {
-      cafeId: s.cafeId,
-      ...(safeStatus && safeStatus !== "ALL" ? { status: safeStatus as string } : {}),
-      ...(createdAt ? { createdAt } : {}),
-      ...(q ? { OR: [{ tableCode: { contains: q } }, { customerName: { contains: q } }, { customerPhone: { contains: q } }] } : {}),
-    },
-    include: { items: true, payments: { orderBy: { createdAt: "desc" }, take: 3 } },
-    orderBy: { createdAt: "desc" },
-    take: history ? 1000 : 120,
-  });
+  // live=1 is the dashboard heartbeat: NEW orders + open waiter calls in ONE
+  // round trip. Previously every owner tab polled /api/orders and /api/waiter
+  // separately every 5s — double the requests and double the DB load.
+  const live = req.nextUrl.searchParams.get("live") === "1";
+
+  const [orders, waiterCalls] = await Promise.all([
+    db.order.findMany({
+      where: {
+        cafeId: s.cafeId,
+        ...(safeStatus && safeStatus !== "ALL" ? { status: safeStatus as string } : {}),
+        ...(createdAt ? { createdAt } : {}),
+        ...(q ? { OR: [{ tableCode: { contains: q } }, { customerName: { contains: q } }, { customerPhone: { contains: q } }] } : {}),
+      },
+      include: { items: true, payments: { orderBy: { createdAt: "desc" }, take: 3 } },
+      orderBy: { createdAt: "desc" },
+      take: history ? 1000 : live ? 50 : 120,
+    }),
+    live
+      ? db.serviceCall.findMany({
+          where: { cafeId: s.cafeId, status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+          orderBy: { createdAt: "asc" },
+          take: 50,
+        })
+      : Promise.resolve([]),
+  ]);
   const revenue = orders.filter((o) => o.status !== "CANCELLED").reduce((a, o) => a + o.total, 0);
-  return NextResponse.json({ orders, revenue, count: orders.length });
+  return NextResponse.json({ orders, revenue, count: orders.length, ...(live ? { waiterCalls } : {}) });
 }

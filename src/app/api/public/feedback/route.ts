@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCafe } from "@/lib/cafe";
 import { db } from "@/lib/db";
-import { limitRequest, tooMany, cleanStr } from "@/lib/security";
+import { limitTenantRequest, tooMany, cleanStr } from "@/lib/security";
 
 // Order IDs are Prisma cuid() strings — format checked loosely here because
 // ownership is verified against the DB below (the real protection).
@@ -14,7 +14,6 @@ const Schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  if (!(await limitRequest(req, "feedback", 10, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const p = Schema.safeParse(body);
@@ -36,6 +35,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Outlet not found" }, { status: 404 });
   }
   if (!cafe) return NextResponse.json({ error: "Outlet not found" }, { status: 404 });
+  if (!(await limitTenantRequest(req, "feedback", cafe.slug, 10, 60_000))) return tooMany();
 
   await db.feedback.create({ data: { cafeId: cafe.id, orderId: cleanStr(p.data.orderId, 64), rating: p.data.rating, comment: cleanStr(p.data.comment, 300) } });
   return NextResponse.json({ ok: true });

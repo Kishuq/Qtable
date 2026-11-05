@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, ReceiptText, UtensilsCrossed, QrCode, Settings, LogOut, BadgePercent, Users, Wallet, Palette, History, Bell, BellOff, BookOpen, Boxes, BarChart3 } from "lucide-react";
+import { LayoutDashboard, ReceiptText, UtensilsCrossed, QrCode, Settings, LogOut, BadgePercent, Users, Wallet, Palette, History, Bell, BellOff, BookOpen, Boxes, BarChart3, CreditCard } from "lucide-react";
 import { useLiveOrders } from "@/hooks/useLiveOrders";
 import { useToast } from "@/components/ux";
 import { Tour } from "@/components/Tour";
@@ -32,6 +32,7 @@ const NAV_GROUPS = [
     title: "Studio",
     items: [
       { href: "/dashboard/design", label: "Design", icon: Palette },
+      { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
       { href: "/dashboard/staff", label: "Staff", icon: Users },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
       { href: "/dashboard/guide", label: "Guide", icon: BookOpen },

@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
 import { orderingBlockedReason, getPlanFor, planAllowsPro } from "@/lib/billing";
-import { limitRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
+import { limitTenantRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 
 const Item = z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20), note: z.string().max(120).optional().default("") });
 const Schema = z.object({
@@ -21,9 +21,6 @@ const Schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  // 60/min: a whole cafe shares one public IP (NAT), so per-IP budget must
-  // cover every table at once. Abuse is still capped; proxies must forward XFF.
-  if (!(await limitRequest(req, "order", 60, 60_000))) return tooMany();
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = Schema.safeParse(body);
@@ -39,6 +36,11 @@ export async function POST(req: NextRequest) {
   let cafe;
   try { cafe = await requireCafe(d.slug); } catch { return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 }); }
   if (!cafe.isActive) return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
+
+  // 60/min per outlet, not per IP: a whole café shares one NAT address, and
+  // neighbouring outlets on the same mall Wi-Fi must not eat each other's
+  // budget. A 4× wider IP guard still caps a single abuser across all outlets.
+  if (!(await limitTenantRequest(req, "order", cafe.slug, 60, 60_000))) return tooMany();
 
   // Paywall: unpaid (preview) outlets cannot take orders, and Basic (menu-only)
   // outlets cannot take orders either. Enforced here, not just in the UI.

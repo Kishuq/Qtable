@@ -30,13 +30,13 @@ export function rateLimit(key: string, max = 30, windowMs = 60_000): boolean {
   return b.count <= max;
 }
 
-export function clientKey(req: NextRequest, suffix = "") {
+export function clientKey(req: NextRequest, suffix = "", scope = "") {
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     // @ts-expect-error next ip
     req.ip ||
     "anon";
-  return `${ip}:${req.nextUrl.pathname}:${suffix}`;
+  return `${ip}:${req.nextUrl.pathname}:${suffix}${scope ? `:${scope}` : ""}`;
 }
 
 export function tooMany() {
@@ -47,27 +47,68 @@ export function tooMany() {
 // The in-memory buckets above reset on every serverless cold start, so they
 // only slow casual abuse. When UPSTASH_REDIS_REST_URL + TOKEN are set, this
 // enforces limits globally across all instances (sliding window).
-export async function limitRequest(req: NextRequest, suffix: string, max = 30, windowMs = 60_000): Promise<boolean> {
+//
+// Limiters are cached per (url, max, window). Building a Redis client +
+// Ratelimit on every request added latency to every public call, and the
+// tenant guard below hits this twice.
+type Limiter = { limit(key: string): Promise<{ success: boolean }> };
+const limiterCache = new Map<string, Limiter>();
+
+async function getLimiter(max: number, windowMs: number): Promise<Limiter | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL || "";
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || "";
-  if (url && token) {
+  if (!url || !token) return null;
+
+  const cacheKey = `${url}|${max}|${windowMs}`;
+  const hit = limiterCache.get(cacheKey);
+  if (hit) return hit;
+
+  try {
+    const { Redis } = await import("@upstash/redis");
+    const { Ratelimit } = await import("@upstash/ratelimit");
+    const limiter = new Ratelimit({
+      redis: new Redis({ url, token }),
+      limiter: Ratelimit.slidingWindow(max, `${Math.max(1000, windowMs)} ms`),
+      analytics: true,
+      prefix: "qtable",
+    }) as Limiter;
+    limiterCache.set(cacheKey, limiter);
+    return limiter;
+  } catch {
+    return null;
+  }
+}
+
+export async function limitRequest(req: NextRequest, suffix: string, max = 30, windowMs = 60_000, scope = ""): Promise<boolean> {
+  const limiter = await getLimiter(max, windowMs);
+  if (limiter) {
     try {
-      const { Redis } = await import("@upstash/redis");
-      const { Ratelimit } = await import("@upstash/ratelimit");
-      const redis = new Redis({ url, token });
-      const limiter = new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(max, `${Math.max(1000, windowMs)} ms`),
-        analytics: true,
-        prefix: "qtable",
-      });
-      const { success } = await limiter.limit(clientKey(req, suffix));
+      const { success } = await limiter.limit(clientKey(req, suffix, scope));
       return success;
     } catch {
       // Redis hiccup → fall through to the local limiter, never block traffic.
     }
   }
-  return rateLimit(clientKey(req, suffix), max, windowMs);
+  return rateLimit(clientKey(req, suffix, scope), max, windowMs);
+}
+
+// Tenant-aware limit for public (customer) endpoints.
+//
+// Keying only by IP means every outlet in a mall, office park, or on the same
+// carrier NAT shares ONE budget — one busy café 429s its neighbours. Here the
+// outlet gets its own bucket, while a wider IP-only guard still stops a single
+// device from cycling through slugs to farm unlimited requests.
+export async function limitTenantRequest(
+  req: NextRequest,
+  suffix: string,
+  tenant: string,
+  max = 60,
+  windowMs = 60_000,
+): Promise<boolean> {
+  const clean = tenant.trim().toLowerCase().slice(0, 60) || "default";
+  const tenantOk = await limitRequest(req, suffix, max, windowMs, `t:${clean}`);
+  if (!tenantOk) return false;
+  return limitRequest(req, `${suffix}:ip`, max * 4, windowMs);
 }
 
 // ---- Input hygiene ----

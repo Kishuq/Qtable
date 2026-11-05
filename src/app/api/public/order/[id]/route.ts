@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { limitRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
+import { limitTenantRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 import { z } from "zod";
 
 // Theme is only needed once, when the tracker opens. Polls (every few seconds)
@@ -61,7 +61,6 @@ const PaySchema = z.object({ upiRef: z.string().max(64).optional().default("") }
 
 // Customer confirms "I paid via UPI" — owner verifies on dashboard before marking PAID.
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  if (!(await limitRequest(req, "pay-claim", 20, 60_000))) return tooMany();
   const { id } = await ctx.params;
   let body: unknown = {};
   try { body = await req.json(); } catch { body = {}; }
@@ -69,6 +68,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const upiRef = parsed.success ? cleanStr(parsed.data.upiRef, 64) : "";
   const order = await db.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (!(await limitTenantRequest(req, "pay-claim", order.cafeId, 20, 60_000))) return tooMany();
   await db.payment.create({ data: { cafeId: order.cafeId, orderId: order.id, mode: "UPI", status: "PENDING", amount: order.total, providerRef: cleanPhone(upiRef) || upiRef } });
   await db.auditLog.create({ data: { cafeId: order.cafeId, action: "UPI_CLAIMED", meta: `${order.id} ref=${upiRef}` } });
   return NextResponse.json({ ok: true });

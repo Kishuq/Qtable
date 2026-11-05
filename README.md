@@ -91,6 +91,16 @@ the default `support@qtable.in` only makes sense once that domain is yours.
 4. The webhook is the safety net if the browser closes mid-flow: it activates from
    `notes.cafeId`, sends the branded receipt (Resend), and logs every step to `AuditLog`.
 5. Receipts/plan links are best-effort: a mail failure never undoes a paid activation.
+6. Every money/lifecycle change is written to the `BillingEvent` ledger (signup, activated,
+   renewal, expired, reminder). Owners see it at **Dashboard → Billing**; support uses it to
+   reconcile a payment without guessing.
+7. **Renewal is manual today** (one-off Order per period): renewing early extends the
+   current paid period, never truncates it. Set `CRON_SECRET` so Vercel Cron can run
+   `/api/cron/billing` daily — it marks lapsed outlets `past_due` (customer ordering pauses,
+   data stays intact) and emails a reminder 3 days before each period ends.
+8. Automatic UPI Autopay/card mandates are **not** wired yet: Razorpay Subscriptions needs
+   separate plan objects and merchant activation. The ledger + cron make manual renewal
+   safe in the meantime; adding mandates later only changes how a `renewal` event is paid.
 
 Without platform keys, `/subscribe` shows a clear "checkout isn't connected" note and can
 fall back to per-plan hosted payment links (`NEXT_PUBLIC_BILLING_*_URL`).
@@ -122,7 +132,8 @@ server-side QR PNGs · built-in photo storage (Vercel Blob optional) · Resend m
 Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_APP_URL`,
 `BILLING_RAZORPAY_*` + `BILLING_RAZORPAY_WEBHOOK_SECRET`, `RAZORPAY_*` / `STRIPE_*` (fallback
 gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`, `BILLING_EMAIL_FROM`,
-`BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`, `PAYMENT_SECRET`.
+`BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `CRON_SECRET`, `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`,
+`PAYMENT_SECRET`.
 
 ## 📁 Map
 
@@ -130,11 +141,11 @@ gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`, `BILLING_EMAIL_FROM`,
 - `src/app/order/[id]/` — live tracking + ETA
 - `src/app/subscribe/` — plan picker + Razorpay checkout · `src/app/privacy|terms/` — legal pages
 - `src/app/dashboard/` — overview, orders, insights, inventory, history, menu, coupons,
-  design, tables, payments, staff, settings, guide
+  design, billing, tables, payments, staff, settings, guide
 - `src/app/api/` — `setup` (open signup), `auth/*` (+ Google OAuth, password reset),
   `public/*` (menu, order, waiter, feedback, pay), `orders`, `menu`, `inventory`,
   `tables`, `coupons`, `payments`, `staff`, `cafe`, `analytics(+/detail)`, `billing/*`,
-  `email/test`, `stream/orders`, `qr`
+  `cron/billing`, `email/test`, `stream/orders`, `qr`
 - `src/lib/` — `auth`, `billing` (+plans), `plans`, `cafe` (slug resolution), `security`
   (limits), `paykeys` (AES), `email` (Resend), `url` (public origin), `theme`, `day` (IST),
   `google`, `db`, `format`, `qr`
@@ -143,13 +154,32 @@ gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`, `BILLING_EMAIL_FROM`,
 
 One deployment serves **many outlets**, each isolated by `cafeId` on every query. A lunch
 rush on one outlet fits comfortably — order creation is atomic (no lost/double tokens),
-Postgres has real MVCC + pooling, dashboard polls on a few-second cadence with hidden-tab
-pausing, and analytics/menu responses cache briefly. Rate limits are Upstash-backed when
-configured, memory fallback otherwise. Token days + "today" stats follow Asia/Kolkata.
+Postgres has real MVCC + pooling, and analytics/menu responses cache briefly. Token days +
+"today" stats follow Asia/Kolkata.
 
-Past a few dozen busy outlets: bigger Neon tier, Upstash Redis limits on, Sentry DSNs set,
-UptimeRobot on `/api/health`. Public menu reads are cached at the edge (`s-maxage=15`), so
-scans cost one DB read per outlet per cache window.
+What is in place specifically for many tenants × traffic:
+
+- **Indexes on every hot path** — `Order(cafeId,status,createdAt)`, `Order(cafeId,createdAt)`,
+  `MenuItem(cafeId,sort)`, `Category(cafeId,sort)`, `Payment(cafeId,createdAt)`,
+  `Feedback(cafeId,createdAt)`, `AuditLog(cafeId,createdAt)`. A tenant filter without an
+  index becomes a full scan once the platform has millions of rows.
+- **Tenant-aware rate limits** — public order/waiter/feedback/UPI-claim budgets are keyed by
+  outlet *and* IP (plus a wider IP-only guard), so cafés sharing a mall Wi-Fi or carrier NAT
+  never silence each other.
+- **One dashboard heartbeat** — `GET /api/orders?status=NEW&live=1` returns NEW orders and
+  waiter calls together. SSE ticks every 10s (not 2.5s), and while SSE is healthy the client
+  polls only every 30s; if it drops, polling falls back to 10s.
+- **Fast signup** — demo categories/items/tables are three batch `createMany` inserts instead
+  of 27 sequential round trips inside the signup transaction.
+- **Subscription operations** — `BillingEvent` ledger + `/dashboard/billing` + daily
+  `/api/cron/billing` (expiry + reminder). See the billing section above.
+
+Past a few dozen busy outlets: bigger Neon tier, Upstash Redis limits on (in-memory limits
+are per lambda instance), Sentry DSNs set, UptimeRobot on `/api/health`. Public menu reads are
+cached at the edge (`s-maxage=15`), so scans cost one DB read per outlet per cache window.
+The real ceiling is the SSE timer: each open dashboard is a long-lived function plus three
+indexed queries per tick. If you cross a few hundred *simultaneously open* dashboards, move
+live updates to Postgres `LISTEN/NOTIFY` or Upstash pub/sub and drop SSE.
 
 ### Monitoring: what to set up once
 

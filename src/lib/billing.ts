@@ -108,7 +108,9 @@ export async function activateSubscription(o: {
   plan: Plan;
   billing: "monthly" | "yearly";
   ref: string;
-}): Promise<{ paidUntil: Date }> {
+  /** Amount actually collected, in paise. Recorded in the billing ledger. */
+  amount?: number;
+}): Promise<{ paidUntil: Date; renewal: boolean }> {
   const cafe = await db.cafe.findUnique({
     where: { id: o.cafeId },
     select: { subPaidUntil: true, subStartedAt: true },
@@ -116,6 +118,7 @@ export async function activateSubscription(o: {
   const now = new Date();
   const from = cafe?.subPaidUntil && cafe.subPaidUntil.getTime() > now.getTime() ? cafe.subPaidUntil : now;
   const paidUntil = addMonths(from, o.billing === "yearly" ? 12 : 1);
+  const renewal = Boolean(cafe?.subStartedAt);
   await db.cafe.update({
     where: { id: o.cafeId },
     data: {
@@ -127,11 +130,32 @@ export async function activateSubscription(o: {
       subStartedAt: cafe?.subStartedAt ?? now,
     },
   });
-  return { paidUntil };
+  // The ledger must never be the reason an activation fails — payment already
+  // cleared. Best-effort like audit logs.
+  try {
+    await db.billingEvent.create({
+      data: {
+        cafeId: o.cafeId,
+        kind: renewal ? "renewal" : "activated",
+        plan: o.plan,
+        billing: o.billing,
+        amount: Math.max(0, Math.round(o.amount || 0)),
+        ref: o.ref,
+        meta: `paidUntil=${paidUntil.toISOString()}`,
+      },
+    });
+  } catch { /* ledger is best-effort */ }
+  return { paidUntil, renewal };
 }
 
 export async function markPastDue(cafeId: string): Promise<void> {
-  await db.cafe.update({ where: { id: cafeId }, data: { subStatus: "past_due" } }).catch(() => {});
+  const updated = await db.cafe
+    .update({ where: { id: cafeId }, data: { subStatus: "past_due" } })
+    .catch(() => null);
+  if (!updated) return;
+  try {
+    await db.billingEvent.create({ data: { cafeId, kind: "expired" } });
+  } catch { /* best-effort */ }
 }
 
 export function planLabel(plan: Plan): string {

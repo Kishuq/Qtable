@@ -10,11 +10,16 @@ export async function GET() {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sub = await getSubscription(s.cafeId);
-  const cafe = await db.cafe.findUnique({
-    where: { id: s.cafeId },
-    select: { name: true, slug: true },
-  });
+  const [sub, cafe, events] = await Promise.all([
+    getSubscription(s.cafeId),
+    db.cafe.findUnique({ where: { id: s.cafeId }, select: { name: true, slug: true } }),
+    db.billingEvent.findMany({
+      where: { cafeId: s.cafeId, kind: { in: ["signup", "activated", "renewal", "expired", "canceled", "refund"] } },
+      orderBy: { createdAt: "desc" },
+      take: 24,
+      select: { id: true, kind: true, plan: true, billing: true, amount: true, ref: true, createdAt: true },
+    }),
+  ]);
   const active = isSubscriptionActive(sub);
 
   return NextResponse.json({
@@ -27,5 +32,7 @@ export async function GET() {
     cafe: cafe ? { name: cafe.name, slug: cafe.slug } : null,
     // Razorpay checkout is available only when platform keys are configured.
     checkout: Boolean(process.env.BILLING_RAZORPAY_KEY_ID && process.env.BILLING_RAZORPAY_KEY_SECRET),
+    // Immutable ledger — the owner's receipts and support's paper trail.
+    events,
   });
 }

@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "The paid amount doesn't match this plan. Contact support and we'll sort it out." }, { status: 400 });
   }
 
-  const { paidUntil } = await activateSubscription({ cafeId: s.cafeId, plan, billing, ref: razorpay_payment_id });
+  const { paidUntil } = await activateSubscription({ cafeId: s.cafeId, plan, billing, ref: razorpay_payment_id, amount: expectedAmount });
   try { await db.auditLog.create({ data: { cafeId: s.cafeId, userId: s.uid, action: "BILL_ACTIVATED", meta: `${plan} ${billing} ${razorpay_payment_id}` } }); } catch {}
 
   // Receipt is best-effort: a mail failure must never undo a paid activation.

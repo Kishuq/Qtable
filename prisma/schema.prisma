@@ -1,6 +1,7 @@
-// Single-cafe app — SQLite for dev, Postgres (Supabase/Neon/RDS) for production.
-// Prod: change provider to "postgresql" (Docker image does this automatically)
-// and point DATABASE_URL at the pooler + DIRECT_URL at the direct connection.
+// Qtable — multi-tenant QR-ordering platform.
+// One deployment serves every outlet; every table below is scoped by cafeId.
+// Postgres (Neon/Supabase/RDS) in production. Point DATABASE_URL at the pooler
+// and DIRECT_URL at the direct connection for migrations.
 generator client {
   provider = "prisma-client-js"
 }
@@ -24,6 +25,8 @@ model User {
   cafe         Cafe?    @relation(fields: [cafeId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
   auditLogs    AuditLog[]
+
+  @@index([cafeId])
 }
 
 model Cafe {
@@ -76,6 +79,25 @@ model Cafe {
   coupons    Coupon[]
   feedbacks  Feedback[]
   photos     MenuPhoto[]
+  billing    BillingEvent[]
+}
+
+// Immutable money/lifecycle trail per outlet. Support can answer "did they
+// pay?", the owner can see receipts, and the daily cron dedupes reminders.
+model BillingEvent {
+  id        String   @id @default(cuid())
+  cafeId    String
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  kind      String // signup | activated | renewal | expired | reminder | canceled | refund
+  plan      String   @default("")
+  billing   String   @default("")
+  amount    Int      @default(0) // paise
+  ref       String   @default("")
+  meta      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([cafeId, createdAt])
+  @@index([kind, createdAt])
 }
 
 // Built-in photo storage: used when no Vercel Blob token is configured, so the
@@ -99,6 +121,9 @@ model Category {
   sort   Int    @default(0)
 
   items MenuItem[]
+
+  // Public menu + dashboard builder read one outlet ordered by sort.
+  @@index([cafeId, sort])
 }
 
 model MenuItem {
@@ -120,6 +145,11 @@ model MenuItem {
   stock       Int?
   lowAt       Int      @default(5)
   createdAt   DateTime @default(now())
+
+  // Public menu, builder, and stock checks are all outlet-scoped.
+  @@index([cafeId, sort])
+  @@index([cafeId, categoryId, sort])
+  @@index([cafeId, available])
 }
 
 model CafeTable {
@@ -163,6 +193,10 @@ model Order {
   payments Payment[]
 
   @@unique([cafeId, tokenDay, tokenNo])
+  // Live dashboard (status filter), order history, and queue-depth ETA.
+  @@index([cafeId, status, createdAt])
+  @@index([cafeId, createdAt])
+  @@index([cafeId, updatedAt])
 }
 
 model OrderItem {
@@ -174,6 +208,8 @@ model OrderItem {
   price      Int
   qty        Int    @default(1)
   note       String @default("")
+
+  @@index([orderId])
 }
 
 model Payment {
@@ -187,6 +223,9 @@ model Payment {
   amount      Int
   providerRef String   @default("")
   createdAt   DateTime @default(now())
+
+  @@index([orderId])
+  @@index([cafeId, createdAt])
 }
 
 model Coupon {
@@ -208,6 +247,8 @@ model Feedback {
   rating    Int      @default(5)
   comment   String   @default("")
   createdAt DateTime @default(now())
+
+  @@index([cafeId, createdAt])
 }
 
 model ServiceCall {
@@ -218,7 +259,7 @@ model ServiceCall {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([cafeId, status])
+  @@index([cafeId, status, createdAt])
 }
 
 model AuditLog {
@@ -229,4 +270,8 @@ model AuditLog {
   action    String
   meta      String   @default("")
   createdAt DateTime @default(now())
+
+  @@index([cafeId, createdAt])
+  @@index([userId])
+  @@index([createdAt])
 }

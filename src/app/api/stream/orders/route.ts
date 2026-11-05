@@ -23,19 +23,26 @@ export async function GET(req: NextRequest) {
         try { controller.enqueue(enc.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
       };
       send(JSON.stringify({ hello: true, at: Date.now() }));
+      // 10s heartbeat, not 2.5s. A change only needs to reach the counter within
+      // a few seconds; polling the DB four times faster multiplied every open
+      // dashboard by 4 for no perceptible benefit. Three cheap indexed queries
+      // per outlet per tick, and the client falls back to its own poll anyway.
       const timer = setInterval(async () => {
         try {
-          const latest = await db.order.findFirst({ where: { cafeId }, orderBy: { updatedAt: "desc" }, select: { id: true, updatedAt: true } });
-          const open = await db.order.count({ where: { cafeId, status: { in: ["NEW", "ACCEPTED", "PREPARING", "READY"] } } });
-          const key = `${latest?.id}:${latest?.updatedAt?.getTime()}:${open}`;
+          const [latest, open, waiter] = await Promise.all([
+            db.order.findFirst({ where: { cafeId }, orderBy: { updatedAt: "desc" }, select: { id: true, updatedAt: true } }),
+            db.order.count({ where: { cafeId, status: { in: ["NEW", "ACCEPTED", "PREPARING", "READY"] } } }),
+            db.serviceCall.findFirst({ where: { cafeId, status: "OPEN" }, orderBy: { createdAt: "desc" }, select: { id: true } }),
+          ]);
+          const key = `${latest?.id}:${latest?.updatedAt?.getTime()}:${open}:${waiter?.id || ""}`;
           if (key !== lastSent) {
             lastSent = key;
-            send(JSON.stringify({ tick: Date.now(), open, latestId: latest?.id || null }));
+            send(JSON.stringify({ tick: Date.now(), open, latestId: latest?.id || null, waiterId: waiter?.id || null }));
           } else {
             controller.enqueue(enc.encode(`: ping\n\n`));
           }
         } catch { /* keep alive */ }
-      }, 2500);
+      }, 10_000);
       req.signal.addEventListener("abort", () => clearInterval(timer));
     },
   });

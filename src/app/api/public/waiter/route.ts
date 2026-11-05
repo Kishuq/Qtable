@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
 import { orderingBlockedReason } from "@/lib/billing";
-import { limitRequest, tooMany, cleanStr } from "@/lib/security";
+import { limitTenantRequest, tooMany, cleanStr } from "@/lib/security";
 
 const Schema = z.object({
   tableCode: z.string().min(1).max(12),
@@ -13,7 +13,6 @@ const Schema = z.object({
 // Customer taps "Call Waiter" — creates a service request for the counter.
 // Cooldown: one open request per table per 3 minutes (prevents spam-tapping).
 export async function POST(req: NextRequest) {
-  if (!(await limitRequest(req, "waiter", 5, 60_000))) return tooMany();
   let body: unknown;
   try {
     body = await req.json();
@@ -30,6 +29,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
   }
   if (!cafe.isActive) return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
+  // Per-outlet budget so a busy café doesn't silence its neighbours' calls.
+  if (!(await limitTenantRequest(req, "waiter", cafe.slug, 5, 60_000))) return tooMany();
 
   const tableCode = cleanStr(p.data.tableCode, 12).toUpperCase();
   const table = await db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: tableCode, active: true } });
