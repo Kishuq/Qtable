@@ -186,6 +186,65 @@ The real ceiling is the SSE timer: each open dashboard is a long-lived function 
 indexed queries per tick. If you cross a few hundred *simultaneously open* dashboards, move
 live updates to Postgres `LISTEN/NOTIFY` or Upstash pub/sub and drop SSE.
 
+### Burst behavior: what 10,000 simultaneous scans look like
+
+QR traffic is overwhelmingly **reads**, and reads are absorbed before they reach Postgres:
+
+| Path | Behavior under a burst |
+| --- | --- |
+| Landing `/` | Statically prerendered — no function, no database |
+| QR page `/t/{outlet}/{table}` | Prerendered on first visit, then `s-maxage=60` + a year of `stale-while-revalidate`: the CDN answers repeat scans, and the page holds no data (the menu is fetched separately) |
+| Menu JSON `/api/public/cafe` | Edge-cached `s-maxage=15` + `stale-while-revalidate=120`; one query per outlet per window |
+| Menu photos `/api/public/photo/:id` | `immutable` for a year + `stale-if-error`; fetched from the DB once |
+| Order tracking `/api/public/order/:id` | Per-order, `private, no-store`; primary-key lookup |
+| Order creation | One atomic insert; 60/min per outlet protects the kitchen |
+| Dashboard stats | 8s per-instance cache + 3s browser cache + jittered polling |
+
+Hardening that keeps a spike from becoming an outage:
+
+- **Bounded connection pool** — `src/lib/db.ts` adds `connection_limit` (default 3, override
+  with `PRISMA_CONNECTION_LIMIT`), `connect_timeout`, `pool_timeout` (5 s), `socket_timeout`,
+  and `pgbouncer=true` for `-pooler` hosts. Without this, hundreds of lambda instances can open
+  thousands of Postgres connections and the database refuses new ones.
+- **Transient retry** — `withDbRetry()` retries reads on P1001/P1002/P1008/P1010/P1017/P2034
+  with jittered backoff, so a paused Neon compute or a pooler reset becomes a normal response.
+  Pool-checkout timeouts (P2024) are deliberately *not* retried: the pool is already saturated,
+  and retrying only triples the wait.
+- **Request coalescing** — the public menu and photo routes keep a per-instance micro-cache
+  (3 s and 10 min) plus an in-flight map, so 1,000 simultaneous scans of one outlet become one
+  database query and 999 shared responses. The JSON is serialized once per fill, not per
+  request.
+- **Stale menu fallback** — if the database is unreachable when the edge cache expires, the
+  route serves this instance's last good menu (≤10 min) instead of a 404/500. Only a cold
+  instance with no snapshot returns `503 + Retry-After`.
+- **Fail-fast dependencies** — Redis rate limits time out after 800 ms and fall back to the
+  in-process limiter; Resend calls time out after 8 s. One slow dependency cannot stall every
+  request.
+- **Crash guards** — unexpected rejections are logged to Sentry without killing an instance
+  that is mid-burst.
+- **De-synchronized polling** — dashboard, orders and billing intervals carry random jitter, so
+  tabs that were opened together do not fire together.
+
+Measured locally against a production build on a single Node process (Windows laptop, one core
+for compression), as a sanity check that the code stops amplifying load rather than a capacity
+claim:
+
+| Burst | Result |
+| --- | --- |
+| 300 concurrent menu, cold cache | 300/300 OK, one DB query |
+| 1,000 concurrent menu | 1,000/1,000 OK |
+| 300 concurrent photo, cold cache | 300/300 OK (was 36/300 before coalescing) |
+| 3,000 mixed page + menu + photo | 3,000/3,000 OK, 0 failures, `/api/health` green afterwards |
+
+What still needs a plan upgrade rather than code: **Vercel function concurrency** and **Neon
+compute**. 10,000 requests in a single second is a capacity event; the app sheds load with
+503s instead of corrupting data or double-charging, but the platform tier must be able to run
+that many functions. Load-test before a known spike:
+
+```bash
+npx k6 run --vus 200 --duration 2m "https://your-domain/api/public/cafe?slug=your-outlet"
+```
+
 ### Monitoring: what to set up once
 
 **UptimeRobot** — add an HTTP(s) monitor on `https://your-domain/api/health`, interval

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import { requireCafe } from "@/lib/cafe";
-import { orderingBlockedReason, getPlanFor, planAllowsPro } from "@/lib/billing";
+import { subscriptionFromCafe, orderingBlockedReasonFor, planAllowsPro } from "@/lib/billing";
 import { limitTenantRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 
 const Item = z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20), note: z.string().max(120).optional().default("") });
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const upiRef = cleanStr(d.upiRef, 30).replace(/[^a-zA-Z0-9]/g, "");
 
   let cafe;
-  try { cafe = await requireCafe(d.slug); } catch { return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 }); }
+  try { cafe = await withDbRetry(() => requireCafe(d.slug), "order-cafe"); } catch { return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 }); }
   if (!cafe.isActive) return NextResponse.json({ error: "Outlet unavailable" }, { status: 404 });
 
   // 60/min per outlet, not per IP: a whole café shares one NAT address, and
@@ -48,18 +48,24 @@ export async function POST(req: NextRequest) {
 
   // Paywall: unpaid (preview) outlets cannot take orders, and Basic (menu-only)
   // outlets cannot take orders either. Enforced here, not just in the UI.
-  const blocked = await orderingBlockedReason(cafe.id);
+  // The cafe row already carries the subscription columns, so this costs no
+  // extra query — one fewer round trip on the hottest write path.
+  const sub = subscriptionFromCafe(cafe);
+  const blocked = orderingBlockedReasonFor(sub);
   if (blocked) return NextResponse.json({ error: blocked }, { status: 402 });
 
-  const table = await db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: d.tableCode, active: true } });
+  const table = await withDbRetry(
+    () => db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: d.tableCode, active: true } }),
+    "order-table",
+  );
   if (!table && d.type === "DINEIN") return NextResponse.json({ error: "Invalid table. Please re-scan the QR." }, { status: 400 });
 
   const clientToken = cleanStr(d.clientToken, 64) || null;
   if (clientToken) {
-    const existing = await db.order.findFirst({
-      where: { cafeId: cafe.id, clientToken },
-      include: { items: true },
-    });
+    const existing = await withDbRetry(
+      () => db.order.findFirst({ where: { cafeId: cafe.id, clientToken }, include: { items: true } }),
+      "order-idempotency",
+    );
     if (existing) {
       return NextResponse.json({
         ok: true,
@@ -75,9 +81,12 @@ export async function POST(req: NextRequest) {
   // Validate items against live menu (price taken from server — never trust client)
   const ids = [...new Set(d.items.map((i) => i.id))];
   // Out-of-stock (tracked, count hit 0) items are unorderable — same as unavailable.
-  const menu = await db.menuItem.findMany({
-    where: { id: { in: ids }, cafeId: cafe.id, available: true, OR: [{ stock: null }, { stock: { gt: 0 } }] },
-  });
+  const menu = await withDbRetry(
+    () => db.menuItem.findMany({
+      where: { id: { in: ids }, cafeId: cafe.id, available: true, OR: [{ stock: null }, { stock: { gt: 0 } }] },
+    }),
+    "order-menu",
+  );
   if (menu.length !== ids.length) return NextResponse.json({ error: "Menu changed — some items unavailable. Refresh menu." }, { status: 409 });
   const priceOf = new Map(menu.map((m) => [m.id, m]));
 
@@ -91,7 +100,10 @@ export async function POST(req: NextRequest) {
   let discount = 0;
   const code = d.coupon.trim().toUpperCase();
   if (code) {
-    const coupon = await db.coupon.findFirst({ where: { cafeId: cafe.id, code, active: true } });
+    const coupon = await withDbRetry(
+      () => db.coupon.findFirst({ where: { cafeId: cafe.id, code, active: true } }),
+      "order-coupon",
+    );
     if (coupon) discount = Math.round((subtotal * coupon.pct) / 100);
   }
   const tax = Math.round(((subtotal - discount) * cafe.gstPct) / 100);
@@ -129,11 +141,14 @@ export async function POST(req: NextRequest) {
     // depends on timing luck.
     for (let attempt = 0; attempt < 60 && !order; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 5 + Math.floor(Math.random() * 15)));
-      const last = await db.order.findFirst({
-        where: { cafeId: cafe.id, tokenDay },
-        orderBy: { tokenNo: "desc" },
-        select: { tokenNo: true },
-      });
+      const last = await withDbRetry(
+        () => db.order.findFirst({
+          where: { cafeId: cafe.id, tokenDay },
+          orderBy: { tokenNo: "desc" },
+          select: { tokenNo: true },
+        }),
+        "order-token",
+      );
       try {
         order = await db.order.create({
           // Never wrap at 999: reusing a token within the same day collides with
@@ -148,10 +163,13 @@ export async function POST(req: NextRequest) {
           // A concurrent double-tap won the clientToken race: return its order
           // instead of retrying forever (the token constraint can never clear).
           if (clientToken && target.includes("clientToken")) {
-            const existing = await db.order.findFirst({
-              where: { cafeId: cafe.id, clientToken },
-              select: { id: true, tokenNo: true, total: true, status: true, tableCode: true },
-            });
+            const existing = await withDbRetry(
+              () => db.order.findFirst({
+                where: { cafeId: cafe.id, clientToken },
+                select: { id: true, tokenNo: true, total: true, status: true, tableCode: true },
+              }),
+              "order-idempotency-race",
+            );
             if (existing) {
               order = { ...existing, items: [] } as unknown as typeof order;
               duplicate = true;
@@ -181,18 +199,20 @@ export async function POST(req: NextRequest) {
   }
   // Inventory (Pro only): decrement tracked stock per line. Guarded per-item
   // with gte so a same-millisecond rush can never drive counts negative.
-  // Best-effort — a stock failure must never break a paid order.
+  // Best-effort and parallel — a stock failure must never break a paid order,
+  // and one slow update must not add serial latency to the checkout.
   try {
-    if (planAllowsPro(await getPlanFor(cafe.id))) {
-      for (const line of lines) {
-        const m = priceOf.get(line.menuItemId);
-        if (m && m.stock !== null && m.stock !== undefined) {
-          await db.menuItem.updateMany({
+    if (planAllowsPro(sub.plan)) {
+      await Promise.allSettled(
+        lines.map((line) => {
+          const m = priceOf.get(line.menuItemId);
+          if (!m || m.stock === null || m.stock === undefined) return Promise.resolve();
+          return db.menuItem.updateMany({
             where: { id: m.id, stock: { gte: line.qty } },
             data: { stock: { decrement: line.qty } },
           });
-        }
-      }
+        }),
+      );
     }
   } catch { /* stock must never break ordering */ }
   try {

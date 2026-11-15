@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 
 // Uptime-monitor friendly: GET /api/health
 // Point UptimeRobot/BetterStack here. Boolean flags tell you which production
@@ -22,7 +22,9 @@ export async function GET() {
     "dev";
 
   try {
-    await db.$queryRaw`SELECT 1`;
+    // One retry absorbs a paused Neon compute waking up. An uptime monitor
+    // should not page anyone because the database took a second to resume.
+    await withDbRetry(() => db.$queryRaw`SELECT 1`, "health", 2);
     return NextResponse.json({
       ok: true,
       time: new Date().toISOString(),
@@ -32,11 +34,11 @@ export async function GET() {
       integrations: flags,
       version,
       region: process.env.VERCEL_REGION || "local",
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json(
       { ok: false, db: "down", sentry: flags.sentry, integrations: flags, version },
-      { status: 500 },
+      { status: 500, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

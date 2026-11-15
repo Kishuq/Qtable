@@ -58,7 +58,7 @@ export default function BillingPage() {
       }
     }
     load();
-    const t = setInterval(load, 15_000);
+    const t = setInterval(load, 15_000 + Math.floor(Math.random() * 5000));
     return () => { stop = true; clearInterval(t); };
   }, []);
 

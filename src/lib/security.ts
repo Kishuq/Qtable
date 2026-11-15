@@ -79,14 +79,27 @@ async function getLimiter(max: number, windowMs: number): Promise<Limiter | null
   }
 }
 
+// A slow Redis must never become the bottleneck for every request. If the
+// round trip does not come back quickly, fall back to the in-process limiter
+// (still protective) instead of making the customer wait.
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("limiter-timeout")), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
 export async function limitRequest(req: NextRequest, suffix: string, max = 30, windowMs = 60_000, scope = ""): Promise<boolean> {
   const limiter = await getLimiter(max, windowMs);
   if (limiter) {
     try {
-      const { success } = await limiter.limit(clientKey(req, suffix, scope));
+      const { success } = await withTimeout(limiter.limit(clientKey(req, suffix, scope)), 800);
       return success;
     } catch {
-      // Redis hiccup → fall through to the local limiter, never block traffic.
+      // Redis hiccup or timeout → fall through to the local limiter, never block traffic.
     }
   }
   return rateLimit(clientKey(req, suffix, scope), max, windowMs);

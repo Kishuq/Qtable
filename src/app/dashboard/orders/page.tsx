@@ -37,7 +37,7 @@ export default function OrdersPage() {
 
   // Skip ticks while the tab is hidden — counter tablets sit open for hours;
   // no point burning DB + battery rendering nothing. 6s still feels live.
-  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 6000); return () => clearInterval(t); }, [load]);
+  useEffect(() => { load(); const period = 6000 + Math.floor(Math.random() * 2000); const t = setInterval(() => { if (!document.hidden) load(); }, period); return () => clearInterval(t); }, [load]);
 
   async function setCallStatus(id: string, status: string) {
     const prev = calls;

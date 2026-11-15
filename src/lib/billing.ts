@@ -49,15 +49,19 @@ export function graceEndsAt(paidUntil: Date | null): Date | null {
   return new Date(paidUntil.getTime() + graceDays() * 24 * 60 * 60 * 1000);
 }
 
-export async function getSubscription(cafeId: string): Promise<Subscription | null> {
-  const c = await db.cafe.findUnique({
-    where: { id: cafeId },
-    select: {
-      planTier: true, subStatus: true, subBilling: true, subPaidUntil: true, subRef: true,
-      subMandateId: true, subAutoRenew: true,
-    },
-  });
-  if (!c) return null;
+// Builds the subscription view from a Cafe row that is already loaded.
+// Hot public routes (menu, ordering) fetch the cafe anyway, so reusing those
+// columns saves one database round trip per request — which is most of the
+// cost at high concurrency.
+export function subscriptionFromCafe(c: {
+  planTier: string;
+  subStatus: string;
+  subBilling: string;
+  subPaidUntil: Date | null;
+  subRef: string;
+  subMandateId: string;
+  subAutoRenew: boolean;
+}): Subscription {
   return {
     plan: normalizePlan(c.planTier),
     status: (["pending", "active", "past_due", "canceled"].includes(c.subStatus) ? c.subStatus : "pending") as SubStatus,
@@ -67,6 +71,18 @@ export async function getSubscription(cafeId: string): Promise<Subscription | nu
     mandateId: c.subMandateId,
     autoRenew: c.subAutoRenew,
   };
+}
+
+export async function getSubscription(cafeId: string): Promise<Subscription | null> {
+  const c = await db.cafe.findUnique({
+    where: { id: cafeId },
+    select: {
+      planTier: true, subStatus: true, subBilling: true, subPaidUntil: true, subRef: true,
+      subMandateId: true, subAutoRenew: true,
+    },
+  });
+  if (!c) return null;
+  return subscriptionFromCafe(c);
 }
 
 // "active" must also not be past its paid-until date (+ grace). A null date
@@ -90,8 +106,7 @@ export async function isProCafe(cafeId: string): Promise<boolean> {
 // Customer-facing reason why this outlet cannot take an order right now.
 // null = ordering is allowed. Used by the public order/waiter/pay routes so
 // preview mode blocks writes even if someone crafts a request by hand.
-export async function orderingBlockedReason(cafeId: string): Promise<string | null> {
-  const sub = await getSubscription(cafeId);
+export function orderingBlockedReasonFor(sub: Subscription | null): string | null {
   if (!isSubscriptionActive(sub)) {
     return "This outlet isn't accepting online orders yet — please order at the counter.";
   }
@@ -99,6 +114,10 @@ export async function orderingBlockedReason(cafeId: string): Promise<string | nu
     return "Online ordering isn't enabled at this outlet — please order at the counter.";
   }
   return null;
+}
+
+export async function orderingBlockedReason(cafeId: string): Promise<string | null> {
+  return orderingBlockedReasonFor(await getSubscription(cafeId));
 }
 
 // Server-side paywall. Returns a ready-to-return 402, or null when allowed.

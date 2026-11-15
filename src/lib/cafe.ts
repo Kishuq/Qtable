@@ -18,6 +18,13 @@ export function slugify(name: string): string {
     .slice(0, 40);
 }
 
+// Cheap shape check before a slug ever reaches the database. Public QR traffic
+// is the most abused endpoint; rejecting junk here keeps random ?slug= probes
+// from becoming queries during a burst.
+export function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{0,59}$/.test(slug);
+}
+
 // "Blue Tokai" -> "blue-tokai"; collisions get -2, -3, … so two owners can
 // share a name without stepping on each other's QR links.
 export async function uniqueSlug(name: string): Promise<string> {

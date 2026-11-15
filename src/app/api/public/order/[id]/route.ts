@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import { limitTenantRequest, tooMany, cleanStr, cleanPhone } from "@/lib/security";
 import { z } from "zod";
 
@@ -16,10 +16,23 @@ const CAFE_FIELDS = {
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const full = req.nextUrl.searchParams.get("full") === "1";
-  const order = await db.order.findUnique({
-    where: { id },
-    include: { items: true, cafe: { select: full ? { ...CAFE_FIELDS, themeImage: true } : CAFE_FIELDS } },
-  });
+  let order;
+  try {
+    order = await withDbRetry(
+      () => db.order.findUnique({
+        where: { id },
+        include: { items: true, cafe: { select: full ? { ...CAFE_FIELDS, themeImage: true } : CAFE_FIELDS } },
+      }),
+      "order-status",
+    );
+  } catch {
+    // The tracker polls this endpoint; a short 503 with Retry-After tells the
+    // phone to try again instead of showing a permanent "order not found".
+    return NextResponse.json(
+      { error: "Order status is temporarily unavailable. Retrying…" },
+      { status: 503, headers: { "Retry-After": "3", "Cache-Control": "private, no-store" } },
+    );
+  }
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   // Queue depth → ETA: orders ahead of this one still in the kitchen pipeline.
   // Base 8 min + 4 min per order ahead, capped at 45. Ready/served/completed → 0.

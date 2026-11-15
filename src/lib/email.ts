@@ -18,7 +18,12 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
   }
   try {
     const resend = new Resend(key);
-    const { error } = await resend.emails.send({ from: sender(), to: opts.to, subject: opts.subject, html: opts.html });
+    // A hanging provider call must not hold a webhook/cron invocation open.
+    // The send is best-effort by design; 8s is far beyond a healthy response.
+    const { error } = await Promise.race([
+      resend.emails.send({ from: sender(), to: opts.to, subject: opts.subject, html: opts.html }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("email-timeout")), 8000)),
+    ]);
     if (error) {
       console.error("EMAIL_FAIL", error);
       return false;

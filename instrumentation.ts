@@ -30,10 +30,39 @@ function warnOnMissingEnv() {
   }
 }
 
+let crashGuardsInstalled = false;
+
+type NodeProcessLike = { on(event: string, listener: (arg: unknown) => void): void };
+
+// accessed via globalThis so the Edge bundle never sees a bare `process.on`
+function nodeProcess(): NodeProcessLike | null {
+  const p = (globalThis as { process?: unknown }).process as NodeProcessLike | undefined;
+  return p && typeof p.on === "function" ? p : null;
+}
+
+// A single stray rejection inside one request should not take down the whole
+// instance while it is serving a burst. Log + report, keep the process alive;
+// the failing request still returns its own error to the customer.
+function installCrashGuards() {
+  if (crashGuardsInstalled) return;
+  const proc = nodeProcess();
+  if (!proc) return; // edge runtime: nothing to guard here
+  crashGuardsInstalled = true;
+  proc.on("unhandledRejection", (reason) => {
+    console.error("UNHANDLED_REJECTION", reason instanceof Error ? reason.message : reason);
+    try { Sentry.captureException(reason); } catch { /* never throw from a guard */ }
+  });
+  proc.on("uncaughtException", (err) => {
+    console.error("UNCAUGHT_EXCEPTION", err instanceof Error ? err.message : err);
+    try { Sentry.captureException(err); } catch { /* never throw from a guard */ }
+  });
+}
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./sentry.server.config");
     warnOnMissingEnv();
+    installCrashGuards();
   }
 }
 
