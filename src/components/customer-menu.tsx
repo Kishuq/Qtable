@@ -44,6 +44,10 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
   // plan arrives with the menu payload, so a scan makes one request, not two.
   const [ordering, setOrdering] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
+  // One idempotency key per checkout attempt. If the response is lost or the
+  // customer double-taps Place order, the server returns the same order instead
+  // of creating (and charging) a second one. Cleared only after success.
+  const checkoutToken = useRef<string>("");
   const cafeSlug = slug || "";
   // Cart and history are scoped per outlet — two cafés in one browser must not
   // mix lines or recent orders.
@@ -190,12 +194,20 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
   async function createOrder(): Promise<string> {
     // Table auto-identified from QR only — no manual entry.
     if (!tableCode) throw new Error("Please scan the table QR to order.");
+    if (!checkoutToken.current) {
+      checkoutToken.current =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+    }
     const r = await fetch("/api/public/order", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tableCode, slug: cafeSlug, customerName: form.name || "Guest", customerPhone: form.phone, type: "DINEIN", paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
+      body: JSON.stringify({ tableCode, slug: cafeSlug, clientToken: checkoutToken.current, customerName: form.name || "Guest", customerPhone: form.phone, type: "DINEIN", paymentMode: form.pay, coupon: form.coupon, note: form.note, items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })) }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "Order failed");
+    // Order is safely created (or safely deduplicated) — never reuse the token.
+    checkoutToken.current = "";
     saveRecent(j.order.id, j.order.tokenNo);
     try { localStorage.removeItem(cartKey); } catch { /* noop */ }
     return j.order.id as string;

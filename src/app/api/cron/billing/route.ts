@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { markPastDue, planLabel, normalizePlan } from "@/lib/billing";
+import { markPastDue, planLabel, normalizePlan, graceDays } from "@/lib/billing";
 import { sendEmail, renewalReminderHtml, paymentFailedHtml } from "@/lib/email";
 import { PLANS } from "@/lib/plans";
 import { appBaseUrl } from "@/lib/url";
@@ -19,6 +19,25 @@ export const maxDuration = 60;
 // email-sending endpoint by the public.
 const REMIND_DAYS = 3;
 const MAX_PER_RUN = 200;
+
+// Bounded parallelism: with thousands of outlets a strictly sequential loop
+// would blow the 60s function limit. Eight at a time keeps DB + email pressure
+// predictable while finishing a full run in seconds.
+async function inBatches<T>(items: T[], size: number, fn: (item: T) => Promise<void>) {
+  for (let i = 0; i < items.length; i += size) {
+    await Promise.all(
+      items.slice(i, i + size).map(async (item) => {
+        // One broken outlet (bad email, transient DB error) must never abort the
+        // rest of the daily run.
+        try {
+          await fn(item);
+        } catch (e) {
+          console.error("CRON_ITEM_FAIL", e instanceof Error ? e.message : e);
+        }
+      }),
+    );
+  }
+}
 
 function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET || "";
@@ -49,14 +68,19 @@ export async function GET(req: NextRequest) {
   let reminded = 0;
 
   // ---- 1. Close the gate on lapsed outlets ----
+  // Honor BILLING_GRACE_DAYS: a mandate settling a day late must not cut off a
+  // café that has already paid. The same window is used by isSubscriptionActive.
+  const graceCutoff = new Date(now.getTime() - graceDays() * 24 * 60 * 60 * 1000);
   const lapsed = await db.cafe.findMany({
-    where: { subStatus: "active", subPaidUntil: { lte: now } },
+    where: { subStatus: "active", subPaidUntil: { lte: graceCutoff } },
     select: { id: true },
     take: MAX_PER_RUN,
   });
-  for (const c of lapsed) {
+  await inBatches(lapsed, 8, async (c) => {
+    // Conditional update: a renewal that lands between the query and the write
+    // wins, and we don't email a customer whose payment just cleared.
+    if (!(await markPastDue(c.id))) return;
     const info = await ownerOf(c.id);
-    await markPastDue(c.id);
     expired++;
     if (info?.owner?.email) {
       const plan = planLabel(normalizePlan(info.cafe.planTier));
@@ -67,7 +91,7 @@ export async function GET(req: NextRequest) {
         html: paymentFailedHtml({ name: info.owner.name || "there", amount: `${plan} · ${amount}` }),
       }).catch(() => false);
     }
-  }
+  });
 
   // ---- 2. Remind before the gate closes ----
   const dueSoon = await db.cafe.findMany({
@@ -75,7 +99,7 @@ export async function GET(req: NextRequest) {
     select: { id: true, subPaidUntil: true },
     take: MAX_PER_RUN,
   });
-  for (const c of dueSoon) {
+  await inBatches(dueSoon, 8, async (c) => {
     const paidUntil = c.subPaidUntil!;
     const stamp = paidUntil.toISOString();
 
@@ -85,10 +109,10 @@ export async function GET(req: NextRequest) {
       where: { cafeId: c.id, kind: "reminder", ref: stamp },
       select: { id: true },
     });
-    if (already) continue;
+    if (already) return;
 
     const info = await ownerOf(c.id);
-    if (!info?.owner?.email) continue;
+    if (!info?.owner?.email) return;
     const plan = normalizePlan(info.cafe.planTier);
     const amount = `₹${(info.cafe.subBilling === "yearly" ? PLANS[plan].yearlyTotal : PLANS[plan].monthly).toLocaleString("en-IN")}`;
     const date = paidUntil.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -109,7 +133,19 @@ export async function GET(req: NextRequest) {
       .create({ data: { cafeId: c.id, kind: "reminder", plan, billing: info.cafe.subBilling, ref: stamp, meta: `due=${date}` } })
       .catch(() => undefined);
     reminded++;
-  }
+  });
 
-  return NextResponse.json({ ok: true, expired, reminded, at: now.toISOString() });
+  // ---- 3. Retention: audit rows are diagnostic, not financial. Keep 90 days
+  // and prune in bounded batches so one run can never lock the table.
+  let pruned = 0;
+  try {
+    const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    pruned = await db.$executeRaw`
+      DELETE FROM "AuditLog" WHERE "id" IN (
+        SELECT "id" FROM "AuditLog" WHERE "createdAt" < ${cutoff} LIMIT 5000
+      )
+    `;
+  } catch { /* retention must never fail the billing job */ }
+
+  return NextResponse.json({ ok: true, expired, reminded, pruned, at: now.toISOString() });
 }

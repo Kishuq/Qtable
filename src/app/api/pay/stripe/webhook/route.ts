@@ -23,9 +23,23 @@ export async function POST(req: NextRequest) {
     const orderId = session.metadata?.orderId || "";
     if (session.payment_status === "paid" && orderId) {
       const order = await db.order.findUnique({ where: { id: orderId } });
-      if (order && order.paymentStatus !== "PAID") {
-        await db.order.update({ where: { id: orderId }, data: { paymentStatus: "PAID" } });
-        await db.payment.updateMany({ where: { orderId, status: "PENDING" }, data: { status: "PAID", providerRef: String(session.payment_intent || session.id) } });
+      // Bind the session to this order + its server-side amount; a signed event
+      // for a different charge must never mark this order paid.
+      if (order && session.amount_total === order.total && (session.currency || "inr").toLowerCase() === "inr") {
+        // Stripe's signature + metadata + server-side amount already prove this
+        // charge belongs to the order. Prefer the row created for this session;
+        // fall back to any pending row so a second checkout window still settles.
+        const target =
+          (await db.payment.findFirst({ where: { orderId, status: "PENDING", providerRef: session.id }, select: { id: true } })) ||
+          (await db.payment.findFirst({ where: { orderId, status: "PENDING" }, select: { id: true } }));
+        if (target) {
+          await db.$transaction([
+            db.payment.updateMany({ where: { id: target.id, status: "PENDING" }, data: { status: "PAID", providerRef: String(session.payment_intent || session.id) } }),
+            db.order.updateMany({ where: { id: orderId, paymentStatus: { not: "PAID" } }, data: { paymentStatus: "PAID" } }),
+          ]);
+        } else {
+          await db.order.updateMany({ where: { id: orderId, paymentStatus: { not: "PAID" } }, data: { paymentStatus: "PAID" } });
+        }
         await db.auditLog.create({ data: { cafeId: order.cafeId, action: "STRIPE_PAID", meta: `${orderId} ${session.id} ${order.total}` } });
       }
     }

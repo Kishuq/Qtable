@@ -85,22 +85,26 @@ the default `support@qtable.in` only makes sense once that domain is yours.
 2. Point a Razorpay webhook at `https://<domain>/api/billing/webhook` with the events
    `payment.captured`, `order.paid`, `subscription.charged`, `subscription.halted`, and put
    its signing secret in `BILLING_RAZORPAY_WEBHOOK_SECRET`.
-3. `POST /api/billing/checkout` creates a Razorpay Order with `notes.cafeId`, plan and
+3. `POST /api/billing/checkout` creates a Razorpay **Subscription** when a
+   `BILLING_RAZORPAY_PLAN_<TIER>_<PERIOD>` plan id is configured (automatic UPI
+   Autopay/card renewal), otherwise a one-off **Order** with `notes.cafeId`, plan and
    billing attached. The browser checks out, then `POST /api/billing/activate` verifies the
-   HMAC signature, refetches the order, and confirms the amount + tenant before unlocking.
+   HMAC signature, refetches the entity, and confirms the amount + tenant before unlocking.
 4. The webhook is the safety net if the browser closes mid-flow: it activates from
-   `notes.cafeId`, sends the branded receipt (Resend), and logs every step to `AuditLog`.
+   `notes.cafeId`, handles `subscription.charged` renewals, `subscription.halted` /
+   `payment.failed` dunning, sends the branded receipt (Resend), and logs every step.
+   Every money event carries a unique `txnKey`, so Razorpay's retries can never extend a
+   paid period twice.
 5. Receipts/plan links are best-effort: a mail failure never undoes a paid activation.
 6. Every money/lifecycle change is written to the `BillingEvent` ledger (signup, activated,
-   renewal, expired, reminder). Owners see it at **Dashboard → Billing**; support uses it to
-   reconcile a payment without guessing.
-7. **Renewal is manual today** (one-off Order per period): renewing early extends the
-   current paid period, never truncates it. Set `CRON_SECRET` so Vercel Cron can run
-   `/api/cron/billing` daily — it marks lapsed outlets `past_due` (customer ordering pauses,
-   data stays intact) and emails a reminder 3 days before each period ends.
-8. Automatic UPI Autopay/card mandates are **not** wired yet: Razorpay Subscriptions needs
-   separate plan objects and merchant activation. The ledger + cron make manual renewal
-   safe in the meantime; adding mandates later only changes how a `renewal` event is paid.
+   renewal, expired, reminder). Owners see it at **Dashboard → Billing**.
+7. Set `CRON_SECRET` so Vercel Cron can run `/api/cron/billing` daily — it marks lapsed
+   outlets `past_due` (customer ordering pauses, data stays intact), emails a reminder
+   3 days before each period ends, and prunes old audit rows. A short
+   `BILLING_GRACE_DAYS` window (default 2) absorbs late mandate settlements.
+8. Platform operators listed in `ADMIN_EMAILS` get `/admin`: search every outlet, see MRR
+   and the billing ledger, and manually activate / extend / comp / cancel / resume. Actions
+   are transactional, idempotent and audit-logged.
 
 Without platform keys, `/subscribe` shows a clear "checkout isn't connected" note and can
 fall back to per-plan hosted payment links (`NEXT_PUBLIC_BILLING_*_URL`).
@@ -130,10 +134,11 @@ Next.js 16 · TypeScript · Tailwind v4 · Prisma 6 + Postgres (Neon) · SSE + p
 server-side QR PNGs · built-in photo storage (Vercel Blob optional) · Resend mail · Upstash Redis limits (optional) · Sentry (optional).
 
 Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_APP_URL`,
-`BILLING_RAZORPAY_*` + `BILLING_RAZORPAY_WEBHOOK_SECRET`, `RAZORPAY_*` / `STRIPE_*` (fallback
-gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`, `BILLING_EMAIL_FROM`,
-`BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `CRON_SECRET`, `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`,
-`PAYMENT_SECRET`.
+`BILLING_RAZORPAY_*` + `BILLING_RAZORPAY_WEBHOOK_SECRET`, optional
+`BILLING_RAZORPAY_PLAN_<TIER>_<PERIOD>` mandate plans, `BILLING_GRACE_DAYS`,
+`RAZORPAY_*` / `STRIPE_*` (fallback gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`,
+`BILLING_EMAIL_FROM`, `ADMIN_EMAILS`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `CRON_SECRET`,
+`SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`, `PAYMENT_SECRET`.
 
 ## 📁 Map
 

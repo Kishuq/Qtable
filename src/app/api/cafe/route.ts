@@ -9,7 +9,11 @@ export async function GET() {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const cafe = await db.cafe.findUnique({ where: { id: s.cafeId } });
-  return NextResponse.json({ cafe });
+  if (!cafe) return NextResponse.json({ error: "Outlet not found" }, { status: 404 });
+  // The AES-encrypted gateway secret must never leave the server, even to the
+  // owner's browser. The boolean is all the settings UI needs to show status.
+  const { razorpayKeySecretEnc, ...safe } = cafe;
+  return NextResponse.json({ cafe: { ...safe, hasRazorpaySecret: Boolean(razorpayKeySecretEnc) } });
 }
 
 const HEX = z.string().regex(/^#[0-9a-fA-F]{6}$/).optional();
@@ -31,10 +35,17 @@ const Schema = z.object({
   themeRadius: z.enum(["rounded", "soft", "sharp"]).optional(),
   themeStyle: z.enum(["cards", "editorial", "list", "poster", "tickets"]).optional(),
   themeWash: z.number().int().min(50).max(98).optional(),
-  // Empty string clears the backdrop. Accepts a Blob URL or a small,
-  // self-contained data image (no third-party storage needed).
+  // Empty string clears the backdrop. Accepts an https URL, a previously
+  // stored /api/public/photo/<id>, or a small self-contained data image.
+  // Data images are moved into MenuPhoto on save so the public menu payload
+  // stays small (a 300 KB base64 backdrop would otherwise be re-sent on every
+  // cold scan).
   themeImage: z.string().max(400_000).refine(
-    (v) => v === "" || /^https:\/\/[^\s"']+$/.test(v) || /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v),
+    (v) =>
+      v === "" ||
+      /^https:\/\/[^\s"']+$/.test(v) ||
+      /^\/api\/public\/photo\/[a-z0-9]{10,40}$/i.test(v) ||
+      /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v),
     "Invalid image",
   ).optional(),
 });
@@ -58,7 +69,30 @@ export async function PATCH(req: NextRequest) {
   if (d.themeFont) theme.themeFont = cleanStr(d.themeFont, 20);
   if (d.themeRadius) theme.themeRadius = d.themeRadius;
   if (d.themeStyle) theme.themeStyle = d.themeStyle;
-  if (typeof d.themeImage === "string") theme.themeImage = d.themeImage;
+
+  const current = await db.cafe.findUnique({ where: { id: s.cafeId }, select: { themeImage: true } });
+  const oldPhotoId = current?.themeImage?.match(/^\/api\/public\/photo\/([a-z0-9]{10,40})$/i)?.[1];
+  let newPhotoId: string | undefined;
+
+  if (typeof d.themeImage === "string") {
+    if (d.themeImage.startsWith("data:image/")) {
+      const m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(d.themeImage);
+      if (!m) return NextResponse.json({ error: "Invalid image" }, { status: 400 });
+      const buf = Buffer.from(m[2], "base64");
+      if (buf.length > 400_000) return NextResponse.json({ error: "Photo too large — choose a smaller one." }, { status: 400 });
+      // Store the bytes and hand the public menu a tiny immutable URL. This
+      // keeps /api/public/cafe cacheable and stops a 300 KB backdrop from
+      // riding along on every scan.
+      const photo = await db.menuPhoto.create({
+        data: { cafeId: s.cafeId, data: buf, mime: `image/${m[1]}` },
+        select: { id: true },
+      });
+      newPhotoId = photo.id;
+      theme.themeImage = `/api/public/photo/${photo.id}`;
+    } else {
+      theme.themeImage = d.themeImage;
+    }
+  }
   const ALLOWED_CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SAR", "CAD", "AUD", "SGD", "JPY"];
   const cafe = await db.cafe.update({
     where: { id: s.cafeId },
@@ -72,5 +106,11 @@ export async function PATCH(req: NextRequest) {
     },
   });
   await db.auditLog.create({ data: { cafeId: s.cafeId, userId: s.uid, action: Object.keys(theme).length ? "THEME_SAVED" : "SETTINGS_SAVED" } });
-  return NextResponse.json({ ok: true, cafe });
+  // Drop the previous backdrop row once the new reference is saved. Skipped
+  // when the owner kept the same photo.
+  if (oldPhotoId && oldPhotoId !== newPhotoId) {
+    await db.menuPhoto.deleteMany({ where: { id: oldPhotoId, cafeId: s.cafeId } }).catch(() => undefined);
+  }
+  const { razorpayKeySecretEnc, ...safe } = cafe;
+  return NextResponse.json({ ok: true, cafe: { ...safe, hasRazorpaySecret: Boolean(razorpayKeySecretEnc) } });
 }

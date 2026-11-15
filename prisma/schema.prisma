@@ -63,6 +63,9 @@ model Cafe {
   subPaidUntil DateTime?
   subRef       String    @default("")
   subStartedAt DateTime?
+  // Auto-renew mandate (Razorpay Subscriptions). Empty = manual renewal.
+  subMandateId String    @default("")
+  subAutoRenew Boolean   @default(false)
   // ---- Self-serve Razorpay (per-outlet gateway, AES-encrypted at rest) ----
   razorpayKeyId        String  @default("")
   razorpayKeySecretEnc String  @default("")
@@ -80,6 +83,10 @@ model Cafe {
   feedbacks  Feedback[]
   photos     MenuPhoto[]
   billing    BillingEvent[]
+
+  // Daily cron scans active periods; the platform console lists newest first.
+  @@index([subStatus, subPaidUntil])
+  @@index([createdAt])
 }
 
 // Immutable money/lifecycle trail per outlet. Support can answer "did they
@@ -93,6 +100,10 @@ model BillingEvent {
   billing   String   @default("")
   amount    Int      @default(0) // paise
   ref       String   @default("")
+  // Idempotency key for money events (order/payment/subscription id). A
+  // webhook retry or a browser callback for the same charge can never extend
+  // the paid period twice. Null for non-payment lifecycle rows.
+  txnKey    String?  @unique
   meta      String   @default("")
   createdAt DateTime @default(now())
 
@@ -175,6 +186,9 @@ model Order {
   tableCode     String   @default("")
   tokenNo       Int      @default(0)
   tokenDay      String   @default("") // YYYY-MM-DD — scopes tokenNo uniqueness per day
+  // Client-generated checkout attempt id. Makes "double-tap Place order" a
+  // single order instead of two charges/kitchen tickets.
+  clientToken   String?
   customerName  String   @default("Guest")
   customerPhone String   @default("")
   type          String   @default("DINEIN") // DINEIN | TAKEAWAY
@@ -193,6 +207,7 @@ model Order {
   payments Payment[]
 
   @@unique([cafeId, tokenDay, tokenNo])
+  @@unique([cafeId, clientToken])
   // Live dashboard (status filter), order history, and queue-depth ETA.
   @@index([cafeId, status, createdAt])
   @@index([cafeId, createdAt])

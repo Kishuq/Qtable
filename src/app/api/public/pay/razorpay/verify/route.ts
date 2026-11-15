@@ -35,8 +35,34 @@ export async function POST(req: NextRequest) {
     await db.auditLog.create({ data: { action: "RZP_SIG_FAIL", meta: `${orderId} ${razorpay_payment_id}` } });
     return NextResponse.json({ error: "Payment verification failed. If money left your account it will auto-refund — contact the counter." }, { status: 400 });
   }
-  await db.order.update({ where: { id: orderId }, data: { paymentStatus: "PAID" } });
-  await db.payment.updateMany({ where: { orderId, status: "PENDING" }, data: { status: "PAID", providerRef: razorpay_payment_id } });
-  await db.auditLog.create({ data: { cafeId: order.cafeId, action: "RZP_PAID", meta: `${orderId} ${razorpay_payment_id} ${order.total}` } });
+
+  // The signature only proves "this gateway order was paid". Bind it to THIS
+  // database order, otherwise a valid signature for a ₹100 order could be
+  // replayed to mark a ₹5,000 order paid.
+  const replay = await db.payment.findFirst({
+    where: { orderId, status: "PAID", providerRef: razorpay_payment_id },
+    select: { id: true },
+  });
+  if (replay) return NextResponse.json({ ok: true, duplicate: true });
+
+  const target = await db.payment.findFirst({
+    where: { orderId, status: "PENDING", providerRef: razorpay_order_id },
+    select: { id: true },
+  });
+  if (!target) {
+    await db.auditLog.create({ data: { cafeId: order.cafeId, action: "RZP_ORDER_MISMATCH", meta: `${orderId} got=${razorpay_order_id}` } });
+    return NextResponse.json({ error: "That payment doesn't match this order. Show the counter your payment receipt." }, { status: 400 });
+  }
+
+  // Idempotent: a retried callback marks the same row once and doesn't spam
+  // the audit log or flip an already-paid order.
+  const updated = await db.payment.updateMany({
+    where: { id: target.id, status: "PENDING" },
+    data: { status: "PAID", providerRef: razorpay_payment_id },
+  });
+  if (updated.count > 0) {
+    await db.order.updateMany({ where: { id: orderId, paymentStatus: { not: "PAID" } }, data: { paymentStatus: "PAID" } });
+    await db.auditLog.create({ data: { cafeId: order.cafeId, action: "RZP_PAID", meta: `${orderId} ${razorpay_payment_id} ${order.total}` } });
+  }
   return NextResponse.json({ ok: true });
 }

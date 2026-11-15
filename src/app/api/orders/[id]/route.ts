@@ -26,10 +26,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (order.status !== p.data.status && !allowed.includes(p.data.status) && !(isCancel && ["NEW", "ACCEPTED", "PREPARING"].includes(order.status))) {
     return NextResponse.json({ error: `Cannot move ${order.status} → ${p.data.status}` }, { status: 400 });
   }
-  const updated = await db.order.update({
-    where: { id },
-    data: { status: p.data.status, ...(p.data.paymentStatus ? { paymentStatus: p.data.paymentStatus } : {}), ...(p.data.paymentStatus === "PAID" ? {} : {}) },
+
+  // Two devices (owner phone + counter laptop) can tap at the same instant.
+  // The UPDATE is conditional on the status we read, so only one transition
+  // wins; the loser gets a 409 instead of duplicating payments or restocks.
+  const moved = await db.order.updateMany({
+    where: { id, cafeId: s.cafeId, status: order.status },
+    data: { status: p.data.status, ...(p.data.paymentStatus ? { paymentStatus: p.data.paymentStatus } : {}) },
   });
+  if (moved.count === 0) {
+    // A duplicate tap from the second device is harmless if the order is
+    // already in the requested state — answer success instead of a scary 409.
+    const current = await db.order.findUnique({ where: { id }, select: { status: true } });
+    if (current?.status === p.data.status) {
+      const again = await db.order.findUnique({ where: { id } });
+      return NextResponse.json({ ok: true, already: true, order: again });
+    }
+    return NextResponse.json(
+      { error: "This order just changed on another device — refresh and try again." },
+      { status: 409 },
+    );
+  }
+  const updated = await db.order.findUnique({ where: { id } });
   if (p.data.paymentStatus === "PAID") {
     await db.payment.updateMany({ where: { orderId: id, status: "PENDING" }, data: { status: "PAID" } });
   }

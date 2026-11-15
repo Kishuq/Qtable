@@ -3,7 +3,7 @@ import { db } from "./db";
 import type { PlanId } from "./plans";
 
 // Per-outlet subscription state. The database is the source of truth;
-// Razorpay checkout/webhooks (or a manual DB flip) activate an outlet.
+// Razorpay checkout/webhooks (or a platform admin action) activate an outlet.
 // New signups start "pending" → the dashboard opens in preview mode and
 // every write is refused until the outlet is active.
 export type Plan = PlanId;
@@ -15,6 +15,8 @@ export type Subscription = {
   billing: "monthly" | "yearly";
   paidUntil: Date | null;
   ref: string;
+  mandateId: string;
+  autoRenew: boolean;
 };
 
 export function normalizePlan(v: string | null | undefined): Plan {
@@ -32,10 +34,28 @@ export function planAllowsPro(plan: Plan): boolean {
   return plan === "pro";
 }
 
+// Small grace window after the paid-until date. A bank/UPI mandate can settle
+// a few hours late; cutting a café's QR ordering off at midnight creates a
+// support incident for a payment that has actually left the customer's account.
+// Default 2 days, configurable 0–14. Never applies to legacy (null) periods.
+export function graceDays(): number {
+  const raw = Number(process.env.BILLING_GRACE_DAYS ?? "2");
+  if (!Number.isFinite(raw)) return 2;
+  return Math.min(14, Math.max(0, Math.floor(raw)));
+}
+
+export function graceEndsAt(paidUntil: Date | null): Date | null {
+  if (!paidUntil) return null;
+  return new Date(paidUntil.getTime() + graceDays() * 24 * 60 * 60 * 1000);
+}
+
 export async function getSubscription(cafeId: string): Promise<Subscription | null> {
   const c = await db.cafe.findUnique({
     where: { id: cafeId },
-    select: { planTier: true, subStatus: true, subBilling: true, subPaidUntil: true, subRef: true },
+    select: {
+      planTier: true, subStatus: true, subBilling: true, subPaidUntil: true, subRef: true,
+      subMandateId: true, subAutoRenew: true,
+    },
   });
   if (!c) return null;
   return {
@@ -44,14 +64,18 @@ export async function getSubscription(cafeId: string): Promise<Subscription | nu
     billing: c.subBilling === "yearly" ? "yearly" : "monthly",
     paidUntil: c.subPaidUntil,
     ref: c.subRef,
+    mandateId: c.subMandateId,
+    autoRenew: c.subAutoRenew,
   };
 }
 
-// "active" must also not be past its paid-until date. A null date means a
-// manually-activated / legacy outlet, which stays active indefinitely.
+// "active" must also not be past its paid-until date (+ grace). A null date
+// means a manually-activated / legacy outlet, which stays active indefinitely.
 export function isSubscriptionActive(sub: Subscription | null): boolean {
   if (!sub || sub.status !== "active") return false;
-  return !sub.paidUntil || sub.paidUntil.getTime() > Date.now();
+  if (!sub.paidUntil) return true;
+  const deadline = graceEndsAt(sub.paidUntil);
+  return Boolean(deadline && deadline.getTime() > Date.now());
 }
 
 export async function getPlanFor(cafeId: string): Promise<Plan> {
@@ -102,38 +126,73 @@ function addMonths(d: Date, months: number): Date {
   return next;
 }
 
-// Extends an existing paid period instead of truncating it (renewals, upgrades).
-export async function activateSubscription(o: {
+export type ActivateInput = {
   cafeId: string;
   plan: Plan;
   billing: "monthly" | "yearly";
   ref: string;
   /** Amount actually collected, in paise. Recorded in the billing ledger. */
   amount?: number;
-}): Promise<{ paidUntil: Date; renewal: boolean }> {
-  const cafe = await db.cafe.findUnique({
-    where: { id: o.cafeId },
-    select: { subPaidUntil: true, subStartedAt: true },
-  });
-  const now = new Date();
-  const from = cafe?.subPaidUntil && cafe.subPaidUntil.getTime() > now.getTime() ? cafe.subPaidUntil : now;
-  const paidUntil = addMonths(from, o.billing === "yearly" ? 12 : 1);
-  const renewal = Boolean(cafe?.subStartedAt);
-  await db.cafe.update({
-    where: { id: o.cafeId },
-    data: {
-      planTier: o.plan,
-      subStatus: "active",
-      subBilling: o.billing,
-      subPaidUntil: paidUntil,
-      subRef: o.ref,
-      subStartedAt: cafe?.subStartedAt ?? now,
-    },
-  });
-  // The ledger must never be the reason an activation fails — payment already
-  // cleared. Best-effort like audit logs.
-  try {
-    await db.billingEvent.create({
+  /**
+   * Canonical idempotency key for this charge, e.g. `order:<razorpay_order_id>`
+   * or `sub:<subscription_id>:<payment_id>`. Two callbacks for the same money
+   * (browser + webhook, or a webhook retry) extend the period exactly once.
+   */
+  txnKey?: string;
+  /** Optional mandate/subscription id for auto-renew. */
+  mandateId?: string;
+  /** Admin overrides: number of months to add. */
+  months?: number;
+};
+
+export type ActivateResult = { paidUntil: Date | null; renewal: boolean; duplicate: boolean };
+
+// Extends an existing paid period instead of truncating it (renewals, upgrades).
+//
+// Concurrency: the café row is locked FOR UPDATE inside the transaction, and
+// the ledger's unique txnKey is the second line of defence. Without both, a
+// slow browser callback racing the webhook could grant two months for one
+// payment, and two simultaneous renewals could lose an increment.
+export async function activateSubscription(o: ActivateInput): Promise<ActivateResult> {
+  const txnKey = o.txnKey?.trim() || null;
+  const months = o.months && o.months > 0 ? Math.min(36, Math.floor(o.months)) : o.billing === "yearly" ? 12 : 1;
+
+  return db.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{ subPaidUntil: Date | null; subStartedAt: Date | null; subStatus: string }>>`
+      SELECT "subPaidUntil", "subStartedAt", "subStatus"
+      FROM "Cafe" WHERE "id" = ${o.cafeId} FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row) throw new Error("CAFE_NOT_FOUND");
+
+    if (txnKey) {
+      const already = await tx.billingEvent.findUnique({ where: { txnKey }, select: { id: true } });
+      if (already) {
+        return { paidUntil: row.subPaidUntil, renewal: false, duplicate: true };
+      }
+    }
+
+    const now = new Date();
+    const from = row.subPaidUntil && row.subPaidUntil.getTime() > now.getTime() ? row.subPaidUntil : now;
+    const paidUntil = addMonths(from, months);
+    const renewal = Boolean(row.subStartedAt);
+
+    await tx.cafe.update({
+      where: { id: o.cafeId },
+      data: {
+        planTier: o.plan,
+        subStatus: "active",
+        subBilling: o.billing,
+        subPaidUntil: paidUntil,
+        subRef: o.ref,
+        subStartedAt: row.subStartedAt ?? now,
+        ...(o.mandateId !== undefined ? { subMandateId: o.mandateId, subAutoRenew: Boolean(o.mandateId) } : {}),
+      },
+    });
+
+    // The ledger is part of the same transaction: if it fails, the period
+    // change rolls back too. Money records are never "best effort".
+    await tx.billingEvent.create({
       data: {
         cafeId: o.cafeId,
         kind: renewal ? "renewal" : "activated",
@@ -141,21 +200,78 @@ export async function activateSubscription(o: {
         billing: o.billing,
         amount: Math.max(0, Math.round(o.amount || 0)),
         ref: o.ref,
-        meta: `paidUntil=${paidUntil.toISOString()}`,
+        txnKey,
+        meta: `paidUntil=${paidUntil.toISOString()}${o.mandateId ? ` mandate=${o.mandateId}` : ""}`,
       },
     });
-  } catch { /* ledger is best-effort */ }
-  return { paidUntil, renewal };
+
+    return { paidUntil, renewal, duplicate: false };
+  });
 }
 
-export async function markPastDue(cafeId: string): Promise<void> {
-  const updated = await db.cafe
-    .update({ where: { id: cafeId }, data: { subStatus: "past_due" } })
-    .catch(() => null);
-  if (!updated) return;
-  try {
-    await db.billingEvent.create({ data: { cafeId, kind: "expired" } });
-  } catch { /* best-effort */ }
+// Platform-admin escape hatch (comp, manual bank transfer, refund, cancel).
+// txnKey keeps repeated admin clicks idempotent.
+export async function setSubscriptionStatus(o: {
+  cafeId: string;
+  status: SubStatus;
+  note: string;
+  txnKey?: string;
+  plan?: Plan;
+  billing?: "monthly" | "yearly";
+  months?: number;
+  amount?: number;
+}): Promise<{ ok: boolean; duplicate?: boolean }> {
+  if (o.status === "active") {
+    await activateSubscription({
+      cafeId: o.cafeId,
+      plan: o.plan ?? (await getPlanFor(o.cafeId)),
+      billing: o.billing ?? "monthly",
+      ref: o.txnKey ?? "",
+      amount: o.amount ?? 0,
+      txnKey: o.txnKey,
+      months: o.months,
+    });
+    return { ok: true };
+  }
+
+  return db.$transaction(async (tx) => {
+    if (o.txnKey) {
+      const already = await tx.billingEvent.findUnique({ where: { txnKey: o.txnKey }, select: { id: true } });
+      if (already) return { ok: true, duplicate: true };
+    }
+    await tx.cafe.update({
+      where: { id: o.cafeId },
+      data: {
+        subStatus: o.status,
+        ...(o.status === "canceled" ? { subAutoRenew: false } : {}),
+      },
+    });
+    await tx.billingEvent.create({
+      data: {
+        cafeId: o.cafeId,
+        kind: o.status === "canceled" ? "canceled" : "expired",
+        plan: o.plan ?? "",
+        billing: o.billing ?? "",
+        amount: Math.max(0, Math.round(o.amount ?? 0)),
+        ref: o.txnKey ?? "",
+        txnKey: o.txnKey ?? null,
+        meta: o.note.slice(0, 300),
+      },
+    });
+    return { ok: true };
+  });
+}
+
+export async function markPastDue(cafeId: string): Promise<boolean> {
+  const result = await db.cafe.updateMany({
+    where: { id: cafeId, subStatus: "active" },
+    data: { subStatus: "past_due" },
+  });
+  if (result.count === 0) return false;
+  await db.billingEvent
+    .create({ data: { cafeId, kind: "expired" } })
+    .catch(() => undefined);
+  return true;
 }
 
 export function planLabel(plan: Plan): string {

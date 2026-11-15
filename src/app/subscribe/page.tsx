@@ -85,7 +85,7 @@ function SubscribeInner() {
         router.push(`/login?next=${encodeURIComponent(`/subscribe?plan=${plan}&billing=${billing}&next=${next}`)}`);
         return;
       }
-      if (!r.ok || !j.orderId) {
+      if (!r.ok || (!j.orderId && !j.subscriptionId)) {
         if (j.fallback) {
           const url = PLAN_URLS[plan];
           if (url) {
@@ -102,22 +102,33 @@ function SubscribeInner() {
 
       if (!(await loadRazorpay())) throw new Error("Payment popup couldn't load — check your connection and try again.");
       const RZP = (window as unknown as { Razorpay: new (o: Record<string, unknown>) => { open(): void } }).Razorpay;
+      const recurring = j.mode === "subscription";
       const rz = new RZP({
         key: j.keyId,
-        order_id: j.orderId,
-        amount: j.amount,
-        currency: j.currency || "INR",
+        // Mandate checkout uses subscription_id; one-off uses order_id+amount.
+        ...(recurring
+          ? { subscription_id: j.subscriptionId }
+          : { order_id: j.orderId, amount: j.amount, currency: j.currency || "INR" }),
         name: j.name || "Qtable",
         description: j.description || `${PLANS[plan].name} — ${billing}`,
         prefill: j.prefill || {},
         theme: { color: "#c2410c" },
         handler: async (resp: unknown) => {
-          const d = resp as { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string };
+          const d = resp as {
+            razorpay_payment_id: string; razorpay_order_id?: string;
+            razorpay_subscription_id?: string; razorpay_signature: string;
+          };
           try {
             const vr = await fetch("/api/billing/activate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(d),
+              body: JSON.stringify({
+                razorpay_payment_id: d.razorpay_payment_id,
+                razorpay_signature: d.razorpay_signature,
+                ...(recurring
+                  ? { razorpay_subscription_id: d.razorpay_subscription_id || j.subscriptionId }
+                  : { razorpay_order_id: d.razorpay_order_id || j.orderId }),
+              }),
             });
             const vj = await vr.json().catch(() => ({}));
             if (!vr.ok) throw new Error(vj.error || "Payment received, but activation is still confirming.");

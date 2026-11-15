@@ -17,6 +17,10 @@ const Schema = z.object({
   coupon: z.string().max(24).optional().default(""),
   note: z.string().max(240).optional().default(""),
   upiRef: z.string().max(30).optional().default(""),
+  // One id per checkout attempt. A double-tap or a retried request (response
+  // lost on a flaky connection) returns the SAME order instead of charging the
+  // customer twice.
+  clientToken: z.string().max(64).optional().default(""),
   items: z.array(Item).min(1).max(30),
 });
 
@@ -49,6 +53,24 @@ export async function POST(req: NextRequest) {
 
   const table = await db.cafeTable.findFirst({ where: { cafeId: cafe.id, code: d.tableCode, active: true } });
   if (!table && d.type === "DINEIN") return NextResponse.json({ error: "Invalid table. Please re-scan the QR." }, { status: 400 });
+
+  const clientToken = cleanStr(d.clientToken, 64) || null;
+  if (clientToken) {
+    const existing = await db.order.findFirst({
+      where: { cafeId: cafe.id, clientToken },
+      include: { items: true },
+    });
+    if (existing) {
+      return NextResponse.json({
+        ok: true,
+        duplicate: true,
+        order: {
+          id: existing.id, tokenNo: existing.tokenNo, total: existing.total,
+          status: existing.status, tableCode: existing.tableCode,
+        },
+      });
+    }
+  }
 
   // Validate items against live menu (price taken from server — never trust client)
   const ids = [...new Set(d.items.map((i) => i.id))];
@@ -87,6 +109,7 @@ export async function POST(req: NextRequest) {
   const baseData = {
     cafeId: cafe.id, tableId: table?.id, tableCode: d.type === "DINEIN" ? d.tableCode : "TAKEAWAY",
     tokenDay,
+    clientToken,
     customerName: cleanStr(d.customerName, 60) || "Guest",
     customerPhone: cleanPhone(d.customerPhone),
     type: d.type, status: "NEW", paymentMode: d.paymentMode,
@@ -97,6 +120,7 @@ export async function POST(req: NextRequest) {
   };
 
   let order = null;
+  let duplicate = false;
   try {
     // Generous attempts + tiny jitter: under an extreme same-millisecond burst
     // dozens of phones read the same max token and collide; each retry is two
@@ -112,12 +136,30 @@ export async function POST(req: NextRequest) {
       });
       try {
         order = await db.order.create({
-          data: { ...baseData, tokenNo: ((last?.tokenNo || 0) % 999) + 1 },
+          // Never wrap at 999: reusing a token within the same day collides with
+          // the unique constraint forever. A monotonic series is the safe choice
+          // for a café that genuinely serves >999 orders in a day.
+          data: { ...baseData, tokenNo: (last?.tokenNo || 0) + 1 },
           include: { items: true },
         });
       } catch (e) {
-        // P2002 = another phone grabbed the same token a millisecond earlier. Retry.
-        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 59) continue;
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+          const target = String((e.meta as { target?: unknown } | undefined)?.target ?? "");
+          // A concurrent double-tap won the clientToken race: return its order
+          // instead of retrying forever (the token constraint can never clear).
+          if (clientToken && target.includes("clientToken")) {
+            const existing = await db.order.findFirst({
+              where: { cafeId: cafe.id, clientToken },
+              select: { id: true, tokenNo: true, total: true, status: true, tableCode: true },
+            });
+            if (existing) {
+              order = { ...existing, items: [] } as unknown as typeof order;
+              duplicate = true;
+              break;
+            }
+          }
+          if (attempt < 59) continue; // token-number collision: retry
+        }
         throw e;
       }
     }
@@ -128,6 +170,14 @@ export async function POST(req: NextRequest) {
     // written, so the customer can safely retry with zero ghost-order risk.
     console.error("ORDER_CREATE_FAIL", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Kitchen is slammed right now — tap Place order once more." }, { status: 503 });
+  }
+  // A deduplicated retry has already been counted, stocked and audited.
+  if (duplicate) {
+    return NextResponse.json({
+      ok: true,
+      duplicate: true,
+      order: { id: order.id, tokenNo: order.tokenNo, total: order.total, status: order.status, tableCode: order.tableCode },
+    });
   }
   // Inventory (Pro only): decrement tracked stock per line. Guarded per-item
   // with gte so a same-millisecond rush can never drive counts negative.

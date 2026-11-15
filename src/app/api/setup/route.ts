@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { hashPassword, setSessionCookie, readGoogleSignup, GOOGLE_SIGNUP_COOKIE } from "@/lib/auth";
 import { googleConfigured } from "@/lib/google";
@@ -71,63 +72,87 @@ export async function POST(req: NextRequest) {
   const ownerName = cleanStr(google?.name || name, 60);
   const plan = normalizePlan(parsed.data.plan);
   const slug = await uniqueSlug(cafeName);
+  // Hash OUTSIDE the transaction: bcrypt's ~300 ms work would otherwise hold a
+  // pooled Postgres connection open during every signup spike.
+  const passwordHash = await hashPassword(password);
 
   // One transaction: a half-created account (user without a cafe) would break
   // every dashboard page, so either everything lands or nothing does.
-  const { user, cafe } = await db.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        name: ownerName,
-        email,
-        passwordHash: await hashPassword(password),
-        provider: google ? "google" : "password",
-        role: "OWNER",
-        verified: true,
-      },
+  let created;
+  try {
+    created = await db.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name: ownerName,
+          email,
+          passwordHash,
+          provider: google ? "google" : "password",
+          role: "OWNER",
+          verified: true,
+        },
+      });
+
+      const cafe = await tx.cafe.create({
+        data: {
+          name: cleanStr(cafeName, 60),
+          slug,
+          tagline: "Scan. Order. Enjoy.",
+          upiId: cleanStr(upiId, 60),
+          ownerId: user.id,
+          planTier: plan,
+          subStatus: "pending",
+          subBilling: "monthly",
+        },
+      });
+
+      await tx.user.update({ where: { id: user.id }, data: { cafeId: cafe.id } });
+
+      // Demo data in three batch INSERTs instead of 27 round trips. Signup is a
+      // traffic spike of its own — a slow cold-start transaction (5s+) holds a
+      // connection and makes every new outlet feel broken. IDs are generated
+      // here so items can point at their category without a second read.
+      const catRows = DEMO_CATEGORIES.map((name, i) => ({ id: crypto.randomUUID(), cafeId: cafe.id, name, sort: i }));
+      await tx.category.createMany({ data: catRows });
+      const catMap = new Map(catRows.map((c) => [c.name, c.id]));
+
+      await tx.menuItem.createMany({
+        data: DEMO_ITEMS.map((it, i) => ({
+          cafeId: cafe.id, categoryId: catMap.get(it.cat) ?? null, name: it.name, description: it.description,
+          price: it.price, imageEmoji: it.imageEmoji, imageUrl: it.img, veg: it.veg, popular: it.popular, sort: i,
+        })),
+      });
+
+      await tx.cafeTable.createMany({
+        data: Array.from({ length: 12 }, (_, i) => ({
+          cafeId: cafe.id, code: `T${i + 1}`, name: `Table ${i + 1}`, qrToken: crypto.randomUUID(),
+        })),
+      });
+
+      await tx.coupon.create({ data: { cafeId: cafe.id, code: "WELCOME10", pct: 10 } });
+      await tx.billingEvent.create({ data: { cafeId: cafe.id, kind: "signup", plan, billing: "monthly" } });
+      await tx.auditLog.create({ data: { cafeId: cafe.id, userId: user.id, action: google ? "SIGNUP_GOOGLE" : "SIGNUP_EMAIL", meta: `slug=${slug} plan=${plan}` } });
+
+      return { user, cafe };
     });
-
-    const cafe = await tx.cafe.create({
-      data: {
-        name: cleanStr(cafeName, 60),
-        slug,
-        tagline: "Scan. Order. Enjoy.",
-        upiId: cleanStr(upiId, 60),
-        ownerId: user.id,
-        planTier: plan,
-        subStatus: "pending",
-        subBilling: "monthly",
-      },
-    });
-
-    await tx.user.update({ where: { id: user.id }, data: { cafeId: cafe.id } });
-
-    // Demo data in three batch INSERTs instead of 27 round trips. Signup is a
-    // traffic spike of its own — a slow cold-start transaction (5s+) holds a
-    // connection and makes every new outlet feel broken. IDs are generated
-    // here so items can point at their category without a second read.
-    const catRows = DEMO_CATEGORIES.map((name, i) => ({ id: crypto.randomUUID(), cafeId: cafe.id, name, sort: i }));
-    await tx.category.createMany({ data: catRows });
-    const catMap = new Map(catRows.map((c) => [c.name, c.id]));
-
-    await tx.menuItem.createMany({
-      data: DEMO_ITEMS.map((it, i) => ({
-        cafeId: cafe.id, categoryId: catMap.get(it.cat) ?? null, name: it.name, description: it.description,
-        price: it.price, imageEmoji: it.imageEmoji, imageUrl: it.img, veg: it.veg, popular: it.popular, sort: i,
-      })),
-    });
-
-    await tx.cafeTable.createMany({
-      data: Array.from({ length: 12 }, (_, i) => ({
-        cafeId: cafe.id, code: `T${i + 1}`, name: `Table ${i + 1}`, qrToken: crypto.randomUUID(),
-      })),
-    });
-
-    await tx.coupon.create({ data: { cafeId: cafe.id, code: "WELCOME10", pct: 10 } });
-    await tx.billingEvent.create({ data: { cafeId: cafe.id, kind: "signup", plan, billing: "monthly" } });
-    await tx.auditLog.create({ data: { cafeId: cafe.id, userId: user.id, action: google ? "SIGNUP_GOOGLE" : "SIGNUP_EMAIL", meta: `slug=${slug} plan=${plan}` } });
-
-    return { user, cafe };
-  });
+  } catch (e) {
+    // Two people can submit the same email/name in the same second; the unique
+    // index is authoritative. Answer with a useful message, never a raw 500.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const target = String((e.meta as { target?: unknown } | undefined)?.target ?? "");
+      if (target.includes("email")) {
+        return NextResponse.json(
+          { error: "An account with this email already exists. Log in instead.", redirect: "/login" },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json(
+        { error: "That outlet name was just taken — try a slightly different name." },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
+  const { user, cafe } = created;
 
   // Signed in immediately — the owner lands in the dashboard preview, not back
   // on a login form. Session lasts 30 days.

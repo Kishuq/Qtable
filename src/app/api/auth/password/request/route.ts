@@ -29,8 +29,11 @@ export async function POST(req: NextRequest) {
     const user = await db.user.findUnique({ where: { email } });
     if (user) {
       const token = crypto.randomBytes(32).toString("hex");
+      // Store only a SHA-256 digest: a database leak must not hand out working
+      // password-reset links. The raw token exists only in the email.
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
       const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await db.user.update({ where: { email }, data: { resetToken: token, resetExpires: expires } });
+      await db.user.update({ where: { email }, data: { resetToken: tokenHash, resetExpires: expires } });
       await db.auditLog.create({ data: { action: "PW_RESET_REQUEST", meta: `email=${email}` } });
 
       const url = absoluteUrl(

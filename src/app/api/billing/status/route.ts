@@ -29,6 +29,7 @@ export async function GET() {
     paidUntil: sub?.paidUntil ?? null,
     active,
     preview: !active,
+    autoRenew: Boolean(sub?.autoRenew && sub?.mandateId),
     cafe: cafe ? { name: cafe.name, slug: cafe.slug } : null,
     // Razorpay checkout is available only when platform keys are configured.
     checkout: Boolean(process.env.BILLING_RAZORPAY_KEY_ID && process.env.BILLING_RAZORPAY_KEY_SECRET),

@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
     } catch {}
     return invalid();
   }
-  if (user.resetExpires.getTime() < Date.now() || !safeEqual(p.data.token.trim(), user.resetToken)) {
+  const submittedHash = crypto.createHash("sha256").update(p.data.token.trim()).digest("hex");
+  if (user.resetExpires.getTime() < Date.now() || !safeEqual(submittedHash, user.resetToken)) {
     try {
       await db.auditLog.create({ data: { cafeId: user.cafeId, userId: user.id, action: "PW_RESET_FAIL" } });
     } catch {}

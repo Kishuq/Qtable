@@ -23,10 +23,34 @@ export async function POST(req: NextRequest) {
   const { getCafeRazorpay } = await import("@/lib/paykeys");
   const keys = await getCafeRazorpay(order.cafeId);
   if (!keys) return NextResponse.json({ error: "Online payments not enabled by this outlet yet. Please pay at counter or via UPI." }, { status: 503 });
+
+  // Reuse a gateway order that is still unpaid. Opening checkout twice (or a
+  // flaky connection making the customer tap again) must not create a second
+  // payable order — the first one would become unverifiable when providerRef
+  // is overwritten.
+  const existing = await db.payment.findFirst({
+    where: { orderId: order.id, status: "PENDING", providerRef: { startsWith: "order_" } },
+    select: { providerRef: true },
+  });
+  if (existing?.providerRef) {
+    return NextResponse.json({
+      keyId: keys.keyId, rzpOrderId: existing.providerRef, amount: order.total, currency: "INR",
+      name: order.cafe.name, tokenNo: order.tokenNo, reused: true,
+    });
+  }
+
   const r = { client: new Razorpay({ key_id: keys.keyId, key_secret: keys.keySecret }), keyId: keys.keyId };
   try {
-    const rzOrder = await r.client.orders.create({ amount: order.total, currency: "INR", receipt: order.id.slice(0, 40) });
-    await db.payment.updateMany({ where: { orderId: order.id, status: "PENDING" }, data: { providerRef: String(rzOrder.id) } });
+    const rzOrder = await r.client.orders.create({ amount: order.total, currency: "INR", receipt: order.id.slice(0, 40), payment_capture: 1 });
+    const attached = await db.payment.updateMany({
+      where: { orderId: order.id, status: "PENDING", providerRef: "" },
+      data: { providerRef: String(rzOrder.id) },
+    });
+    if (attached.count === 0) {
+      await db.payment.create({
+        data: { cafeId: order.cafeId, orderId: order.id, mode: "ONLINE", status: "PENDING", amount: order.total, providerRef: String(rzOrder.id) },
+      });
+    }
     await db.auditLog.create({ data: { cafeId: order.cafeId, action: "RZP_ORDER", meta: `${order.id} ${rzOrder.id}` } });
     return NextResponse.json({
       keyId: r.keyId, rzpOrderId: rzOrder.id, amount: order.total, currency: "INR",

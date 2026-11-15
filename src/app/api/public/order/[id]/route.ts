@@ -69,6 +69,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const order = await db.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (!(await limitTenantRequest(req, "pay-claim", order.cafeId, 20, 60_000))) return tooMany();
+  // The customer may tap "I've paid" twice while the counter is confirming.
+  // Reuse a recent pending claim instead of filling the owner's queue with
+  // duplicate alerts — and never add a second charge row for one order.
+  const recent = await db.payment.findFirst({
+    where: {
+      orderId: order.id,
+      mode: "UPI",
+      status: "PENDING",
+      createdAt: { gte: new Date(Date.now() - 10 * 60_000) },
+    },
+    select: { id: true },
+  });
+  if (recent || order.paymentStatus === "PAID") {
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
   await db.payment.create({ data: { cafeId: order.cafeId, orderId: order.id, mode: "UPI", status: "PENDING", amount: order.total, providerRef: cleanPhone(upiRef) || upiRef } });
   await db.auditLog.create({ data: { cafeId: order.cafeId, action: "UPI_CLAIMED", meta: `${order.id} ref=${upiRef}` } });
   return NextResponse.json({ ok: true });

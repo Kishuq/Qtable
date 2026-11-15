@@ -84,7 +84,13 @@ export default function DesignPage() {
         setCafeName(j.cafe.name); setLogo(j.cafe.logoEmoji || "☕");
         const t = themeFromCafe(j.cafe);
         setTheme(t);
-        if (t.image) setUseBackdrop(true);
+        if (t.image) {
+          setUseBackdrop(true);
+          // Keep the stored backdrop available when toggling/preset-switching.
+          // It may be a /api/public/photo/<id> URL or a legacy data URL — both
+          // work as a CSS background, so nothing is re-uploaded on save.
+          setPhoto({ name: "Current backdrop", dataUrl: t.image });
+        }
       }
     }).catch(() => {});
   }, []);
