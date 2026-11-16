@@ -100,6 +100,8 @@ async function loadMenu(slug: string): Promise<MenuResult> {
         // separate billing call on every scan.
         plan,
         ordering,
+        // Unpaid outlet: show "setting up" instead of "menu-only plan".
+        preview: !active,
       }),
     };
   } catch (e) {

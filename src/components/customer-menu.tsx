@@ -14,6 +14,7 @@ type Data = {
   cafe: { name: string; tagline: string; description: string; upiId: string; gstPct: number; currency: string; logoEmoji: string; onlineProvider: string | null; theme: CafeTheme };
   categories: Cat[]; items: Item[]; tables: { code: string }[]; coupons: Coupon[];
   plan?: "menu" | "standard" | "pro";
+  preview?: boolean;
 };
 
 type Sort = "rel" | "lo" | "hi" | "pop";
@@ -43,6 +44,8 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
   // Subscription plan — the menu plan is read-only (no ordering stack). The
   // plan arrives with the menu payload, so a scan makes one request, not two.
   const [ordering, setOrdering] = useState(true);
+  // Unpaid outlet: the menu is browsable but nothing can be ordered.
+  const [preview, setPreview] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   // One idempotency key per checkout attempt. If the response is lost or the
   // customer double-taps Place order, the server returns the same order instead
@@ -59,6 +62,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Cafe not found");
       if (j?.ordering === false || j?.plan === "menu") setOrdering(false);
+      if (j?.preview === true) setPreview(true);
       setData(j);
     }).catch((e) => setErr(e.message));
     try {
@@ -512,7 +516,9 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
       {!ordering && (
         <div className="px-5 pt-3 lg:px-8">
           <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs font-bold text-stone-300">
-            📖 Menu-only plan — please order at the counter.
+            {preview
+              ? "🛠️ This outlet is setting up — the menu is preview-only for now. Please order at the counter."
+              : "📖 Menu-only plan — please order at the counter."}
           </p>
         </div>
       )}

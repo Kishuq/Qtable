@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { sendEmail, testEmailHtml, emailConfigured } from "@/lib/email";
+import { subscriptionGate } from "@/lib/billing";
 import { limitRequest, tooMany } from "@/lib/security";
 import { NextRequest } from "next/server";
 
@@ -15,6 +16,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s?.cafeId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Preview accounts can browse Settings but cannot consume platform email.
+  const gate = await subscriptionGate(s.cafeId);
+  if (gate) return gate;
   if (!(await limitRequest(req, "email-test", 5, 60_000))) return tooMany();
   if (!emailConfigured()) {
     return NextResponse.json(
