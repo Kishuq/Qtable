@@ -3,7 +3,7 @@ import { db } from "./db";
 import type { PlanId } from "./plans";
 
 // Per-outlet subscription state. The database is the source of truth;
-// Razorpay checkout/webhooks (or a platform admin action) activate an outlet.
+// Cashfree checkout/webhooks (or a platform admin action) activate an outlet.
 // New signups start "pending" → the dashboard opens in preview mode and
 // every write is refused until the outlet is active.
 export type Plan = PlanId;
@@ -153,7 +153,7 @@ export type ActivateInput = {
   /** Amount actually collected, in paise. Recorded in the billing ledger. */
   amount?: number;
   /**
-   * Canonical idempotency key for this charge, e.g. `order:<razorpay_order_id>`
+   * Canonical idempotency key for this charge, e.g. `order:<gateway_order_id>`
    * or `sub:<subscription_id>:<payment_id>`. Two callbacks for the same money
    * (browser + webhook, or a webhook retry) extend the period exactly once.
    */

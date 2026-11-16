@@ -61,7 +61,7 @@ export default function TermsPage() {
 
       <Section heading="5. Payments from your customers">
         <p>
-          Money from customers goes directly to the payment account you connect (for example your own Razorpay
+          Money from customers goes directly to the payment account you connect (for example your own Cashfree
           account). Qtable does not hold customer funds and does not settle them.
         </p>
         <p>

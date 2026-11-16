@@ -28,7 +28,7 @@ const STEPS: Step[] = [
   {
     target: 'aside a[href="/dashboard/settings"]',
     title: "4/6 · UPI ID — do this today",
-    body: "Paste your UPI ID in Settings. That's the entire payment setup for Cash + manual UPI. Razorpay keys unlock automatic checkout later.",
+    body: "Paste your UPI ID in Settings. That's the entire payment setup for Cash + manual UPI. Cashfree keys unlock automatic card/UPI checkout later.",
   },
   {
     target: 'aside a[href="/dashboard/guide"]',

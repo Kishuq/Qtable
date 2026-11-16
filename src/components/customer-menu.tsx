@@ -213,11 +213,11 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
     return j.order.id as string;
   }
 
-  function loadRazorpay(): Promise<boolean> {
-    if ((window as unknown as { Razorpay?: unknown }).Razorpay) return Promise.resolve(true);
+  function loadCashfree(): Promise<boolean> {
+    if ((window as unknown as { Cashfree?: unknown }).Cashfree) return Promise.resolve(true);
     return new Promise((resolve) => {
       const s = document.createElement("script");
-      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
       s.onload = () => resolve(true);
       s.onerror = () => resolve(false);
       document.body.appendChild(s);
@@ -232,52 +232,39 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
       window.location.href = j.url as string;
       return;
     }
-    // Razorpay: verified inline checkout
-    const r = await fetch("/api/public/pay/razorpay/order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId }) });
+    // Cashfree: hosted checkout, server-side verification on return.
+    const r = await fetch("/api/public/pay/cashfree/order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId }) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "Could not start online payment.");
-    if (!(await loadRazorpay())) throw new Error("Payment popup blocked — check connection and retry from tracking page.");
-    const RZP = (window as unknown as { Razorpay: new (o: Record<string, unknown>) => { open(): void } }).Razorpay;
-    await new Promise<void>((resolve) => {
-      const rz = new RZP({
-        key: j.keyId, amount: j.amount, currency: j.currency, name: j.name,
-        description: `Order #${j.tokenNo}`, order_id: j.rzpOrderId,
-        prefill: { name: form.name || "Guest", contact: form.phone || "" },
-        theme: { color: "#c2410c" },
-        handler: (resp: unknown) => {
-          const d = resp as { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string };
-          fetch("/api/public/pay/razorpay/verify", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId, ...d }),
-          }).then(async (vr) => {
-            if (!vr.ok) {
-              const vj = await vr.json().catch(() => ({}));
-              toast((vj as { error?: string }).error || "Verification failed", "err");
-            } else toast("Payment verified ✓", "ok");
-            window.location.href = `/order/${orderId}`;
-          }).catch(() => { window.location.href = `/order/${orderId}`; });
-          resolve();
-        },
-        modal: { ondismiss: () => { window.location.href = `/order/${orderId}`; resolve(); } },
-      });
-      rz.open();
+    if (j.paid) { window.location.href = `/order/${orderId}?cf=1`; return; }
+    if (!(await loadCashfree())) throw new Error("Payment page blocked — check connection and retry from the tracking page.");
+    const CF = (window as unknown as {
+      Cashfree: (o: { mode: string }) => { checkout(o: Record<string, unknown>): void };
+    }).Cashfree;
+    const cashfree = CF({ mode: j.mode === "production" ? "production" : "sandbox" });
+    // Hosted checkout takes over this tab and returns to /order/<id>?cf=1, where
+    // the tracking page verifies server-to-server. No client callback is trusted.
+    cashfree.checkout({
+      paymentSessionId: j.sessionId,
+      redirectTarget: "_self",
+      onPaymentUpdate: () => {},
     });
   }
 
-  const razorAuto = (data?.cafe.onlineProvider || null) === "razorpay";
+  const cashAuto = (data?.cafe.onlineProvider || null) === "cashfree";
 
   async function place() {
     setPlacing(true); setErr("");
     try {
       const orderId = await createOrder();
       const provider = data?.cafe.onlineProvider || null;
-      // Auto-return flows: ONLINE always; UPI via Razorpay (verified checkout
-      // opens the UPI apps itself, then returns + confirms automatically).
+      // Auto-return flows: ONLINE always; UPI via Cashfree (hosted checkout
+      // opens UPI apps / cards itself, then returns + confirms automatically).
       // Plain UPI links can't callback — those stay manual by design.
-      if ((form.pay === "ONLINE" || (form.pay === "UPI" && razorAuto)) && provider) {
+      if ((form.pay === "ONLINE" || (form.pay === "UPI" && cashAuto)) && provider) {
         try {
           await payOnline(orderId, provider);
-          return; // gateway redirected (stripe) or handler redirected (razorpay)
+          return; // gateway redirected (stripe) or cashfree redirected (hosted)
         } catch (e: unknown) {
           // Order EXISTS (kitchen has it) — payment just didn't complete.
           toast(e instanceof Error ? e.message : "Online payment failed", "err");
@@ -629,7 +616,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
             <div className={`mt-2 grid gap-2 ${onlineProvider ? "grid-cols-3" : "grid-cols-2"}`}>
               {payModes.map((m) => (
                 <button key={m} onClick={() => setForm({ ...form, pay: m })} className={`rounded-2xl border p-3 text-xs font-black transition ${form.pay === m ? "t-primary-border bg-white/10" : "border-white/10 text-stone-400"}`}>
-                  {m === "COUNTER" ? "💵 Cash" : m === "UPI" ? "📱 UPI" : onlineProvider === "stripe" ? "💳 Card/Stripe" : "💳 UPI/Card"}
+                  {m === "COUNTER" ? "💵 Cash" : m === "UPI" ? "📱 UPI" : onlineProvider === "stripe" ? "💳 Card/Stripe" : "💳 Card/Cashfree"}
                 </button>
               ))}
             </div>
@@ -640,7 +627,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
             {form.pay === "UPI" && data.cafe.upiId && (
               <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
                 <p className="text-xs text-stone-400">Pay <b className="text-white">{inr(total, data.cafe.currency)}</b> to <b className="text-white">{data.cafe.upiId}</b></p>
-                {razorAuto ? (
+                {cashAuto ? (
                   <p className="mt-3 rounded-xl bg-emerald-500/10 p-3 text-xs font-bold text-emerald-200">
                     ⚡ Fully automatic — tap <b>Place order</b>, pay inside GPay/PhonePe/Paytm, and you return here with payment confirmed. Nothing to paste.
                   </p>
@@ -692,7 +679,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
               className="t-grad mt-4 w-full rounded-2xl py-4 font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99] disabled:opacity-50"
             >
               {placing ? "Sending to kitchen… 🔔"
-                : form.pay === "UPI" && razorAuto ? `Pay ${inr(total, data.cafe.currency)} with UPI →`
+                : form.pay === "UPI" && cashAuto ? `Pay ${inr(total, data.cafe.currency)} with UPI →`
                 : form.pay === "UPI" ? `✓ I've Paid — Fire My Order • ${inr(total, data.cafe.currency)}`
                 : `Place order • ${inr(total, data.cafe.currency)}`}
             </button>

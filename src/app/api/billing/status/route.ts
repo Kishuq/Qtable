@@ -31,8 +31,8 @@ export async function GET() {
     preview: !active,
     autoRenew: Boolean(sub?.autoRenew && sub?.mandateId),
     cafe: cafe ? { name: cafe.name, slug: cafe.slug } : null,
-    // Razorpay checkout is available only when platform keys are configured.
-    checkout: Boolean(process.env.BILLING_RAZORPAY_KEY_ID && process.env.BILLING_RAZORPAY_KEY_SECRET),
+    // Cashfree checkout is available only when platform keys are configured.
+    checkout: Boolean(process.env.BILLING_CASHFREE_APP_ID && process.env.BILLING_CASHFREE_SECRET_KEY),
     // Immutable ledger — the owner's receipts and support's paper trail.
     events,
   });

@@ -63,8 +63,8 @@ async function loadMenu(slug: string): Promise<MenuResult> {
     if (!cafe || !cafe.isActive) return { kind: "missing", text: NOT_FOUND_TEXT };
 
     // Gateway comes from the outlet's self-serve config first, deployment env second.
-    const hasRzp = Boolean(cafe.razorpayKeySecretEnc || process.env.RAZORPAY_KEY_ID);
-    const onlineProvider = hasRzp ? "razorpay" : process.env.STRIPE_SECRET_KEY ? "stripe" : null;
+    const hasCf = Boolean(cafe.cashfreeAppId || process.env.CASHFREE_APP_ID);
+    const onlineProvider = hasCf ? "cashfree" : process.env.STRIPE_SECRET_KEY ? "stripe" : null;
 
     // Subscription columns came back with the cafe row — no second query.
     const sub = subscriptionFromCafe(cafe);

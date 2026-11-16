@@ -9,8 +9,9 @@ export async function GET() {
   const started = Date.now();
   const flags = {
     sentry: Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
-    billing: Boolean(process.env.BILLING_RAZORPAY_KEY_ID && process.env.BILLING_RAZORPAY_KEY_SECRET),
-    webhook: Boolean(process.env.BILLING_RAZORPAY_WEBHOOK_SECRET),
+    billing: Boolean(process.env.BILLING_CASHFREE_APP_ID && process.env.BILLING_CASHFREE_SECRET_KEY),
+    gateway: Boolean(process.env.CASHFREE_APP_ID && process.env.CASHFREE_SECRET_KEY || process.env.STRIPE_SECRET_KEY),
+    webhook: Boolean(process.env.BILLING_CASHFREE_SECRET_KEY),
     email: Boolean(process.env.RESEND_API_KEY),
     redis: Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN),
     cron: Boolean(process.env.CRON_SECRET),

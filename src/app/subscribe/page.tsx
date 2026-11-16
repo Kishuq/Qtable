@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PLANS, planQuote, parseBilling, parsePlan, type Billing, type PlanId } from "@/lib/plans";
 
 // Hosted payment-page links per plan (optional fallback when the platform
-// Razorpay Order API isn't configured on this deployment).
+// Cashfree keys aren't configured on this deployment).
 const PLAN_URLS: Record<PlanId, string> = {
   menu: process.env.NEXT_PUBLIC_BILLING_MENU_URL || "",
   standard: process.env.NEXT_PUBLIC_BILLING_STANDARD_URL || "",
@@ -24,11 +24,11 @@ type Status = {
   cafe: { name: string; slug: string } | null;
 };
 
-function loadRazorpay(): Promise<boolean> {
-  if ((window as unknown as { Razorpay?: unknown }).Razorpay) return Promise.resolve(true);
+function loadCashfree(): Promise<boolean> {
+  if ((window as unknown as { Cashfree?: unknown }).Cashfree) return Promise.resolve(true);
   return new Promise((resolve) => {
     const s = document.createElement("script");
-    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
     s.onload = () => resolve(true);
     s.onerror = () => resolve(false);
     document.body.appendChild(s);
@@ -46,6 +46,9 @@ function SubscribeInner() {
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const quote = planQuote(plan, billing);
+  // Cashfree returns the browser to ?cf_order_id=… (some setups use order_id).
+  const returnOrder = sp.get("cf_order_id") || sp.get("order_id") || "";
+  const confirming = useRef(false);
 
   // Poll while unpaid: activation can land via the webhook even if the browser
   // lost the callback, and the owner should move forward without refreshing.
@@ -70,6 +73,41 @@ function SubscribeInner() {
     return () => { stop = true; clearInterval(t); };
   }, [router, next]);
 
+  // Returning from Cashfree checkout: verify the settled order server-to-server
+  // and drop the query string so a refresh never re-posts the confirmation.
+  useEffect(() => {
+    if (!returnOrder || confirming.current) return;
+    confirming.current = true;
+    setBusy(true);
+    setNote("Confirming your payment with the gateway…");
+    (async () => {
+      try {
+        const r = await fetch("/api/billing/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: returnOrder }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          // 402 = money not settled yet; the webhook/poller will catch up.
+          if (r.status === 402) {
+            setNote("Payment is still settling — this page unlocks by itself in a few seconds.");
+          } else {
+            throw new Error(j.error || "We couldn't confirm that payment yet.");
+          }
+        } else {
+          setNote("Payment confirmed ✓");
+          router.replace(`/subscribe?plan=${plan}&billing=${billing}&next=${encodeURIComponent(next)}`);
+          router.refresh();
+        }
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Payment received — waiting for confirmation.");
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [returnOrder, router, plan, billing, next]);
+
   async function pay() {
     setErr("");
     setNote("");
@@ -85,7 +123,7 @@ function SubscribeInner() {
         router.push(`/login?next=${encodeURIComponent(`/subscribe?plan=${plan}&billing=${billing}&next=${next}`)}`);
         return;
       }
-      if (!r.ok || (!j.orderId && !j.subscriptionId)) {
+      if (!r.ok) {
         if (j.fallback) {
           const url = PLAN_URLS[plan];
           if (url) {
@@ -100,49 +138,21 @@ function SubscribeInner() {
         throw new Error(j.error || "Couldn't start checkout");
       }
 
-      if (!(await loadRazorpay())) throw new Error("Payment popup couldn't load — check your connection and try again.");
-      const RZP = (window as unknown as { Razorpay: new (o: Record<string, unknown>) => { open(): void } }).Razorpay;
-      const recurring = j.mode === "subscription";
-      const rz = new RZP({
-        key: j.keyId,
-        // Mandate checkout uses subscription_id; one-off uses order_id+amount.
-        ...(recurring
-          ? { subscription_id: j.subscriptionId }
-          : { order_id: j.orderId, amount: j.amount, currency: j.currency || "INR" }),
-        name: j.name || "Qtable",
-        description: j.description || `${PLANS[plan].name} — ${billing}`,
-        prefill: j.prefill || {},
-        theme: { color: "#c2410c" },
-        handler: async (resp: unknown) => {
-          const d = resp as {
-            razorpay_payment_id: string; razorpay_order_id?: string;
-            razorpay_subscription_id?: string; razorpay_signature: string;
-          };
-          try {
-            const vr = await fetch("/api/billing/activate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_payment_id: d.razorpay_payment_id,
-                razorpay_signature: d.razorpay_signature,
-                ...(recurring
-                  ? { razorpay_subscription_id: d.razorpay_subscription_id || j.subscriptionId }
-                  : { razorpay_order_id: d.razorpay_order_id || j.orderId }),
-              }),
-            });
-            const vj = await vr.json().catch(() => ({}));
-            if (!vr.ok) throw new Error(vj.error || "Payment received, but activation is still confirming.");
-            router.push(next);
-            router.refresh();
-          } catch (e: unknown) {
-            setErr(e instanceof Error ? e.message : "Payment received — waiting for confirmation.");
-          } finally {
-            setBusy(false);
-          }
-        },
-        modal: { ondismiss: () => { setBusy(false); setNote("Checkout closed — nothing was charged. Try again whenever you're ready."); } },
+      if (!j.paymentSessionId) throw new Error("Checkout didn't open — try again.");
+      if (!(await loadCashfree())) throw new Error("Payment page couldn't load — check your connection and try again.");
+
+      const CF = (window as unknown as {
+        Cashfree: (o: { mode: string }) => { checkout(o: Record<string, unknown>): void };
+      }).Cashfree;
+      const cashfree = CF({ mode: j.env === "production" ? "production" : "sandbox" });
+      cashfree.checkout({
+        paymentSessionId: j.paymentSessionId,
+        redirectTarget: "_self",
+        onPaymentUpdate: () => {},
       });
-      rz.open();
+      // Hosted checkout navigates this tab away. If it somehow doesn't, let the
+      // button recover instead of spinning forever.
+      window.setTimeout(() => setBusy(false), 15000);
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Couldn't start checkout");
       setBusy(false);

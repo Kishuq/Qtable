@@ -57,7 +57,7 @@ const SECTIONS: { title: string; emoji: string; body: string[]; link?: { href: s
     body: [
       "Cash: customer picks Cash, pays at the counter, you tap ✓ Received. Nothing else needed.",
       "Manual UPI: set your UPI ID in Settings once. Customers pay in GPay/PhonePe/Paytm, tap I've Paid, you verify the credit and tap ✓ Received.",
-      "Automatic UPI/cards: connect Razorpay keys in Settings → Online payments (Verify & enable). Customers pay inside a secure popup and orders auto-mark PAID with signature verification.",
+      "Automatic UPI/cards: connect Cashfree keys in Settings → Online payments (Verify & enable). Customers pay inside the secure hosted checkout and orders auto-mark PAID after server-side verification.",
       "Foreign customers: set Currency (USD, EUR…) — UPI hides itself and card checkout appears via Stripe keys.",
     ],
     link: { href: "/dashboard/settings", label: "Open Settings →" },

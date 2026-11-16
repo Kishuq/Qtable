@@ -12,8 +12,8 @@ export async function GET() {
   if (!cafe) return NextResponse.json({ error: "Outlet not found" }, { status: 404 });
   // The AES-encrypted gateway secret must never leave the server, even to the
   // owner's browser. The boolean is all the settings UI needs to show status.
-  const { razorpayKeySecretEnc, ...safe } = cafe;
-  return NextResponse.json({ cafe: { ...safe, hasRazorpaySecret: Boolean(razorpayKeySecretEnc) } });
+  const { cashfreeSecretEnc, ...safe } = cafe;
+  return NextResponse.json({ cafe: { ...safe, hasCashfreeSecret: Boolean(cashfreeSecretEnc) } });
 }
 
 const HEX = z.string().regex(/^#[0-9a-fA-F]{6}$/).optional();
@@ -111,6 +111,6 @@ export async function PATCH(req: NextRequest) {
   if (oldPhotoId && oldPhotoId !== newPhotoId) {
     await db.menuPhoto.deleteMany({ where: { id: oldPhotoId, cafeId: s.cafeId } }).catch(() => undefined);
   }
-  const { razorpayKeySecretEnc, ...safe } = cafe;
-  return NextResponse.json({ ok: true, cafe: { ...safe, hasRazorpaySecret: Boolean(razorpayKeySecretEnc) } });
+  const { cashfreeSecretEnc, ...safe } = cafe;
+  return NextResponse.json({ ok: true, cafe: { ...safe, hasCashfreeSecret: Boolean(cashfreeSecretEnc) } });
 }

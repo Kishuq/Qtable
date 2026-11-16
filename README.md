@@ -80,21 +80,22 @@ the default `support@qtable.in` only makes sense once that domain is yours.
 
 ## 💰 Self-serve subscriptions (Qtable's revenue)
 
-1. In **your** Razorpay account, set `BILLING_RAZORPAY_KEY_ID` /
-   `BILLING_RAZORPAY_KEY_SECRET` in Vercel (Production).
-2. Point a Razorpay webhook at `https://<domain>/api/billing/webhook` with the events
-   `payment.captured`, `order.paid`, `subscription.charged`, `subscription.halted`, and put
-   its signing secret in `BILLING_RAZORPAY_WEBHOOK_SECRET`.
-3. `POST /api/billing/checkout` creates a Razorpay **Subscription** when a
-   `BILLING_RAZORPAY_PLAN_<TIER>_<PERIOD>` plan id is configured (automatic UPI
-   Autopay/card renewal), otherwise a one-off **Order** with `notes.cafeId`, plan and
-   billing attached. The browser checks out, then `POST /api/billing/activate` verifies the
-   HMAC signature, refetches the entity, and confirms the amount + tenant before unlocking.
+1. In **your** Cashfree account, set `BILLING_CASHFREE_APP_ID` /
+   `BILLING_CASHFREE_SECRET_KEY` in Vercel (Production), plus `BILLING_CASHFREE_ENV`
+   (`production` or `sandbox`).
+2. Point a Cashfree webhook at `https://<domain>/api/billing/webhook` with
+   `PAYMENT_SUCCESS_WEBHOOK`, `PAYMENT_FAILED_WEBHOOK` and
+   `PAYMENT_USER_DROPPED_WEBHOOK`. Cashfree signs with the merchant Secret Key
+   (base64 HMAC-SHA256 over `x-webhook-timestamp + raw body`), so no extra secret is
+   needed.
+3. `POST /api/billing/checkout` creates a Cashfree **Order** with the outlet id, plan and
+   billing period stamped into `order_tags`. The browser opens hosted checkout, then
+   `POST /api/billing/activate` fetches the order server-to-server, checks
+   `order_status === "PAID"`, the tenant tag and the amount, and only then unlocks access.
 4. The webhook is the safety net if the browser closes mid-flow: it activates from
-   `notes.cafeId`, handles `subscription.charged` renewals, `subscription.halted` /
-   `payment.failed` dunning, sends the branded receipt (Resend), and logs every step.
-   Every money event carries a unique `txnKey`, so Razorpay's retries can never extend a
-   paid period twice.
+   `order_tags.cafeId`, handles failed/dropped payments (dunning), sends the branded
+   receipt (Resend), and logs every step. Every money event carries a unique `txnKey`,
+   so Cashfree's at-least-once retries can never extend a paid period twice.
 5. Receipts/plan links are best-effort: a mail failure never undoes a paid activation.
 6. Every money/lifecycle change is written to the `BillingEvent` ledger (signup, activated,
    renewal, expired, reminder). Owners see it at **Dashboard → Billing**.
@@ -134,9 +135,9 @@ Next.js 16 · TypeScript · Tailwind v4 · Prisma 6 + Postgres (Neon) · SSE + p
 server-side QR PNGs · built-in photo storage (Vercel Blob optional) · Resend mail · Upstash Redis limits (optional) · Sentry (optional).
 
 Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_APP_URL`,
-`BILLING_RAZORPAY_*` + `BILLING_RAZORPAY_WEBHOOK_SECRET`, optional
-`BILLING_RAZORPAY_PLAN_<TIER>_<PERIOD>` mandate plans, `BILLING_GRACE_DAYS`,
-`RAZORPAY_*` / `STRIPE_*` (fallback gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`,
+`BILLING_CASHFREE_APP_ID` + `BILLING_CASHFREE_SECRET_KEY` (+ `BILLING_CASHFREE_ENV`),
+`BILLING_GRACE_DAYS`, `CASHFREE_APP_ID` / `CASHFREE_SECRET_KEY` / `STRIPE_*` (fallback
+gateway), `GOOGLE_CLIENT_ID/SECRET`, `RESEND_API_KEY`,
 `BILLING_EMAIL_FROM`, `ADMIN_EMAILS`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_*`, `CRON_SECRET`,
 `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`, `PAYMENT_SECRET`.
 
@@ -144,7 +145,7 @@ Key env vars (see `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_AP
 
 - `src/app/t/[slug]/[code]/` — canonical QR menu + checkout · `src/app/t/[slug]/` — legacy redirect
 - `src/app/order/[id]/` — live tracking + ETA
-- `src/app/subscribe/` — plan picker + Razorpay checkout · `src/app/privacy|terms/` — legal pages
+- `src/app/subscribe/` — plan picker + Cashfree checkout · `src/app/privacy|terms/` — legal pages
 - `src/app/dashboard/` — overview, orders, insights, inventory, history, menu, coupons,
   design, billing, tables, payments, staff, settings, guide
 - `src/app/api/` — `setup` (open signup), `auth/*` (+ Google OAuth, password reset),

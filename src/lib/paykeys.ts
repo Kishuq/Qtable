@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { db } from "./db";
+import { cfRequest, type CashfreeKeys } from "./cashfree";
 
 // Per-outlet gateway secrets, AES-256-GCM encrypted at rest.
 // Key comes from PAYMENT_SECRET (set it in Vercel), falling back to JWT_SECRET
@@ -25,33 +26,41 @@ export function decryptSecret(packed: string): string {
   return decipher.update(Buffer.from(dataH, "hex")) + decipher.final("utf8");
 }
 
-// One-tap key check against Razorpay — proves the pasted keys actually work
-// before we store them (works in test mode too, so owners verify instantly).
-export async function verifyRazorpayKeys(keyId: string, keySecret: string): Promise<boolean> {
-  try {
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-    const r = await fetch("https://api.razorpay.com/v1/orders?count=1", {
-      headers: { Authorization: `Basic ${auth}` },
-    });
-    return r.ok;
-  } catch {
-    return false;
-  }
+// One-tap key check against Cashfree — proves the pasted App ID + Secret Key
+// actually work before we store them. Reading an order that doesn't exist
+// returns 404 for valid keys and 401/403 for bad ones, so no money is touched.
+export async function verifyCashfreeKeys(appId: string, secretKey: string, live: boolean): Promise<boolean> {
+  const r = await cfRequest<unknown>({ appId, secretKey, live }, "/orders/qtable-key-check");
+  return r.ok || r.status === 404;
 }
 
-// Resolve a cafe's gateway keys: owner-configured (DB, decrypted) first,
+function envCashfree(): CashfreeKeys | null {
+  const appId = (process.env.CASHFREE_APP_ID || "").trim();
+  const secretKey = (process.env.CASHFREE_SECRET_KEY || "").trim();
+  if (!appId || !secretKey) return null;
+  const flags = (process.env.CASHFREE_ENV || "").trim().toLowerCase();
+  const live = flags ? flags === "production" || flags === "live" : process.env.NODE_ENV === "production";
+  return { appId, secretKey, live };
+}
+
+// Resolve an outlet's gateway keys: owner-configured (DB, decrypted) first,
 // deployment env fallback second. Returns null when nothing is configured.
-export async function getCafeRazorpay(cafeId: string): Promise<{ keyId: string; keySecret: string; live: boolean } | null> {
+export async function getCafeCashfree(cafeId: string): Promise<CashfreeKeys | null> {
   try {
-    const cafe = await db.cafe.findUnique({ where: { id: cafeId } });
-    if (cafe?.razorpayKeyId && cafe.razorpayKeySecretEnc) {
-      return { keyId: cafe.razorpayKeyId, keySecret: decryptSecret(cafe.razorpayKeySecretEnc), live: cafe.razorpayLive };
+    const cafe = await db.cafe.findUnique({
+      where: { id: cafeId },
+      select: { cashfreeAppId: true, cashfreeSecretEnc: true, cashfreeLive: true },
+    });
+    if (cafe?.cashfreeAppId && cafe.cashfreeSecretEnc) {
+      try {
+        return { appId: cafe.cashfreeAppId, secretKey: decryptSecret(cafe.cashfreeSecretEnc), live: cafe.cashfreeLive };
+      } catch {
+        // A rotated PAYMENT_SECRET makes stored secrets unreadable. Fall back to
+        // env rather than throwing inside a customer's payment.
+      }
     }
   } catch {
     // fall through to env
   }
-  const id = process.env.RAZORPAY_KEY_ID || "";
-  const secret = process.env.RAZORPAY_KEY_SECRET || "";
-  if (id && secret) return { keyId: id, keySecret: secret, live: id.startsWith("rzp_live") };
-  return null;
+  return envCashfree();
 }

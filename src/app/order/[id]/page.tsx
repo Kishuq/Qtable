@@ -30,14 +30,59 @@ export default function TrackPage({ params }: { params: Promise<{ id: string }> 
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [fbDone, setFbDone] = useState(false);
-  const [returned, setReturned] = useState(false);
-
-  useEffect(() => {
+  // Computed from the URL once. `cf=1`/`paid=1` means we came back from a hosted
+  // gateway; the message below reassures the customer not to pay twice.
+  const [returned] = useState(() => {
+    if (typeof window === "undefined") return false;
     try {
       const sp = new URLSearchParams(window.location.search);
-      if (sp.get("paid") === "1") setReturned(true);
-    } catch { /* noop */ }
-  }, []);
+      return sp.get("paid") === "1" || sp.get("cf") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    function parse() {
+      try { return new URLSearchParams(window.location.search); } catch { return null; }
+    }
+    const sp = parse();
+    if (!sp) return;
+    // Back from Cashfree hosted checkout: ask our server to confirm the payment
+    // with the gateway (server-to-server). No client data is trusted; retries
+    // cover the few seconds Cashfree sometimes needs to settle.
+    if (sp.get("cf") !== "1") return;
+
+    let tries = 0;
+    async function confirm() {
+      try {
+        const r = await fetch("/api/public/pay/cashfree/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: id }),
+        });
+        if (!alive) return;
+        if (r.ok) {
+          const fr = await fetch(`/api/public/order/${id}?full=1`);
+          const fj = await fr.json().catch(() => null);
+          if (alive && fr.ok && fj?.order) {
+            setO((prev) => (prev ? { ...prev, ...fj.order, theme: prev.theme } : fj.order));
+          }
+          return;
+        }
+        // 402 still settling, 409 already/ambiguous, 502 gateway slow: retry.
+        if ((r.status === 402 || r.status === 502 || r.status === 409) && tries++ < 8) {
+          timer = setTimeout(confirm, 2500);
+        }
+      } catch {
+        if (alive && tries++ < 8) timer = setTimeout(confirm, 2500);
+      }
+    }
+    confirm();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [id]);
 
   useEffect(() => {
     let alive = true;

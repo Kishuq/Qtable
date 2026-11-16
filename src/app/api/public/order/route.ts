@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   // UPI model: one-tap "I've paid" fires the order instantly (zero friction).
   // Payment stays PENDING until the owner one-tap confirms the credit in their
-  // UPI app (they're watching live orders anyway) — or Razorpay auto-confirms.
+  // UPI app (they're watching live orders anyway) — or Cashfree auto-confirms.
   // upiRef is optional metadata only, never a burden on the customer.
   const upiRef = cleanStr(d.upiRef, 30).replace(/[^a-zA-Z0-9]/g, "");
 

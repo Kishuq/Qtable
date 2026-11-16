@@ -48,7 +48,7 @@ export default function PrivacyPage() {
         <p>No customer accounts, passwords or email addresses are required to order.</p>
         <p>
           No card numbers ever reach our servers. Card and UPI details are entered on the payment gateway&apos;s own
-          secure page (Razorpay or Stripe), and we only receive a confirmation reference and status.
+          secure page (Cashfree or Stripe), and we only receive a confirmation reference and status.
         </p>
         <p>No location tracking, no contact-list access, no microphone or camera access.</p>
       </Section>
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
           <li><b className="text-stone-200">Sentry</b> — error reports, with personal data kept out wherever possible.</li>
           <li><b className="text-stone-200">Resend</b> — transactional email such as password resets and receipts.</li>
           <li><b className="text-stone-200">Google</b> — optional owner sign-in.</li>
-          <li><b className="text-stone-200">Razorpay / Stripe</b> — payment processing, when an outlet connects a gateway.</li>
+          <li><b className="text-stone-200">Cashfree / Stripe</b> — payment processing, when an outlet connects a gateway.</li>
         </ul>
         <p>Each provider processes data only to deliver its part of the service.</p>
       </Section>

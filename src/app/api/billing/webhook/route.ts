@@ -1,187 +1,107 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
-import Razorpay from "razorpay";
-import { sendEmail, invoiceHtml, paymentFailedHtml } from "@/lib/email";
 import { db } from "@/lib/db";
 import { activateSubscription, planLabel, markPastDue } from "@/lib/billing";
+import { sendEmail, invoiceHtml, paymentFailedHtml } from "@/lib/email";
 import { PLANS, parseBilling, parsePlan } from "@/lib/plans";
+import { platformCashfree, verifyCashfreeWebhook } from "@/lib/cashfree";
 
 export const dynamic = "force-dynamic";
 
-function razorpay() {
-  const key_id = process.env.BILLING_RAZORPAY_KEY_ID || "";
-  const key_secret = process.env.BILLING_RAZORPAY_KEY_SECRET || "";
-  return key_id && key_secret ? new Razorpay({ key_id, key_secret }) : null;
-}
-
-// Platform billing webhook — point Razorpay webhooks here ONCE (main domain).
-// Verified by HMAC-SHA256 over the raw body; everything else is ignored.
+// Platform billing webhook — point the Cashfree dashboard at this URL ONCE
+// (Payment Gateway → Webhooks → this endpoint; every checkout order also gets a
+// notify_url stamped that points here via /api/public/pay/cashfree/webhook/<cafeId>).
+// Cashfree signs with the merchant secret key (base64 HMAC-SHA256 over
+// `x-webhook-timestamp + rawBody`).
 //
-//   order.paid / payment.captured     → one-off activation (safety net)
-//   subscription.charged              → mandate renewal + receipt
-//   subscription.halted               → dunning + past_due
-//   subscription.cancelled/completed  → turn auto-renew off, keep paid access
+//   PAYMENT_SUCCESS_WEBHOOK → activates the outlet's subscription (money is ours)
+//   PAYMENT_FAILED_WEBHOOK   → owner is told to retry (no charge captured)
 //
 // Every money event is idempotent through activateSubscription's txnKey, so
-// Razorpay's at-least-once retries can never extend a period twice.
+// Cashfree's at-least-once retries can never extend a period twice.
 export async function POST(req: NextRequest) {
-  const secret = process.env.BILLING_RAZORPAY_WEBHOOK_SECRET || "";
-  if (!secret) return NextResponse.json({ error: "Billing webhook not configured" }, { status: 503 });
+  const keys = platformCashfree();
+  if (!keys) return NextResponse.json({ error: "Billing webhook not configured" }, { status: 503 });
 
   let raw = "";
-  try {
-    raw = await req.text();
-  } catch {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-  }
-  const sig = req.headers.get("x-razorpay-signature") || "";
-  const expected = crypto.createHmac("sha256", secret).update(raw).digest("hex");
-  if (!sig || expected.length !== sig.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
-    try {
-      await db.auditLog.create({ data: { action: "BILL_WEBHOOK_SIG_FAIL" } });
-    } catch {}
+  try { raw = await req.text(); } catch { return NextResponse.json({ error: "Invalid body" }, { status: 400 }); }
+  const sig = req.headers.get("x-webhook-signature") || "";
+  const ts = req.headers.get("x-webhook-timestamp") || "";
+  if (!verifyCashfreeWebhook(raw, ts, sig, keys.secretKey)) {
+    try { await db.auditLog.create({ data: { action: "CF_WEBHOOK_SIG_FAIL" } }); } catch {}
     return NextResponse.json({ error: "Bad signature" }, { status: 400 });
   }
 
-  let evt: any = null;
-  try {
-    evt = JSON.parse(raw);
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-  const event: string = evt?.event || "";
-  const sub = evt?.payload?.subscription?.entity || {};
-  const pay = evt?.payload?.payment?.entity || {};
-  const order = evt?.payload?.order?.entity || {};
+  type CfEvent = {
+    type?: string;
+    event?: string;
+    data?: {
+      order?: {
+        order_id?: string;
+        order_amount?: number | string;
+        order_tags?: Record<string, string> | null;
+      };
+      payment?: {
+        cf_payment_id?: string | number;
+        payment_status?: string;
+        payment_amount?: number | string;
+      };
+    };
+  };
+  let evt: CfEvent | null = null;
+  try { evt = JSON.parse(raw) as CfEvent; } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  const event: string = String(evt?.type || evt?.event || "");
+  const data = evt?.data || {};
+  const order = data?.order || {};
+  const payment = data?.payment || {};
+  const cafeId = String(order?.order_tags?.cafeId || "");
+  const plan = parsePlan(order?.order_tags?.plan || "");
+  const billing = parseBilling(order?.order_tags?.billing || "");
   const date = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-  // ---- 1. One-off order paid (checkout + activate safety net) ----
-  if (event === "payment.captured" || event === "order.paid") {
-    // A subscription charge is handled below; don't double-process it here.
-    if (pay?.subscription_id) return NextResponse.json({ ok: true, ignored: "subscription-charge" });
+  // ---- Money received → activate the outlet's subscription ----
+  if (event === "PAYMENT_SUCCESS_WEBHOOK" || event === "ORDER_CAPTURED") {
+    if (!cafeId) return NextResponse.json({ ok: true, ignored: "no-cafe-tag" });
+    // Unknown / deleted outlet: acknowledge so Cashfree stops retrying, but never
+    // create a subscription row for a tenant that doesn't exist.
+    const cafeExists = await db.cafe.findUnique({ where: { id: cafeId }, select: { id: true } });
+    if (!cafeExists) return NextResponse.json({ ok: true, ignored: "unknown-cafe" });
 
-    let notes: Record<string, string> = order?.notes || pay?.notes || {};
-    let amountPaise = Number(pay?.amount || order?.amount || 0);
-    const orderId = String(order?.id || pay?.order_id || "");
-
-    // payment.captured frequently arrives WITHOUT the order entity, so notes
-    // would be empty and the safety net would silently ignore a real payment.
-    // Fetch the order to recover cafeId/plan/amount before giving up.
-    if (!notes.cafeId && orderId) {
-      const rzp = razorpay();
-      if (rzp) {
-        try {
-          const fetched = (await rzp.orders.fetch(orderId)) as unknown as { amount?: number; notes?: Record<string, string> };
-          notes = fetched.notes || notes;
-          amountPaise = amountPaise || Number(fetched.amount || 0);
-        } catch { /* fall through to the ignore below */ }
-      }
-    }
-
-    const cafeId: string = notes.cafeId || "";
-    if (!cafeId) return NextResponse.json({ ok: true, ignored: "no-one-off-cafe" });
-
-    const cafe = await db.cafe.findUnique({ where: { id: cafeId }, select: { id: true, name: true, ownerId: true } });
-    if (!cafe) return NextResponse.json({ ok: true, ignored: "cafe-not-found" });
-
-    const plan = parsePlan(notes.plan || "standard");
-    const billing = parseBilling(notes.billing || "monthly");
+    const orderRef = String(order?.order_id || "");
+    const orderAmountPaise = Math.round(Number(order?.order_amount ?? payment?.payment_amount ?? 0) * 100);
     const expectedPaise = (billing === "yearly" ? PLANS[plan].yearlyTotal : PLANS[plan].monthly) * 100;
 
-    if (amountPaise && amountPaise < expectedPaise) {
-      try { await db.auditLog.create({ data: { cafeId, action: "BILL_WEBHOOK_AMOUNT_SHORT", meta: `${pay?.id || order?.id} paid=${amountPaise} expected=${expectedPaise}` } }); } catch {}
+    // Never activate a payment that didn't actually land for the right amount.
+    if (orderAmountPaise && orderAmountPaise < expectedPaise) {
+      try { await db.auditLog.create({ data: { cafeId, action: "CF_WEBHOOK_AMOUNT_SHORT", meta: `${orderRef} paid=${orderAmountPaise} expected=${expectedPaise}` } }); } catch {}
       return NextResponse.json({ ok: true, ignored: "amount-mismatch" });
     }
 
-    if (!orderId) return NextResponse.json({ ok: true, ignored: "no-order-id" });
-
     const result = await activateSubscription({
       cafeId,
       plan,
       billing,
-      ref: String(pay?.id || orderId),
-      amount: amountPaise || expectedPaise,
-      txnKey: `order:${orderId}`,
-    });
-    if (result.duplicate) return NextResponse.json({ ok: true, duplicate: true });
-
-    try { await db.auditLog.create({ data: { cafeId, action: "BILL_WEBHOOK_ACTIVATED", meta: `${plan} ${billing} order:${orderId}` } }); } catch {}
-
-    const owner = cafe.ownerId
-      ? await db.user.findUnique({ where: { id: cafe.ownerId }, select: { email: true, name: true } })
-      : null;
-    const email: string = owner?.email || notes.email || pay?.email || "";
-    if (email) {
-      await sendEmail({
-        to: email,
-        subject: `Qtable receipt — ${planLabel(plan)} ${billing} ✓`,
-        html: invoiceHtml({
-          name: owner?.name || "there",
-          plan: planLabel(plan),
-          amount: `₹${((amountPaise || expectedPaise) / 100).toLocaleString("en-IN")}`,
-          period: billing === "yearly" ? "Yearly" : "Monthly",
-          paymentId: String(pay?.id || "—"),
-          subscriptionId: orderId,
-          date,
-        }),
-      });
-    }
-    return NextResponse.json({ ok: true });
-  }
-
-  // ---- 2. Recurring mandate charged ----
-  if (event === "subscription.charged") {
-    const notes = sub?.notes || pay?.notes || {};
-    const cafeId: string = notes.cafeId || "";
-    if (!cafeId) return NextResponse.json({ ok: true, ignored: "no-cafe" });
-
-    const cafe = await db.cafe.findUnique({ where: { id: cafeId }, select: { id: true, ownerId: true } });
-    if (!cafe) return NextResponse.json({ ok: true, ignored: "cafe-not-found" });
-
-    const plan = parsePlan(notes.plan || "standard");
-    const billing = parseBilling(notes.billing || "monthly");
-    const amountPaise = Number(pay?.amount || 0);
-    const expectedPaise = (billing === "yearly" ? PLANS[plan].yearlyTotal : PLANS[plan].monthly) * 100;
-
-    // Mandates are created at the price in force at signup. If our list price
-    // later changes, the customer's existing mandate still charges the ORIGINAL
-    // amount — rejecting it would lock out a paying customer forever. Trust the
-    // signed gateway charge, but leave an audit trail for reconciliation.
-    if (amountPaise && amountPaise < expectedPaise) {
-      try { await db.auditLog.create({ data: { cafeId, action: "BILL_MANDATE_LEGACY_PRICE", meta: `sub ${sub?.id} paid=${amountPaise} list=${expectedPaise}` } }); } catch {}
-    }
-
-    const subId = String(sub?.id || "");
-    const payId = String(pay?.id || sub?.current_end || Date.now());
-    const txnKey = `sub:${subId}:${payId}`;
-
-    const result = await activateSubscription({
-      cafeId,
-      plan,
-      billing,
-      ref: subId,
-      amount: amountPaise || expectedPaise,
-      txnKey,
-      mandateId: subId,
+      ref: String(payment?.cf_payment_id || orderRef),
+      amount: orderAmountPaise || expectedPaise,
+      txnKey: `order:${orderRef}`,
     });
 
     if (!result.duplicate) {
-      try { await db.auditLog.create({ data: { cafeId, action: "BILL_MANDATE_CHARGED", meta: `${plan} ${billing} ${txnKey}` } }); } catch {}
-      const owner = cafe.ownerId
+      try { await db.auditLog.create({ data: { cafeId, action: "CF_WEBHOOK_ACTIVATED", meta: `${plan} ${billing} order:${orderRef}` } }); } catch {}
+      const cafe = await db.cafe.findUnique({ where: { id: cafeId }, select: { ownerId: true } });
+      const owner = cafe?.ownerId
         ? await db.user.findUnique({ where: { id: cafe.ownerId }, select: { email: true, name: true } })
         : null;
-      const email: string = owner?.email || notes.email || sub?.customer?.email || "";
-      if (email) {
+      if (owner?.email) {
         await sendEmail({
-          to: email,
+          to: owner.email,
           subject: `Qtable receipt — ${planLabel(plan)} ${billing} ✓`,
           html: invoiceHtml({
-            name: owner?.name || sub?.customer?.name || "there",
+            name: owner.name || "there",
             plan: planLabel(plan),
-            amount: `₹${((amountPaise || expectedPaise) / 100).toLocaleString("en-IN")}`,
+            amount: `₹${((orderAmountPaise || expectedPaise) / 100).toLocaleString("en-IN")}`,
             period: billing === "yearly" ? "Yearly" : "Monthly",
-            paymentId: String(pay?.id || "—"),
-            subscriptionId: subId || "—",
+            paymentId: String(payment?.cf_payment_id || orderRef),
+            subscriptionId: orderRef,
             date,
           }),
         });
@@ -190,53 +110,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, duplicate: result.duplicate });
   }
 
-  // ---- 3. Mandate failed / halted ----
-  if (event === "subscription.halted" || event === "payment.failed") {
-    const notes = sub?.notes || pay?.notes || order?.notes || {};
-    const cafeId: string = notes.cafeId || "";
-    if (cafeId) {
-      const changed = await markPastDue(cafeId);
-      const cafe = await db.cafe
-        .findUnique({ where: { id: cafeId }, select: { ownerId: true } })
-        .catch(() => null);
-      const owner = cafe?.ownerId
-        ? await db.user.findUnique({ where: { id: cafe.ownerId }, select: { email: true, name: true } }).catch(() => null)
-        : await db.user.findFirst({ where: { cafe: { id: cafeId } }, select: { email: true, name: true } }).catch(() => null);
-      const amount = `₹${(Number(pay?.amount || 0) / 100).toLocaleString("en-IN")}`;
-      // Only act/log once: a retried webhook (or the cron already having moved
-      // the outlet) must not spam the owner with duplicate dunning emails.
-      if (changed) {
+  if (event === "PAYMENT_FAILED_WEBHOOK" || event === "PAYMENT_USER_DROPPED_WEBHOOK") {
+    const failedCafeId = String(order?.order_tags?.cafeId || "");
+    if (failedCafeId) {
+      const cafe = await db.cafe.findUnique({
+        where: { id: failedCafeId },
+        select: { ownerId: true, subStatus: true, subPaidUntil: true },
+      });
+      if (cafe) {
+        // A failed attempt (wrong OTP, abandoned checkout) must never lock out an
+        // outlet that still has paid time left. Only a genuinely lapsed period
+        // flips to past_due — early renewals simply retry.
+        const lapsed =
+          cafe.subStatus === "active" &&
+          Boolean(cafe.subPaidUntil) &&
+          cafe.subPaidUntil!.getTime() <= Date.now();
+        const changed = lapsed ? await markPastDue(failedCafeId) : false;
+
+        const owner = cafe.ownerId
+          ? await db.user.findUnique({ where: { id: cafe.ownerId }, select: { email: true, name: true } })
+          : null;
         if (owner?.email) {
           await sendEmail({
             to: owner.email,
-            subject: "Qtable — your renewal needs attention ⚠️",
-            html: paymentFailedHtml({ name: owner.name || "there", amount }),
+            subject: changed ? "Qtable — your subscription has lapsed ⚠️" : "Qtable — payment didn't complete",
+            html: paymentFailedHtml({ name: owner.name || "there", amount: `₹${(Number(payment?.payment_amount || 0) / 100).toLocaleString("en-IN")}` }),
           });
         }
-        try { await db.auditLog.create({ data: { cafeId, action: "BILL_DUNNING_SENT", meta: `${event} ${amount}` } }); } catch {}
       }
     }
     return NextResponse.json({ ok: true });
   }
 
-  // ---- 4. Mandate cancelled/completed: stop auto-renew, keep paid access ----
-  if (event === "subscription.cancelled" || event === "subscription.completed" || event === "subscription.paused") {
-    const notes = sub?.notes || {};
-    const cafeId: string = notes.cafeId || "";
-    if (!cafeId) return NextResponse.json({ ok: true, ignored: "no-cafe" });
-
-    await db.cafe
-      .update({ where: { id: cafeId }, data: { subAutoRenew: false } })
-      .catch(() => undefined);
-    // Deliberately do NOT set subStatus=canceled: the customer already paid for
-    // the current period. Access continues until paid-until (+ grace).
-    try {
-      await db.billingEvent.create({
-        data: { cafeId, kind: "canceled", plan: notes.plan || "", billing: notes.billing || "", meta: `${event} ${sub?.id || ""}` },
-      });
-    } catch {}
-    return NextResponse.json({ ok: true });
-  }
-
+  // Refunds / charges / anything else: acknowledged, no state change needed.
   return NextResponse.json({ ok: true, ignored: event });
 }

@@ -25,14 +25,16 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://js.stripe.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://*.cashfree.com https://js.stripe.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https:",
               // Sentry ingest must be explicitly allowed, otherwise the browser
               // silently blocks every crash report before it leaves the page.
-              "connect-src 'self' https://api.razorpay.com https://api.stripe.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
-              "frame-src 'self' https://api.razorpay.com https://js.stripe.com",
+              "connect-src 'self' https://api.cashfree.com https://sandbox.cashfree.com https://*.cashfree.com https://api.stripe.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
+              "frame-src 'self' https://*.cashfree.com https://js.stripe.com",
+              // Hosted checkout may submit a form / navigate to Cashfree's domain.
+              "form-action 'self' https://*.cashfree.com",
               "object-src 'none'",
               "base-uri 'self'",
             ].join("; "),

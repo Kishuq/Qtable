@@ -125,10 +125,10 @@ export default function SettingsPage() {
       </div>
 
       <div className="glass mt-4 rounded-3xl p-6">
-        <p className="font-black">💳 Online payments — Razorpay self-setup</p>
+        <p className="font-black">💳 Online payments — Cashfree self-setup</p>
         <p className="mt-1 text-sm text-stone-400">
-          Paste your own Razorpay keys — we verify them live, store the secret encrypted, and UPI auto-checkout
-          switches on instantly. No developer, no redeploy.
+          Paste your own Cashfree App ID + Secret Key — we verify them live, store the secret encrypted, and card/UPI
+          auto-checkout switches on instantly. No developer, no redeploy.
         </p>
         {gw.configured ? (
           <div className="mt-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
@@ -142,20 +142,25 @@ export default function SettingsPage() {
               </button>
             )}
             {gw.fromEnv && <p className="mt-1 text-[11px] text-stone-400">Managed via server env vars — remove them there to use self-serve keys.</p>}
+            <p className="mt-2 break-all text-[11px] text-stone-400">
+              Webhook URL (add in Cashfree Dashboard → Developers → Webhooks):
+              <br />
+              <code className="text-emerald-200">/api/public/pay/cashfree/webhook/&lt;your-outlet-id&gt;</code>
+            </p>
           </div>
         ) : (
           <div className="mt-3 space-y-2">
-            <input value={keyId} onChange={(e) => setKeyId(e.target.value.trim())} placeholder="Razorpay Key ID (rzp_test_… / rzp_live_…)" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
-            <input value={keySecret} onChange={(e) => setKeySecret(e.target.value)} type="password" placeholder="Razorpay Key Secret (paste once — never shown again)" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
+            <input value={keyId} onChange={(e) => setKeyId(e.target.value.trim())} placeholder="Cashfree App ID" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
+            <input value={keySecret} onChange={(e) => setKeySecret(e.target.value)} type="password" placeholder="Cashfree Secret Key (paste once — never shown again)" className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
             <label className="flex items-center gap-2 text-xs font-bold text-stone-300">
               <input type="checkbox" checked={liveMode} onChange={(e) => setLiveMode(e.target.checked)} />
               These are LIVE keys (real money) — leave off for test mode
             </label>
             <button onClick={connectGateway} disabled={gwBusy || !keyId.trim() || !keySecret.trim()} className="w-full rounded-2xl bg-orange-600 py-3 text-sm font-black transition hover:brightness-110 active:scale-[.99] disabled:opacity-60">
-              {gwBusy ? "Verifying with Razorpay… ⏳" : "Verify & enable payments →"}
+              {gwBusy ? "Verifying with Cashfree… ⏳" : "Verify & enable payments →"}
             </button>
             {gwMsg && <p className="text-sm">{gwMsg}</p>}
-            <p className="text-[11px] text-stone-500">Get keys: Razorpay Dashboard → Settings → API Keys. Start in test mode, flip to live after KYC.</p>
+            <p className="text-[11px] text-stone-500">Get keys: Cashfree Dashboard → Developers → API Keys. Start in sandbox, flip to live after KYC.</p>
           </div>
         )}
       </div>
@@ -194,7 +199,7 @@ export default function SettingsPage() {
           Menu: {slug ? `/t/${slug}/T1` : "/t/{outlet}/T1"} … {slug ? `/t/${slug}/T12` : "/t/{outlet}/T12"} (print these QRs!)
         </p>
         <p className="mt-3 font-black">💳 Payments — zero friction, zero cheating</p>
-        <p className="mt-1 text-stone-400"><b>UPI (no setup):</b> customer pays your QR and taps “I’ve Paid” — order fires instantly, you tap <b>✓ Received</b> when the credit lands (you’re watching live orders anyway). <b>Fully automatic:</b> add <b>RAZORPAY_KEY_ID + SECRET</b> → inline UPI/cards with server-verified signature, PAID with zero taps. Or <b>STRIPE_SECRET_KEY</b> → hosted checkout + webhook (/api/pay/stripe/webhook). The ONLINE button appears only when a gateway is connected.</p>
+        <p className="mt-1 text-stone-400"><b>UPI (no setup):</b> customer pays your QR and taps “I’ve Paid” — order fires instantly, you tap <b>✓ Received</b> when the credit lands (you’re watching live orders anyway). <b>Fully automatic:</b> add <b>CASHFREE_APP_ID + SECRET</b> (or connect in Settings) → hosted card/UPI checkout with server-verified payment, PAID with zero taps. Or <b>STRIPE_SECRET_KEY</b> → hosted checkout + webhook (/api/pay/stripe/webhook). The ONLINE button appears only when a gateway is connected.</p>
         <p className="mt-3 font-black">🛡️ Security checklist</p>
         <ul className="mt-1 list-disc space-y-1 pl-5 text-stone-400">
           <li>Set a 32+ char JWT_SECRET in production + HTTPS only cookies</li>

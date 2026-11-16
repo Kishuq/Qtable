@@ -54,7 +54,7 @@ model Cafe {
   ownerId      String
   gstPct       Float    @default(5)
   // ---- Qtable subscription (per outlet) ----
-  // New signups start "pending" (preview mode). Razorpay checkout/webhook flips
+  // New signups start "pending" (preview mode). Cashfree checkout/webhook flips
   // this to "active". Existing rows default to active so earlier deployments
   // and self-hosted installs keep working.
   planTier     String    @default("standard") // menu | standard | pro
@@ -63,13 +63,15 @@ model Cafe {
   subPaidUntil DateTime?
   subRef       String    @default("")
   subStartedAt DateTime?
-  // Auto-renew mandate (Razorpay Subscriptions). Empty = manual renewal.
+  // Auto-renew mandate (Cashfree Subscriptions). Empty = manual renewal.
   subMandateId String    @default("")
   subAutoRenew Boolean   @default(false)
-  // ---- Self-serve Razorpay (per-outlet gateway, AES-encrypted at rest) ----
-  razorpayKeyId        String  @default("")
-  razorpayKeySecretEnc String  @default("")
-  razorpayLive         Boolean @default(false)
+  // ---- Self-serve Cashfree (per-outlet gateway, AES-encrypted at rest) ----
+  // Column names keep their historical mapping so `prisma db push` is a no-op
+  // (zero-downtime deploy) while the application speaks Cashfree.
+  cashfreeAppId     String  @default("") @map("razorpayKeyId")
+  cashfreeSecretEnc String  @default("") @map("razorpayKeySecretEnc")
+  cashfreeLive      Boolean @default(false) @map("razorpayLive")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -236,7 +238,11 @@ model Payment {
   mode        String   // COUNTER UPI ONLINE
   status      String   @default("PENDING")
   amount      Int
+  // Cashfree order id. Bound to the order row so verification never trusts a
+  // client-supplied gateway id.
   providerRef String   @default("")
+  // Cashfree payment_session_id, reused when checkout is opened twice.
+  providerSession String @default("")
   createdAt   DateTime @default(now())
 
   @@index([orderId])
