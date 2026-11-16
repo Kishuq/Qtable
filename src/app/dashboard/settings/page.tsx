@@ -16,6 +16,7 @@ export default function SettingsPage() {
   const [mailBusy, setMailBusy] = useState(false);
   const [mailMsg, setMailMsg] = useState("");
   const [slug, setSlug] = useState("");
+  const [cafeId, setCafeId] = useState("");
 
   async function loadMail() {
     try {
@@ -81,6 +82,7 @@ export default function SettingsPage() {
       if (j.cafe) {
         setF({ name: j.cafe.name, tagline: j.cafe.tagline, description: j.cafe.description, upiId: j.cafe.upiId, gstPct: j.cafe.gstPct, currency: j.cafe.currency || "INR" });
         setSlug(j.cafe.slug || "");
+        setCafeId(j.cafe.id || "");
       }
     }).catch(() => {});
   }, []);
@@ -145,7 +147,7 @@ export default function SettingsPage() {
             <p className="mt-2 break-all text-[11px] text-stone-400">
               Webhook URL (add in Cashfree Dashboard → Developers → Webhooks):
               <br />
-              <code className="text-emerald-200">/api/public/pay/cashfree/webhook/&lt;your-outlet-id&gt;</code>
+              <code className="text-emerald-200">/api/public/pay/cashfree/webhook/{slug || cafeId || "your-outlet"}</code>
             </p>
           </div>
         ) : (

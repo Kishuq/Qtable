@@ -10,7 +10,15 @@ import { getCafeCashfree } from "@/lib/paykeys";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ cafeId: string }> }) {
-  const { cafeId } = await ctx.params;
+  // Accept either the outlet id or its public slug, so owners can copy a
+  // human-readable URL straight from Settings.
+  const { cafeId: ref } = await ctx.params;
+  const row =
+    (await db.cafe.findUnique({ where: { id: ref }, select: { id: true } })) ||
+    (await db.cafe.findUnique({ where: { slug: ref }, select: { id: true } }));
+  if (!row) return NextResponse.json({ error: "Unknown outlet" }, { status: 404 });
+  const cafeId = row.id;
+
   const keys = await getCafeCashfree(cafeId);
   if (!keys) return NextResponse.json({ error: "Gateway not configured" }, { status: 503 });
 
