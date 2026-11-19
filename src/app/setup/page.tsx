@@ -75,8 +75,8 @@ function SetupInner() {
             : "60 seconds. Menu, tables & QRs are created for you."}
         </p>
         <p className="mt-3 rounded-2xl border border-white/10 bg-white/[.03] p-3 text-xs leading-relaxed text-stone-400">
-          Your dashboard opens in <b className="text-stone-200">preview mode</b> — look around, try the design studio,
-          see every module. Nothing is published and no orders are taken until you subscribe.
+          Your dashboard opens in <b className="text-stone-200">preview mode</b> — look around, preview the design studio,
+          and see the ordering flow. Saving, publishing, QR ordering and Pro modules unlock when you subscribe.
           <br />
           Selected plan: <b className="text-stone-200">{planName}</b> — you can change it before paying. Nothing is
           charged today.

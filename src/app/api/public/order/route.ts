@@ -99,7 +99,10 @@ export async function POST(req: NextRequest) {
 
   let discount = 0;
   const code = d.coupon.trim().toUpperCase();
-  if (code) {
+  // Coupons are Pro-only. Ignore any code sent by a lower-tier outlet — the
+  // public menu never offers them, and a hand-crafted request must not get a
+  // discount the plan doesn't include.
+  if (code && planAllowsPro(sub.plan)) {
     const coupon = await withDbRetry(
       () => db.coupon.findFirst({ where: { cafeId: cafe.id, code, active: true } }),
       "order-coupon",
@@ -187,7 +190,7 @@ export async function POST(req: NextRequest) {
     // Single-statement create is all-or-nothing: reaching here means NOTHING was
     // written, so the customer can safely retry with zero ghost-order risk.
     console.error("ORDER_CREATE_FAIL", e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: "Kitchen is slammed right now — tap Place order once more." }, { status: 503 });
+    return NextResponse.json({ error: "The counter is buzzing right now — tap Place order once more." }, { status: 503 });
   }
   // A deduplicated retry has already been counted, stocked and audited.
   if (duplicate) {

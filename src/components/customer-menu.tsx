@@ -148,6 +148,15 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
 
   const popular = useMemo(() => (data ? data.items.filter((i) => i.popular).slice(0, 6) : []), [data]);
 
+  // The printed QR carries the table. Opened without one (/t/{outlet}) the menu
+  // is browse-only, and a code that isn't one of this outlet's tables (old card,
+  // typo, forwarded link) is read-only instead of failing at checkout.
+  const tableKnown = useMemo(
+    () => Boolean(data && tableCode && data.tables.some((t) => t.code.toLowerCase() === tableCode.toLowerCase())),
+    [data, tableCode],
+  );
+  const canOrder = ordering && tableKnown;
+
   const cartLines = useMemo(() => {
     if (!data) return [];
     return Object.entries(cart).map(([id, qty]) => ({ item: data.items.find((i) => i.id === id)!, qty })).filter((l) => l.item && l.qty > 0);
@@ -161,6 +170,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
   const effectiveTable = tableCode || "";
 
   function add(id: string, name: string, qty = 1) {
+    if (!canOrder) return;
     setCart((c) => ({ ...c, [id]: Math.min(20, (c[id] || 0) + qty) }));
     setLastAdded(id);
     setTimeout(() => setLastAdded(null), 400);
@@ -270,7 +280,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
           await payOnline(orderId, provider);
           return; // gateway redirected (stripe) or cashfree redirected (hosted)
         } catch (e: unknown) {
-          // Order EXISTS (kitchen has it) — payment just didn't complete.
+          // Order EXISTS (counter has it) — payment just didn't complete.
           toast(e instanceof Error ? e.message : "Online payment failed", "err");
           window.location.href = `/order/${orderId}`;
           return;
@@ -343,14 +353,19 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
             <p className="t-heading truncate text-xl font-black leading-tight tracking-tight drop-shadow lg:whitespace-normal lg:text-4xl">{data.cafe.name}</p>
             <p className="t-accent-text truncate text-xs font-bold lg:whitespace-normal lg:text-base">{data.cafe.tagline}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 lg:mt-3">
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open now</span>
-              {tableCode && <span className="t-grad rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow">Table {tableCode} • Dine-in</span>}
+              {preview ? (
+                <span className="flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-300"><span className="size-1.5 rounded-full bg-amber-400" /> Preview menu</span>
+              ) : (
+                <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Open now</span>
+              )}
+              {tableCode && tableKnown && <span className="t-grad rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow">Table {tableCode} • Dine-in</span>}
+              {tableCode && data && !tableKnown && <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-black text-amber-200">Table not recognised</span>}
               <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-300">{data.items.length} dishes</span>
             </div>
             <p className="mt-5 hidden max-w-[16rem] text-sm leading-relaxed text-stone-200 lg:block">Scan. Order. Enjoy. — your table, your pace, no waiting to catch an eye.</p>
           </div>
         </div>
-        {ordering && tableCode && (
+        {canOrder && (
           <div className="relative hidden px-8 pb-8 lg:block">
             <button
               onClick={callWaiter}
@@ -397,6 +412,20 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
         </div>
       </div>
 
+      {!canOrder && (
+        <div className="px-5 pt-3 lg:px-8">
+          <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs font-bold text-stone-300">
+            {tableCode && data && !tableKnown
+              ? "⚠️ This table link isn't valid for this outlet. Please re-scan the QR on your table, or ask the counter for help."
+              : preview
+                ? "🛠️ This outlet is setting up — the menu is preview-only for now. Please order at the counter."
+                : !ordering
+                  ? "📖 Menu-only plan — please order at the counter."
+                  : "👀 You're browsing the menu. Scan the QR on your table to order — the table is detected automatically."}
+          </p>
+        </div>
+      )}
+
       {/* Live order — jump back to tracking after returning to the menu */}
       {(() => {
         const live = usuals.find((u) => ["NEW", "ACCEPTED", "PREPARING", "READY"].includes(u.status));
@@ -418,7 +447,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
       })()}
 
       {/* Offers */}
-      {ordering && data.coupons.length > 0 && (
+      {canOrder && data.coupons.length > 0 && (
         <div className="no-scrollbar flex gap-2 overflow-x-auto px-5 pt-4 lg:px-8">
           {data.coupons.map((c) => (
             <button key={c.code} onClick={() => { setForm({ ...form, coupon: c.code }); setCheckout(true); }}
@@ -432,7 +461,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
       )}
 
       {/* Your usual — one-tap reorder for regulars */}
-      {ordering && count === 0 && usuals.length > 0 && (
+      {canOrder && count === 0 && usuals.length > 0 && (
         <div className="px-5 pt-4 lg:px-8">
           <div className="glass t-card card-hover anim-rise rounded-3xl border-orange-500/30 p-4">
             <p className="text-sm font-black">👋 Welcome back — your usual?</p>
@@ -468,7 +497,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
                   <span className="t-grad absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black text-white shadow-lg">{inr(i.price, data.cafe.currency)}</span>
                 </button>
                 <div className="p-3.5"><p className="truncate text-[13px] font-black">{i.name}</p>
-                  {ordering && <button onClick={() => add(i.id, i.name)} className="t-grad mt-2.5 w-full rounded-xl py-2.5 text-xs font-black text-white shadow-lg transition hover:brightness-110 active:scale-95">ADD +</button>}</div>
+                  {canOrder && <button onClick={() => add(i.id, i.name)} className="t-grad mt-2.5 w-full rounded-xl py-2.5 text-xs font-black text-white shadow-lg transition hover:brightness-110 active:scale-95">ADD +</button>}</div>
               </div>
             ))}
           </div>
@@ -488,7 +517,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
         </div>
         {flat ? (
           <div className={gridClass}>
-            {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+            {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={canOrder} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
           </div>
         ) : (data.categories.map((c) => {
           const list = items.filter((i) => i.categoryId === c.id);
@@ -497,7 +526,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
             <div key={c.id}>
               <CategoryHead name={c.name} count={list.length} style={theme.style} />
               <div className={gridClass}>
-                {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={ordering} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+                {list.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={canOrder} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
               </div>
             </div>
           );
@@ -513,18 +542,8 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
         )}
       </div>
 
-      {!ordering && (
-        <div className="px-5 pt-3 lg:px-8">
-          <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs font-bold text-stone-300">
-            {preview
-              ? "🛠️ This outlet is setting up — the menu is preview-only for now. Please order at the counter."
-              : "📖 Menu-only plan — please order at the counter."}
-          </p>
-        </div>
-      )}
-
       {/* Mobile waiter call — a floating pill keeps the sticky header short. */}
-      {ordering && tableCode && count === 0 && !checkout && !quick && (
+      {canOrder && count === 0 && !checkout && !quick && (
         <button
           onClick={callWaiter}
           disabled={waiter !== "idle"}
@@ -541,7 +560,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
       )}
 
       {/* Cart bar */}
-      {ordering && count > 0 && !checkout && !quick && (
+      {canOrder && count > 0 && !checkout && !quick && (
         <button onClick={() => setCheckout(true)} className="t-grad animate-pulse-ring fixed bottom-5 left-1/2 z-40 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-3xl border border-white/20 p-4 text-left font-black text-white shadow-2xl transition active:scale-[.98]">
           <span className="flex items-center justify-between gap-3"><span className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-2xl bg-black/25 text-lg">🛒</span><span><span className="block text-sm">{count} item{count > 1 ? "s" : ""} • {inr(subtotal, data.cafe.currency)}</span><span className="block text-[11px] font-bold opacity-80">GST included • tap to review</span></span></span><span className="shrink-0 rounded-full bg-black/25 px-4 py-2 text-sm">Review →</span></span>
         </button>
@@ -564,15 +583,27 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
               <p className="mt-1 text-sm text-stone-400">{quick.description || "Made fresh to order."}</p>
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-xl font-black">{inr(quick.price, data.cafe.currency)}</p>
-                <div className="flex items-center gap-3 rounded-full bg-white/10 px-2 py-1.5">
-                  <button onClick={() => setQuickQty(Math.max(1, quickQty - 1))} className="grid size-8 place-items-center rounded-full bg-white/10 text-lg font-black">−</button>
-                  <span className="min-w-5 text-center font-black">{quickQty}</span>
-                  <button onClick={() => setQuickQty(Math.min(20, quickQty + 1))} className="grid size-8 place-items-center rounded-full bg-white/10 text-lg font-black">+</button>
-                </div>
+                {canOrder && (
+                  <div className="flex items-center gap-3 rounded-full bg-white/10 px-2 py-1.5">
+                    <button onClick={() => setQuickQty(Math.max(1, quickQty - 1))} className="grid size-8 place-items-center rounded-full bg-white/10 text-lg font-black">−</button>
+                    <span className="min-w-5 text-center font-black">{quickQty}</span>
+                    <button onClick={() => setQuickQty(Math.min(20, quickQty + 1))} className="grid size-8 place-items-center rounded-full bg-white/10 text-lg font-black">+</button>
+                  </div>
+                )}
               </div>
-              <button onClick={() => { add(quick.id, quick.name, quickQty); setQuick(null); }} className="t-grad mt-4 w-full rounded-2xl py-3.5 font-black text-white">
-                Add {quickQty} • {inr(quick.price * quickQty, data.cafe.currency)}
-              </button>
+              {canOrder ? (
+                <button onClick={() => { add(quick.id, quick.name, quickQty); setQuick(null); }} className="t-grad mt-4 w-full rounded-2xl py-3.5 font-black text-white">
+                  Add {quickQty} • {inr(quick.price * quickQty, data.cafe.currency)}
+                </button>
+              ) : (
+                <p className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-center text-xs font-bold text-stone-300">
+                  {tableCode && data && !tableKnown
+                    ? "Re-scan the QR on your table to order this."
+                    : preview
+                      ? "This outlet is still setting up — ordering opens soon."
+                      : "Scan the QR on your table to order this."}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -611,12 +642,14 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your name" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
               <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone (optional)" inputMode="tel" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
             </div>
-            <div className="mt-2 flex gap-2">
-              <input value={form.coupon} onChange={(e) => setForm({ ...form, coupon: e.target.value.toUpperCase() })} placeholder="Coupon code" className="flex-1 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm outline-none focus:border-amber-400" />
-              {couponPct > 0 && <span className="grid place-items-center rounded-2xl bg-emerald-500/15 px-4 text-xs font-black text-emerald-300">−{couponPct}% ✓</span>}
-              {form.coupon.trim() && couponPct === 0 && <span className="grid place-items-center rounded-2xl bg-white/5 px-4 text-xs font-bold text-stone-400">not recognised</span>}
-            </div>
-            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Note for kitchen (less spicy…)" className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
+            {data.coupons.length > 0 && (
+              <div className="mt-2 flex gap-2">
+                <input value={form.coupon} onChange={(e) => setForm({ ...form, coupon: e.target.value.toUpperCase() })} placeholder="Coupon code" className="flex-1 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm outline-none focus:border-amber-400" />
+                {couponPct > 0 && <span className="grid place-items-center rounded-2xl bg-emerald-500/15 px-4 text-xs font-black text-emerald-300">−{couponPct}% ✓</span>}
+                {form.coupon.trim() && couponPct === 0 && <span className="grid place-items-center rounded-2xl bg-white/5 px-4 text-xs font-bold text-stone-400">not recognised</span>}
+              </div>
+            )}
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Note for the counter (less spicy…)" className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none" />
 
             <p className="mt-4 text-xs font-black tracking-wider text-stone-400">PAYMENT</p>
             <div className={`mt-2 grid gap-2 ${onlineProvider ? "grid-cols-3" : "grid-cols-2"}`}>
@@ -626,7 +659,13 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
                 </button>
               ))}
             </div>
-            {!onlineProvider && <p className="mt-1.5 text-[11px] text-stone-500">Online card payment unlocks once your outlet connects its gateway — counter & UPI work now.</p>}
+            {!onlineProvider && (
+              <p className="mt-1.5 text-[11px] text-stone-500">
+                {data.cafe.upiId
+                  ? "Card payment unlocks once the outlet connects a gateway — cash & UPI work now."
+                  : "No online payment yet — settle in cash at the counter when you leave."}
+              </p>
+            )}
             {form.pay === "ONLINE" && onlineProvider && (
               <p className="mt-1.5 rounded-xl bg-emerald-500/10 p-2.5 text-[11px] font-bold text-emerald-200">⚡ Fully automatic — pay inside the secure popup and your order confirms itself. Nothing to paste, nothing to prove.</p>
             )}
@@ -664,7 +703,7 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
                         <img src={`/api/qr?text=${encodeURIComponent(upiUrl)}`} alt="UPI QR" className="mx-auto mt-2 size-40 rounded-2xl bg-white p-2" />
                       </details>
                     )}
-                    <p className="mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-xs font-bold text-emerald-200">Paid? Just tap <b>Place order</b> below — your order fires to the kitchen instantly. The counter confirms it on their screen. No codes, no waiting. ⚡</p>
+                    <p className="mt-2 rounded-xl bg-emerald-500/10 p-2.5 text-xs font-bold text-emerald-200">Paid? Just tap <b>Place order</b> below — your order reaches the counter instantly. Staff confirm the credit on their screen. No codes, no waiting. ⚡</p>
                   </>
                 )}
               </div>
@@ -684,12 +723,12 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
               disabled={placing || cartLines.length === 0 || !tableCode}
               className="t-grad mt-4 w-full rounded-2xl py-4 font-black text-white shadow-xl transition hover:brightness-110 active:scale-[.99] disabled:opacity-50"
             >
-              {placing ? "Sending to kitchen… 🔔"
+              {placing ? "Sending your order… 🔔"
                 : form.pay === "UPI" && cashAuto ? `Pay ${inr(total, data.cafe.currency)} with UPI →`
                 : form.pay === "UPI" ? `✓ I've Paid — Fire My Order • ${inr(total, data.cafe.currency)}`
                 : `Place order • ${inr(total, data.cafe.currency)}`}
             </button>
-            <p className="mt-2 text-center text-[11px] text-stone-500">Hits the counter + kitchen screens in ~2 seconds 🔔</p>
+            <p className="mt-2 text-center text-[11px] text-stone-500">Reaches the counter in ~2 seconds — no app, no waiting 🔔</p>
           </div>
         </div>
       )}

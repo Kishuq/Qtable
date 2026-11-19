@@ -9,7 +9,6 @@ type Member = { id: string; name: string; email: string; role: string; createdAt
 const ROLES: Record<string, { emoji: string; desc: string }> = {
   OWNER: { emoji: "👑", desc: "Everything" },
   STAFF: { emoji: "🧾", desc: "Counter orders + menu" },
-  KITCHEN: { emoji: "👨‍🍳", desc: "Kitchen display only" },
 };
 
 export default function StaffPage() {
@@ -49,15 +48,15 @@ export default function StaffPage() {
   return (
     <PlanGate>
     <div>
-      <SectionTitle title="Team & logins 👥" sub="Give counter staff and kitchen their own logins — stop sharing one password." />
+      <SectionTitle title="Team & logins 👥" sub="Give counter staff their own logins — stop sharing one password." />
       <div className="glass mt-4 rounded-3xl p-5">
         <p className="text-sm font-black">Add team member</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Name (Ravi — counter)" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
           <input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} placeholder="Email / login id" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
           <input value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} type="password" placeholder="Password (min 8 chars)" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none focus:border-orange-500" />
-          <div className="grid grid-cols-2 gap-2">
-            {(["STAFF", "KITCHEN"] as const).map((r) => (
+          <div className="grid gap-2">
+            {(["STAFF"] as const).map((r) => (
               <button key={r} onClick={() => setF({ ...f, role: r })} className={`rounded-2xl border py-2.5 text-xs font-black ${f.role === r ? "border-orange-500 bg-orange-500/15 text-orange-200" : "border-white/10 text-stone-400"}`}>
                 {ROLES[r].emoji} {r}
               </button>
@@ -79,7 +78,7 @@ export default function StaffPage() {
           </div>
         ))}
       </div>
-      {staff.length === 0 && <div className="mt-4"><EmptyState emoji="👥" title="Just you for now" hint="Add your counter + kitchen crew so everyone has their own login." /></div>}
+      {staff.length === 0 && <div className="mt-4"><EmptyState emoji="👥" title="Just you for now" hint="Add your counter crew so everyone has their own login." /></div>}
     </div>
     </PlanGate>
   );

@@ -42,6 +42,8 @@ function SubscribeInner() {
   const [plan, setPlan] = useState<PlanId>(parsePlan(sp.get("plan")));
   const [billing, setBilling] = useState<Billing>(parseBilling(sp.get("billing")));
   const [status, setStatus] = useState<Status | null>(null);
+  // null = still checking, false = anonymous visitor, true = signed in.
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
@@ -58,7 +60,14 @@ function SubscribeInner() {
       try {
         const r = await fetch("/api/billing/status", { cache: "no-store" });
         const j = await r.json().catch(() => null);
-        if (!j || j.error || stop) return;
+        if (stop) return;
+        // The pricing page is public. Signed-out visitors get an honest
+        // "log in to subscribe" state instead of someone else's preview banner.
+        if (r.status === 401 || !j || j.error) {
+          setAuthed(false);
+          return;
+        }
+        setAuthed(true);
         setStatus(j);
         if (j.active) {
           router.push(next);
@@ -125,6 +134,7 @@ function SubscribeInner() {
       }
       if (!r.ok) {
         if (j.fallback) {
+          setBusy(false);
           const url = PLAN_URLS[plan];
           if (url) {
             window.location.href = url;
@@ -160,6 +170,7 @@ function SubscribeInner() {
   }
 
   const isActive = status?.active === true;
+  const loginHref = `/login?next=${encodeURIComponent(`/subscribe?plan=${plan}&billing=${billing}&next=${next}`)}`;
 
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-5 py-12">
@@ -167,8 +178,13 @@ function SubscribeInner() {
         <p className="mx-auto grid size-14 place-items-center rounded-2xl bg-orange-600/15 text-2xl">💳</p>
         <h1 className="mt-4 text-3xl font-black tracking-tight md:text-4xl">Choose your plan</h1>
         <p className="mx-auto mt-2 max-w-lg text-sm text-stone-400">
-          Your outlet is in preview mode — everything is built and visible. Subscribe to publish the menu, print table
-          QRs and start taking orders.
+          {isActive
+            ? "Your outlet is active. Pick a different plan whenever you like — the change starts from your next billing date."
+            : authed === false
+              ? "Sign in to subscribe for your outlet. New here? Open an outlet in 60 seconds — no card needed until you publish."
+              : status
+                ? "Your outlet is in preview mode — everything is built and visible. Subscribe to publish the menu, print table QRs and start taking orders."
+                : "Monthly or yearly — cancel anytime. Pick the plan that fits your outlet."}
         </p>
         {status?.cafe && (
           <p className="mt-3 inline-flex rounded-full bg-white/5 px-3 py-1 text-xs font-bold text-stone-300">
@@ -252,12 +268,35 @@ function SubscribeInner() {
         {note && <p className="mt-3 rounded-2xl bg-amber-500/10 p-3 text-sm text-amber-200">{note}</p>}
 
         <button
-          onClick={pay}
-          disabled={busy || isActive}
+          onClick={() => {
+            if (authed === false) {
+              router.push(loginHref);
+              return;
+            }
+            pay();
+          }}
+          disabled={busy || isActive || authed === null}
           className="mt-4 w-full rounded-2xl bg-orange-600 py-3.5 font-black text-white shadow-xl transition hover:bg-orange-500 active:scale-[.99] disabled:opacity-60"
         >
-          {isActive ? "✓ Already subscribed" : busy ? "Opening secure checkout…" : `Pay ₹${quote.total.toLocaleString("en-IN")} securely →`}
+          {isActive
+            ? "✓ Already subscribed"
+            : authed === false
+              ? "Log in to subscribe →"
+              : authed === null
+                ? "Checking your account…"
+                : busy
+                  ? "Opening secure checkout…"
+                  : `Pay ₹${quote.total.toLocaleString("en-IN")} securely →`}
         </button>
+
+        {authed === false && (
+          <p className="mt-2 text-center text-[11px] text-stone-500">
+            New outlet?{" "}
+            <Link href={`/setup?plan=${plan}`} className="font-bold text-orange-400 underline underline-offset-2">
+              Create one in 60 seconds →
+            </Link>
+          </p>
+        )}
 
         {status && !status.checkout && (
           <p className="mt-2 text-center text-[11px] text-stone-500">
@@ -278,7 +317,11 @@ function SubscribeInner() {
 
       <div className="mt-6 flex justify-center gap-4 text-sm font-bold">
         <Link href="/" className="text-stone-400 hover:text-white">← Back home</Link>
-        {!isActive && <Link href="/dashboard" className="text-orange-400">Keep browsing preview →</Link>}
+        {authed === false ? (
+          <Link href={loginHref} className="text-orange-400">Log in to your outlet →</Link>
+        ) : (
+          !isActive && <Link href="/dashboard" className="text-orange-400">Keep browsing preview →</Link>
+        )}
       </div>
     </div>
   );

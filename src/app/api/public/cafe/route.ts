@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db, withDbRetry } from "@/lib/db";
 import { isValidSlug } from "@/lib/cafe";
-import { subscriptionFromCafe, isSubscriptionActive, planAllowsOrdering } from "@/lib/billing";
+import { subscriptionFromCafe, isSubscriptionActive, planAllowsOrdering, planAllowsPro } from "@/lib/billing";
 
 // Public customer menu data for one outlet (no login needed — this is what QR
 // scans hit). `?slug=` selects the outlet; no slug falls back to the oldest
@@ -75,6 +75,9 @@ async function loadMenu(slug: string): Promise<MenuResult> {
     // view then behaves exactly like the Basic menu-only plan.
     const plan = active ? tier : "menu";
     const ordering = active && planAllowsOrdering(tier);
+    // Coupons are a Pro module. An unpaid or lower-tier outlet must never leak
+    // working codes to customers, even if rows exist from a previous plan.
+    const offers = active && planAllowsPro(tier);
 
     return {
       kind: "ok",
@@ -95,7 +98,7 @@ async function loadMenu(slug: string): Promise<MenuResult> {
         categories: cafe.categories,
         items: cafe.items,
         tables: cafe.tables.map((t) => ({ code: t.code, name: t.name })),
-        coupons: cafe.coupons.map((c) => ({ code: c.code, pct: c.pct })),
+        coupons: offers ? cafe.coupons.map((c) => ({ code: c.code, pct: c.pct })) : [],
         // The customer view only needs to know whether ordering is enabled — no
         // separate billing call on every scan.
         plan,

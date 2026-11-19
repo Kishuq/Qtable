@@ -88,7 +88,7 @@ export default function Overview() {
               { done: !upiMissing, label: "Add your UPI ID", hint: "Settings → payments in 30 seconds", href: "/dashboard/settings" },
               { done: guide.menu, label: "Add menu items", hint: "Photos, prices, categories", href: "/dashboard/menu" },
               { done: guide.tables, label: "Add tables & print QRs", hint: "Laminate + test-scan every table", href: "/dashboard/tables" },
-              { done: guide.team, label: "Invite your team", hint: "Counter + kitchen logins", href: "/dashboard/staff" },
+              { done: guide.team, label: "Invite your team", hint: "Counter staff logins", href: "/dashboard/staff" },
             ].map((s) => (
               <Link key={s.label} href={s.href} className="flex items-center gap-3 rounded-2xl bg-black/25 p-3 text-sm transition hover:bg-black/40">
                 <span className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-black ${s.done ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-stone-400"}`}>

@@ -15,8 +15,15 @@ export function PlanGate({ children }: { children: ReactNode }) {
       .catch(() => setState({ plan: "pro", active: true }));
   }, []);
 
-  // Loading or full access — render the module.
-  if (state === null || (state.plan === "pro" && state.active)) return <>{children}</>;
+  // Never flash a locked module's contents while the plan is still loading.
+  if (state === null) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <span className="size-6 animate-spin rounded-full border-2 border-white/20 border-t-orange-400" />
+      </div>
+    );
+  }
+  if (state.plan === "pro" && state.active) return <>{children}</>;
 
   const unpaid = !state.active;
   return (

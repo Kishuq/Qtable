@@ -198,7 +198,7 @@ export default function SettingsPage() {
       <div className="glass mt-4 rounded-3xl p-6 text-sm">
         <p className="font-black">🔗 Your customer link</p>
         <p className="mt-1 break-all text-orange-300">
-          Menu: {slug ? `/t/${slug}/T1` : "/t/{outlet}/T1"} … {slug ? `/t/${slug}/T12` : "/t/{outlet}/T12"} (print these QRs!)
+          Menu: {slug ? `/t/${slug}` : "/t/{outlet}"} (browse only) — customers order from the table QR printed in Tables & QR.
         </p>
         <p className="mt-3 font-black">💳 Payments — zero friction, zero cheating</p>
         <p className="mt-1 text-stone-400"><b>UPI (no setup):</b> customer pays your QR and taps “I’ve Paid” — order fires instantly, you tap <b>✓ Received</b> when the credit lands (you’re watching live orders anyway). <b>Fully automatic:</b> add <b>CASHFREE_APP_ID + SECRET</b> (or connect in Settings) → hosted card/UPI checkout with server-verified payment, PAID with zero taps. Or <b>STRIPE_SECRET_KEY</b> → hosted checkout + webhook (/api/pay/stripe/webhook). The ONLINE button appears only when a gateway is connected.</p>
@@ -207,7 +207,7 @@ export default function SettingsPage() {
           <li>Set a 32+ char JWT_SECRET in production + HTTPS only cookies</li>
           <li>Deploy behind Vercel/Cloudflare for DDoS + WAF</li>
           <li>Switch DATABASE_URL to Postgres + run prisma migrate</li>
-          <li>Create STAFF/KITCHEN logins with limited roles</li>
+          <li>Create STAFF logins with limited roles (no kitchen screen on Qtable)</li>
         </ul>
       </div>
     </div>

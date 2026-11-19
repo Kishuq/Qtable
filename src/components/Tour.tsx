@@ -12,37 +12,44 @@ const STEPS: Step[] = [
   },
   {
     target: 'aside a[href="/dashboard/orders"]',
-    title: "1/6 · Live orders",
+    title: "Live orders",
     body: "Every QR scan lands here in ~3 seconds with sound + notification. Keep this tab open during service. Advance each ticket NEW → READY → SERVED.",
   },
   {
     target: 'aside a[href="/dashboard/tables"]',
-    title: "2/6 · Tables & QR",
+    title: "Tables & QR",
     body: "Add your tables, print tent cards from your public domain, laminate, test-scan with 2 phones. QRs carry table + theme automatically.",
   },
   {
     target: 'aside a[href="/dashboard/menu"]',
-    title: "3/6 · Menu",
+    title: "Menu",
     body: "Dishes, photos, prices, categories. Toggle LIVE/HIDDEN to 86 an item mid-rush, ⭐ marks bestsellers, stock counts auto-hide sellouts (Pro).",
   },
   {
     target: 'aside a[href="/dashboard/settings"]',
-    title: "4/6 · UPI ID — do this today",
+    title: "UPI ID — do this today",
     body: "Paste your UPI ID in Settings. That's the entire payment setup for Cash + manual UPI. Cashfree keys unlock automatic card/UPI checkout later.",
   },
   {
     target: 'aside a[href="/dashboard/guide"]',
-    title: "5/6 · The manual",
+    title: "The manual",
     body: "The full owner academy lives here — open/close routine, payments, troubleshooting. When I'm not around, this page is.",
   },
   {
-    title: "You're live 🎉",
-    body: "Sound on, Orders open, QRs on tables. Your first real order is minutes away.",
-    cta: { label: "Open Tables & QR →", href: "/dashboard/tables" },
+    title: "Preview complete 🎉",
+    body: "You've seen the whole counter side. Nothing is live yet — subscribe when you're ready and your menu, QRs and first orders go live instantly.",
+    cta: { label: "Choose a plan →", href: "/subscribe" },
   },
 ];
 
 const FLAG = "qtable_tour_done_v1";
+
+// Same last slide, honest wording for an outlet that has already paid.
+const LIVE_FINAL: Step = {
+  title: "You're live 🎉",
+  body: "Sound on, Orders open, QRs on tables. Your first real order is minutes away.",
+  cta: { label: "Open Tables & QR →", href: "/dashboard/tables" },
+};
 
 function rectOf(sel?: string): DOMRect | null {
   if (!sel) return null;
@@ -62,6 +69,17 @@ export function Tour() {
   const router = useRouter();
   const [idx, setIdx] = useState<number | null>(null);
   const [box, setBox] = useState<DOMRect | null>(null);
+  // The final slide must not tell an unpaid outlet it is "live".
+  const [subActive, setSubActive] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/billing/status")
+      .then((r) => r.json())
+      .then((j) => { if (alive && j && !j.error) setSubActive(j.active !== false); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // Auto-start once, on the dashboard home only.
   useEffect(() => {
@@ -114,7 +132,7 @@ export function Tour() {
   }
 
   if (idx === null) return null;
-  const step = STEPS[idx];
+  const step = idx === STEPS.length - 1 && subActive === true ? LIVE_FINAL : STEPS[idx];
   const last = idx === STEPS.length - 1;
 
   // Tooltip placement: below the spotlight, or centered when no target.

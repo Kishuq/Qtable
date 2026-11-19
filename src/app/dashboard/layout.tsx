@@ -118,9 +118,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {sub?.preview && (
           <div className="no-print mb-4 flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 to-orange-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-black text-amber-100">👀 Preview mode — everything is visible, nothing is saved yet</p>
+              <p className="font-black text-amber-100">👀 Preview mode — explore freely, nothing goes live</p>
               <p className="mt-0.5 text-xs text-amber-200/80">
-                Browse any page and try the design studio. Choose a plan to publish your menu, print QRs and start taking orders.
+                Every page is yours to inspect, but saving changes, publishing, QR ordering and Pro modules
+                (inventory, insights, discounts, staff) unlock when you subscribe.
               </p>
             </div>
             <Link href="/subscribe" className="shrink-0 rounded-2xl bg-amber-500 px-5 py-2.5 text-center text-sm font-black text-stone-950 transition hover:brightness-110 active:scale-[.98]">
