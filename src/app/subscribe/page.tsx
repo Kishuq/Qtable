@@ -63,7 +63,7 @@ function SubscribeInner() {
         if (stop) return;
         // The pricing page is public. Signed-out visitors get an honest
         // "log in to subscribe" state instead of someone else's preview banner.
-        if (r.status === 401 || !j || j.error) {
+        if (r.status === 401 || !j || j.error || !j.cafe) {
           setAuthed(false);
           return;
         }

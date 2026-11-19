@@ -22,6 +22,10 @@ export async function GET() {
   ]);
   const active = isSubscriptionActive(sub);
 
+  // A signed token can outlive its outlet (deleted café, wiped test account).
+  // Treat that as signed out instead of serving a phantom "preview" state.
+  if (!cafe) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   return NextResponse.json({
     plan: sub?.plan ?? "standard",
     status: sub?.status ?? "pending",
