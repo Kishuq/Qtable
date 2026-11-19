@@ -313,7 +313,10 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
   const cover = theme.image || "";
 
   const upiUrl = data.cafe.upiId ? upiLink(data.cafe.upiId, data.cafe.name, total / 100, `Table ${effectiveTable}`) : "";
-  const catName = (id: string | null) => data.categories.find((c) => c.id === id)?.name || "Chef's picks";
+  // Dishes can end up without a category (category deleted, quick-created item)
+  // or pointing at a category that no longer exists. The grouped menu must still
+  // show them, otherwise a live dish silently disappears from every phone.
+  const uncategorized = items.filter((i) => !data.categories.some((c) => c.id === i.categoryId));
   const flat = sort !== "rel";
   // Layout families: photo-heavy styles keep the 2-up grid, text styles go
   // full width so names, dotted leaders and ticket rules have room.
@@ -519,7 +522,8 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
           <div className={gridClass}>
             {items.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={canOrder} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
           </div>
-        ) : (data.categories.map((c) => {
+        ) : (<>
+          {data.categories.map((c) => {
           const list = items.filter((i) => i.categoryId === c.id);
           if (list.length === 0) return null;
           return (
@@ -530,7 +534,16 @@ export function MenuApp({ tableCode, slug }: { tableCode: string | null; slug?: 
               </div>
             </div>
           );
-        }))}
+        })}
+          {uncategorized.length > 0 && (
+            <div>
+              <CategoryHead name="Chef's picks" count={uncategorized.length} style={theme.style} />
+              <div className={gridClass}>
+                {uncategorized.map((i, idx) => <DishCard key={i.id} item={i} currency={data.cafe.currency} style={theme.style} qty={cart[i.id] || 0} lastAdded={lastAdded === i.id} index={idx} ordering={canOrder} onAdd={() => add(i.id, i.name)} onSub={() => sub(i.id)} onQuick={() => { setQuick(i); setQuickQty(1); }} />)}
+              </div>
+            </div>
+          )}
+        </>)}
         {items.length === 0 && (
           <div className="py-10 text-center">
             <p className="text-4xl">🍽️</p>
